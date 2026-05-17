@@ -1,0 +1,198 @@
+// This is your Prisma schema file
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum DocumentType {
+  WORD
+  PDF
+}
+
+// ---------------------------------------------------------------------------
+// Importer + Locations
+// ---------------------------------------------------------------------------
+
+model Importer {
+  id               String            @id @default(cuid())
+  name             String
+  address          String
+  contact          String
+  email            String?
+  buyerName        String
+  currency         String
+  landingLocations LandingLocation[]
+  loadingLocations LoadingLocation[]
+  invoices         Invoice[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  deletedAt        DateTime?
+
+  @@map("importers")
+  @@index([name])
+  @@index([deletedAt])
+}
+
+model LandingLocation {
+  id                   String    @id @default(cuid())
+  importerId           String
+  importer             Importer  @relation(fields: [importerId], references: [id], onDelete: Cascade)
+  name                 String
+  portOfDischarge      String
+  finalDestination     String
+  countryOfDestination String
+  invoices             Invoice[]
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@map("landing_locations")
+  @@index([importerId])
+}
+
+model LoadingLocation {
+  id              String    @id @default(cuid())
+  importerId      String
+  importer        Importer  @relation(fields: [importerId], references: [id], onDelete: Cascade)
+  name            String
+  portOfLoading   String
+  countryOfOrigin String
+  invoices        Invoice[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("loading_locations")
+  @@index([importerId])
+}
+
+model ExporterProfile {
+  id        String   @id @default(cuid())
+  name      String
+  address   String
+  contact   String
+  email     String?
+  isLocked  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("exporter_profiles")
+}
+
+// ---------------------------------------------------------------------------
+// Invoice
+// ---------------------------------------------------------------------------
+
+model Invoice {
+  id                         String           @id @default(cuid())
+  invoiceNumber              String           @unique
+  invoiceDate                DateTime
+  status                     InvoiceStatus    @default(DRAFT)
+  importerId                 String
+  importer                   Importer         @relation(fields: [importerId], references: [id])
+  landingLocationId          String?
+  landingLocation            LandingLocation? @relation(fields: [landingLocationId], references: [id])
+  loadingLocationId          String?
+  loadingLocation            LoadingLocation? @relation(fields: [loadingLocationId], references: [id])
+  exportersRef               String?
+  otherReferences            String?
+  awbNumber                  String?
+  preCarriageBy              String?
+  placeOfReceiptByPreCarrier String?
+  vesselFlightNo             String?
+  portOfLoading              String?
+  portOfDischarge            String?
+  finalDestination           String?
+  buyerName                  String?
+  countryOfOrigin            String?
+  countryOfDestination       String?
+  descriptionOfGoods         String?
+  hsCode                     String?
+  termsOfDelivery            String?
+  termsOfPayment             String?
+  currency                   String
+  exporterName               String?
+  exporterAddress            String?
+  exporterContact            String?
+  exporterEmail              String?
+  lineItems                  LineItem[]
+  totalBoxes                 Int              @default(0)
+  totalNetWeight             Decimal          @default(0) @db.Decimal(12, 2)
+  totalGrossWeight           Decimal?         @db.Decimal(12, 2)
+  subTotal                   Decimal          @default(0) @db.Decimal(12, 2)
+  roundOff                   Decimal          @default(0) @db.Decimal(12, 2)
+  total                      Decimal          @default(0) @db.Decimal(12, 2)
+  amountInWords              String?
+  notes                      String?
+  createdAt                  DateTime         @default(now())
+  updatedAt                  DateTime         @updatedAt
+  deletedAt                  DateTime?
+
+  @@map("invoices")
+  @@index([importerId])
+  @@index([landingLocationId])
+  @@index([loadingLocationId])
+  @@index([status])
+  @@index([status, deletedAt])
+  @@index([invoiceNumber])
+  @@index([invoiceDate])
+  @@index([deletedAt])
+}
+
+// ---------------------------------------------------------------------------
+// LineItem
+// ---------------------------------------------------------------------------
+
+model LineItem {
+  id                  String  @id @default(cuid())
+  invoiceId           String
+  invoice             Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  marksAndNos         String?
+  containerNo         String?
+  descriptionOfGoods  String
+  netWeightPerPackage Decimal @db.Decimal(12, 2)
+  numberOfBoxes       Int
+  totalNetWeight      Decimal @db.Decimal(12, 2)
+  ratePerKg           Decimal @db.Decimal(12, 2)
+  totalPerBox         Decimal @db.Decimal(12, 2)
+  amount              Decimal @db.Decimal(12, 2)
+
+  @@map("line_items")
+  @@index([invoiceId])
+}
+
+// ---------------------------------------------------------------------------
+// Document (Word + PDF files)
+// ---------------------------------------------------------------------------
+
+model Document {
+  id        String       @id @default(cuid())
+  title     String
+  type      DocumentType @default(WORD)
+  content   String?      @db.Text
+  fileUrl   String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  deletedAt DateTime?
+
+  @@map("documents")
+  @@index([type])
+  @@index([deletedAt])
+  @@index([type, deletedAt])
+}

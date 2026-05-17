@@ -1,0 +1,20 @@
+{
+  "name": "manage-system",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently --names \"frontend,backend\" --prefix-colors \"cyan,yellow\" \"pnpm --filter frontend dev\" \"pnpm --filter backend dev\"",
+    "build": "pnpm --filter shared build && pnpm --filter frontend build && pnpm --filter backend build",
+    "test": "pnpm --filter frontend test && pnpm --filter backend test",
+    "test:coverage": "pnpm --filter frontend test:coverage && pnpm --filter backend test:coverage",
+    "lint": "pnpm --filter frontend lint && pnpm --filter backend lint",
+    "typecheck": "pnpm --filter shared typecheck && pnpm --filter frontend typecheck && pnpm --filter backend typecheck",
+    "db:migrate": "pnpm --filter backend prisma:migrate",
+    "db:studio": "pnpm --filter backend prisma:studio",
+    "db:seed": "pnpm --filter backend prisma:seed",
+    "db:generate": "pnpm --filter backend prisma:generate"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

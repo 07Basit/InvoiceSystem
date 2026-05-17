@@ -1,0 +1,54 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/server.js",
+    "test": "jest --passWithNoTests",
+    "test:coverage": "jest --coverage --passWithNoTests",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "prisma:seed": "tsx src/prisma/seed.ts",
+    "prisma:generate": "prisma generate",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "shared": "file:../shared",
+    "@prisma/client": "^6.8.2",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^5.0.1",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.2",
+    "pdf-lib": "^1.17.1",
+    "winston": "^3.17.0",
+    "xlsx": "^0.18.5",
+    "zod": "^3.23.8"
+  },
+  "prisma": {
+    "schema": "src/prisma/schema.prisma",
+    "seed": "tsx src/prisma/seed.ts"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.1",
+    "@types/jest": "^29.5.14",
+    "@types/jsonwebtoken": "^9.0.9",
+    "@types/multer": "^1.4.12",
+    "@types/node": "^22.13.1",
+    "@types/supertest": "^6.0.2",
+    "jest": "^29.7.0",
+    "jest-mock-extended": "^3.0.7",
+    "prisma": "^6.8.2",
+    "supertest": "^7.0.0",
+    "ts-jest": "^29.2.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

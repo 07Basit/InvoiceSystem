@@ -1,7 +1,7 @@
 [build]
-  base = "frontend"
-  command = "pnpm build"
-  publish = "dist"
+  base = "."
+  command = "pnpm --filter frontend build"
+  publish = "frontend/dist"
 
 [[redirects]]
   from = "/*"

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Plus, Pencil, Trash2, X, Save } from 'lucide-react';
+import { Plus, Pencil, Trash2, Save } from 'lucide-react';
 import type { CreateImporterDto } from 'shared';
 import { useClients, useCreateClient, useDeleteClient, useUpdateClient } from '../hooks/useClients';
 import type { Importer } from '../services/clientService';
@@ -22,8 +22,14 @@ const emptyImporter: CreateImporterDto = {
   ],
 };
 
-const importerDraftKey = 'importer-form-draft-v1';
+const importerDraftListKey = 'importer-draft-list-v1';
 type FieldErrors = Record<string, string>;
+
+interface ImporterDraft {
+  id: string;
+  createdAt: string;
+  data: CreateImporterDto;
+}
 
 const contactRegex = /^[0-9+()\-\s]{7,20}$/;
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -40,41 +46,32 @@ export default function ClientsPage() {
   const [form, setForm] = useState<CreateImporterDto>(emptyImporter);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<ImporterDraft[]>(() => {
+    try {
+      const raw = localStorage.getItem(importerDraftListKey);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw) as ImporterDraft[];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+  const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
 
   const importers = data?.data ?? [];
 
   const openCreate = () => {
     setEditing(null);
+    setEditingDraftId(null);
     setErrors({});
     setSubmitError(null);
-
-    try {
-      const rawDraft = localStorage.getItem(importerDraftKey);
-      if (!rawDraft) {
-        setForm(emptyImporter);
-      } else {
-        const draft = JSON.parse(rawDraft) as Partial<CreateImporterDto>;
-        setForm({
-          ...emptyImporter,
-          ...draft,
-          landingLocations: draft.landingLocations?.length
-            ? draft.landingLocations
-            : emptyImporter.landingLocations,
-          loadingLocations: draft.loadingLocations?.length
-            ? draft.loadingLocations
-            : emptyImporter.loadingLocations,
-        });
-        showToast('Draft restored', 'Your previous importer draft has been loaded.', 'info');
-      }
-    } catch {
-      setForm(emptyImporter);
-    }
-
+    setForm(emptyImporter);
     setIsFormOpen(true);
   };
 
   const openEdit = (importer: Importer) => {
     setEditing(importer);
+    setEditingDraftId(null);
     setErrors({});
     setSubmitError(null);
     setForm({
@@ -99,9 +96,26 @@ export default function ClientsPage() {
     setIsFormOpen(true);
   };
 
+  const openDraft = (draft: ImporterDraft) => {
+    setEditing(null);
+    setEditingDraftId(draft.id);
+    setErrors({});
+    setSubmitError(null);
+    setForm(draft.data);
+    setIsFormOpen(true);
+  };
+
+  const deleteDraft = (draftId: string) => {
+    const next = drafts.filter((item) => item.id !== draftId);
+    setDrafts(next);
+    localStorage.setItem(importerDraftListKey, JSON.stringify(next));
+    showToast('Draft deleted', 'Importer draft was removed.', 'info');
+  };
+
   const closeForm = () => {
     setIsFormOpen(false);
     setEditing(null);
+    setEditingDraftId(null);
     setForm(emptyImporter);
     setErrors({});
     setSubmitError(null);
@@ -156,8 +170,21 @@ export default function ClientsPage() {
   };
 
   const saveDraft = () => {
-    localStorage.setItem(importerDraftKey, JSON.stringify(form));
-    showToast('Draft saved', 'You can continue this importer later.', 'success');
+    const now = new Date().toISOString();
+    const draft: ImporterDraft = {
+      id: editingDraftId ?? `draft-${Date.now()}`,
+      createdAt: now,
+      data: form,
+    };
+
+    const next = editingDraftId
+      ? drafts.map((item) => (item.id === editingDraftId ? draft : item))
+      : [draft, ...drafts];
+
+    setDrafts(next);
+    localStorage.setItem(importerDraftListKey, JSON.stringify(next));
+    showToast('Draft saved', 'Draft importer added to the list.', 'success');
+    closeForm();
   };
 
   const saveImporter = async () => {
@@ -198,7 +225,11 @@ export default function ClientsPage() {
       } else {
         await createMutation.mutateAsync(payload);
         showToast('Importer created', `${payload.name} is ready to use in invoices.`, 'success');
-        localStorage.removeItem(importerDraftKey);
+        if (editingDraftId) {
+          const next = drafts.filter((item) => item.id !== editingDraftId);
+          setDrafts(next);
+          localStorage.setItem(importerDraftListKey, JSON.stringify(next));
+        }
       }
 
       closeForm();
@@ -224,14 +255,14 @@ export default function ClientsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Importers</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Manage importer master data and route mappings</p>
         </div>
         <button
           onClick={openCreate}
-          className="flex items-center gap-2 px-3 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:opacity-90"
+          className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:opacity-90 self-start"
         >
           <Plus className="h-4 w-4" /> New Importer
         </button>
@@ -254,8 +285,38 @@ export default function ClientsPage() {
       )}
 
       {!isError && <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {drafts.map((draft) => (
+          <div key={draft.id} className="border rounded-lg p-4 bg-card space-y-3 border-amber-300/70 bg-amber-50/30">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="font-semibold">{draft.data.name || 'Untitled Draft Importer'}</p>
+                  <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-amber-200 text-amber-800 font-semibold">Draft</span>
+                </div>
+                <p className="text-sm text-muted-foreground">Buyer: {draft.data.buyerName || '-'}</p>
+                <p className="text-sm text-muted-foreground">Currency: {draft.data.currency || '-'}</p>
+              </div>
+              <div className="flex items-center gap-1">
+                <button onClick={() => openDraft(draft)} className="p-1.5 hover:bg-accent rounded-md" title="Edit draft">
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+                <button onClick={() => deleteDraft(draft.id)} className="p-1.5 hover:bg-destructive/10 rounded-md" title="Delete draft">
+                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                </button>
+              </div>
+            </div>
+
+            <div className="text-sm space-y-1">
+              <p>{draft.data.address || 'No address yet'}</p>
+              <p className="text-muted-foreground">{draft.data.contact || '-'}{draft.data.email ? ` | ${draft.data.email}` : ''}</p>
+            </div>
+
+            <p className="text-xs text-muted-foreground">Saved on {new Date(draft.createdAt).toLocaleString()}</p>
+          </div>
+        ))}
+
         {importers.map((importer) => (
-          <div key={importer.id} className="border rounded-lg p-5 bg-card space-y-3">
+          <div key={importer.id} className="border rounded-lg p-4 bg-card space-y-3">
             <div className="flex items-start justify-between">
               <div>
                 <p className="font-semibold">{importer.name}</p>
@@ -284,7 +345,7 @@ export default function ClientsPage() {
               <p className="text-muted-foreground">{importer.contact}{importer.email ? ` | ${importer.email}` : ''}</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="border rounded-md p-2">
                 <p className="font-medium mb-1">Landing</p>
                 {importer.landingLocations.map((loc) => (
@@ -304,22 +365,14 @@ export default function ClientsPage() {
 
       {isFormOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-background rounded-lg w-full max-w-4xl max-h-[92vh] overflow-y-auto p-6 space-y-5">
+          <div className="bg-background rounded-lg w-full max-w-5xl max-h-[92vh] overflow-y-auto p-4 sm:p-6 space-y-5">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">{editing ? 'Edit Importer' : 'New Importer'}</h2>
-              <div className="flex items-center gap-2">
-                <button onClick={saveDraft} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border rounded-md hover:bg-accent">
-                  <Save className="h-3.5 w-3.5" /> Save Draft
-                </button>
-                <button onClick={closeForm} className="h-8 w-8 rounded-full border hover:bg-accent flex items-center justify-center text-muted-foreground hover:text-foreground" aria-label="Close importer form">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
+              <h2 className="text-lg font-semibold">{editing ? 'Edit Importer' : editingDraftId ? 'Edit Draft Importer' : 'New Importer'}</h2>
             </div>
 
             {submitError && <div className="text-sm text-destructive bg-destructive/5 border border-destructive/30 rounded-md px-3 py-2">{submitError}</div>}
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Field label="Name" value={form.name} error={errors['name']} onChange={(value) => { clearFieldError('name'); setForm((prev) => ({ ...prev, name: value })); }} />
               <Field label="Buyer Name" value={form.buyerName} error={errors['buyerName']} onChange={(value) => { clearFieldError('buyerName'); setForm((prev) => ({ ...prev, buyerName: value })); }} />
               <Field label="Contact" value={form.contact} error={errors['contact']} onChange={(value) => { clearFieldError('contact'); setForm((prev) => ({ ...prev, contact: value })); }} />
@@ -341,7 +394,7 @@ export default function ClientsPage() {
               }
             >
               {form.landingLocations.map((loc, index) => (
-                <div key={`landing-${index}`} className="relative grid grid-cols-4 gap-2 border rounded-md p-3 bg-muted/20">
+                <div key={`landing-${index}`} className="relative grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2 border rounded-md p-3 bg-muted/20">
                   <button
                     type="button"
                     disabled={form.landingLocations.length <= 1}
@@ -390,7 +443,7 @@ export default function ClientsPage() {
               }
             >
               {form.loadingLocations.map((loc, index) => (
-                <div key={`loading-${index}`} className="relative grid grid-cols-3 gap-2 border rounded-md p-3 bg-muted/20">
+                <div key={`loading-${index}`} className="relative grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 border rounded-md p-3 bg-muted/20">
                   <button
                     type="button"
                     disabled={form.loadingLocations.length <= 1}
@@ -422,15 +475,20 @@ export default function ClientsPage() {
               ))}
             </LocationSection>
 
-            <div className="flex justify-end gap-3">
-              <button onClick={closeForm} className="px-4 py-2 text-sm border rounded-md hover:bg-accent">Cancel</button>
-              <button
-                onClick={saveImporter}
-                disabled={createMutation.isPending || updateMutation.isPending}
-                className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:opacity-90 disabled:opacity-50"
-              >
-                {editing ? 'Save Importer' : 'Create Importer'}
-              </button>
+            <div className="sticky bottom-0 bg-background/95 backdrop-blur-sm border-t pt-2 -mx-4 sm:-mx-6 -mb-4 sm:-mb-6 px-4 sm:px-6 pb-4 sm:pb-6">
+              <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+                <button onClick={closeForm} className="px-3 py-1.5 text-sm border rounded-md hover:bg-accent shrink-0">Cancel</button>
+                <button onClick={saveDraft} className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm border rounded-md hover:bg-accent shrink-0">
+                <Save className="h-3.5 w-3.5" /> Save Draft
+                </button>
+                <button
+                  onClick={saveImporter}
+                  disabled={createMutation.isPending || updateMutation.isPending}
+                  className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:opacity-90 disabled:opacity-50 shrink-0"
+                >
+                  {editing ? 'Save Importer' : 'Create Importer'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -473,8 +531,8 @@ function LocationSection({ title, onAdd, children }: LocationSectionProps) {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="font-medium">{title}</h3>
-        <button onClick={onAdd} className="px-3 py-1.5 rounded-md border border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors text-xs font-medium">
-          + Add
+        <button onClick={onAdd} className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-slate-900 to-slate-700 text-white hover:from-slate-800 hover:to-slate-600 shadow-sm transition-all text-xs font-semibold border border-slate-800/20">
+          <Plus className="h-3.5 w-3.5" /> Add
         </button>
       </div>
       <div className="space-y-2">{children}</div>

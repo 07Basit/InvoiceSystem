@@ -31,7 +31,62 @@ export default function InvoiceTable() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-md border overflow-hidden">
+      <div className="md:hidden space-y-3">
+        {invoices.map((invoice) => (
+          <div key={invoice.id} className="rounded-md border p-3 bg-card space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-mono font-medium text-sm">{invoice.invoiceNumber}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{formatDate(invoice.invoiceDate)}</p>
+              </div>
+              <p className="text-sm font-semibold">{invoice.currency} {Number(invoice.total).toFixed(2)}</p>
+            </div>
+
+            <div>
+              <p className="text-sm font-medium">{invoice.importer.name}</p>
+              <p className="text-xs text-muted-foreground">{invoice.currency}</p>
+            </div>
+
+            <div className="flex items-center gap-1 pt-1">
+              <button
+                onClick={() => invoiceService.downloadPdf(invoice.id)}
+                className="p-1.5 hover:bg-accent rounded-md transition-colors"
+                title="Download PDF"
+              >
+                <FileDown className="h-3.5 w-3.5 text-muted-foreground" />
+              </button>
+              <button
+                onClick={() => invoiceService.downloadExcel(invoice.id)}
+                className="p-1.5 hover:bg-accent rounded-md transition-colors"
+                title="Download Excel"
+              >
+                <Download className="h-3.5 w-3.5 text-muted-foreground" />
+              </button>
+              <button
+                onClick={() => openEditForm(invoice.id)}
+                className="p-1.5 hover:bg-accent rounded-md transition-colors"
+                title="Edit"
+              >
+                <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm(`Delete invoice ${invoice.invoiceNumber}?`)) {
+                    deleteMutation.mutate(invoice.id);
+                  }
+                }}
+                className="p-1.5 hover:bg-destructive/10 rounded-md transition-colors"
+                title="Delete"
+                disabled={deleteMutation.isPending}
+              >
+                <Trash2 className="h-3.5 w-3.5 text-destructive" />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden md:block rounded-md border overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 border-b">
             <tr>

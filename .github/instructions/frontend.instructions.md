@@ -6,6 +6,7 @@ applyTo: "frontend/**"
 # Frontend Development Guidelines
 
 ## Component Rules
+
 - **Functional components only** — no class components ever
 - Always type props explicitly with an interface or type alias
 - Use `React.FC<Props>` for components with props
@@ -26,6 +27,7 @@ export default InvoiceCard;
 ```
 
 ## File Structure per Feature
+
 ```
 features/invoices/
 ├── components/       # UI components specific to invoices
@@ -38,6 +40,7 @@ features/invoices/
 ```
 
 ## State Management Rules
+
 - **TanStack Query** for ALL server/async state — do not use `useState` + `useEffect` for data fetching
 - **Zustand** only for client-side UI state (modals open, filters, sidebar state)
 - Never put server data into Zustand stores
@@ -45,7 +48,7 @@ features/invoices/
 ```tsx
 // ✅ TanStack Query for server state
 const { data: invoices, isLoading } = useQuery({
-  queryKey: ['invoices', filters],
+  queryKey: ["invoices", filters],
   queryFn: () => invoiceService.getAll(filters),
 });
 
@@ -54,40 +57,57 @@ const { isModalOpen, openModal } = useInvoiceUIStore();
 ```
 
 ## Styling — TailwindCSS + shadcn/ui
+
 - Use TailwindCSS utility classes — no inline styles, no CSS modules unless unavoidable
 - Use shadcn/ui components as the base (Button, Dialog, Table, Form, etc.)
 - Extend shadcn/ui components; never rewrite them from scratch
 - Use `cn()` utility from `lib/utils` for conditional classnames
 
 ```tsx
-import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
-<Button className={cn('w-full', isLoading && 'opacity-50')} disabled={isLoading}>
+<Button
+  className={cn("w-full", isLoading && "opacity-50")}
+  disabled={isLoading}
+>
   Save Invoice
-</Button>
+</Button>;
 ```
 
 ## Forms
+
 - Use **React Hook Form** + **Zod** resolver for all forms
 - Import Zod schemas from `shared/` — do not duplicate schema definitions
 - Show validation errors inline beneath fields using shadcn/ui `FormMessage`
 
 ## Error Handling
+
 - Wrap pages in an `ErrorBoundary` component
 - Handle TanStack Query errors with `onError` callbacks or `isError` state
 - Display user-friendly error messages — never expose raw error objects to the UI
 
 ## Routing
+
 - Use **React Router v6** with `createBrowserRouter`
 - Lazy-load page components with `React.lazy` + `Suspense`
 - Route paths defined in a central `routes.ts` constants file
 
 ## Imports
+
 - Use absolute imports via `@/` alias (configured in `vite.config.ts`)
 - Order: React → third-party → internal → styles
 
 ## Performance
+
 - Memoize expensive calculations with `useMemo`
 - Stabilize callback references with `useCallback` when passed as props
 - Virtualize long lists (invoices table) with `@tanstack/react-virtual`
+
+## Design Skills Integration
+
+- When building UI from a **Design** agent handoff, read the cited skill before implementing:
+  - Primary skill: `awesome-design-skills-main/awesome-design-skills-main/skills/[skill-name]/SKILL.md`
+  - Baseline: `skills-main/skills-main/skills/frontend-design/SKILL.md`
+- Apply layout, spacing, color, and typography direction from the skill to TailwindCSS classes.
+- State which skill was applied in your build summary (for Documentor traceability).

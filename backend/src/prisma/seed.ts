@@ -1,4 +1,4 @@
-import { InvoiceStatus, PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 
 const prisma = new PrismaClient();
@@ -57,7 +57,7 @@ async function main() {
 
   console.log('✅ Created exporter profile and importer');
 
-  const statuses: InvoiceStatus[] = ['PAID', 'SENT', 'DRAFT', 'OVERDUE'];
+  const statuses: string[] = ['PAID', 'SENT', 'DRAFT', 'OVERDUE'];
 
   for (let i = 1; i <= 5; i++) {
     const kgsPerBox = 8 + i;

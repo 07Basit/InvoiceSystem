@@ -47,6 +47,9 @@ export function useDeleteInvoice() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => invoiceService.delete(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: invoiceKeys.all }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: invoiceKeys.all });
+      qc.invalidateQueries({ queryKey: ['recycle-bin'] });
+    },
   });
 }

@@ -6,26 +6,13 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlserver"
   url      = env("DATABASE_URL")
 }
 
-// ---------------------------------------------------------------------------
-// Enums
-// ---------------------------------------------------------------------------
-
-enum InvoiceStatus {
-  DRAFT
-  SENT
-  PAID
-  OVERDUE
-  CANCELLED
-}
-
-enum DocumentType {
-  WORD
-  PDF
-}
+// InvoiceStatus values: DRAFT | SENT | PAID | OVERDUE | CANCELLED
+// DocumentType values: WORD | PDF
+// SQL Server does not support native enums — validated via Zod in application layer
 
 // ---------------------------------------------------------------------------
 // Importer + Locations
@@ -34,7 +21,7 @@ enum DocumentType {
 model Importer {
   id               String            @id @default(cuid())
   name             String
-  address          String
+  address          String            @db.NVarChar(Max)
   contact          String
   email            String?
   buyerName        String
@@ -103,13 +90,13 @@ model Invoice {
   id                         String           @id @default(cuid())
   invoiceNumber              String           @unique
   invoiceDate                DateTime
-  status                     InvoiceStatus    @default(DRAFT)
+  status                     String           @default("DRAFT")
   importerId                 String
-  importer                   Importer         @relation(fields: [importerId], references: [id])
+  importer                   Importer         @relation(fields: [importerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   landingLocationId          String?
-  landingLocation            LandingLocation? @relation(fields: [landingLocationId], references: [id])
+  landingLocation            LandingLocation? @relation(fields: [landingLocationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   loadingLocationId          String?
-  loadingLocation            LoadingLocation? @relation(fields: [loadingLocationId], references: [id])
+  loadingLocation            LoadingLocation? @relation(fields: [loadingLocationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   exportersRef               String?
   otherReferences            String?
   awbNumber                  String?
@@ -122,7 +109,7 @@ model Invoice {
   buyerName                  String?
   countryOfOrigin            String?
   countryOfDestination       String?
-  descriptionOfGoods         String?
+  descriptionOfGoods         String?           @db.NVarChar(Max)
   hsCode                     String?
   termsOfDelivery            String?
   termsOfPayment             String?
@@ -138,8 +125,8 @@ model Invoice {
   subTotal                   Decimal          @default(0) @db.Decimal(12, 2)
   roundOff                   Decimal          @default(0) @db.Decimal(12, 2)
   total                      Decimal          @default(0) @db.Decimal(12, 2)
-  amountInWords              String?
-  notes                      String?
+  amountInWords              String?           @db.NVarChar(Max)
+  notes                      String?           @db.NVarChar(Max)
   createdAt                  DateTime         @default(now())
   updatedAt                  DateTime         @updatedAt
   deletedAt                  DateTime?
@@ -165,7 +152,7 @@ model LineItem {
   invoice             Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   marksAndNos         String?
   containerNo         String?
-  descriptionOfGoods  String
+  descriptionOfGoods  String            @db.NVarChar(Max)
   netWeightPerPackage Decimal @db.Decimal(12, 2)
   numberOfBoxes       Int
   totalNetWeight      Decimal @db.Decimal(12, 2)
@@ -184,8 +171,8 @@ model LineItem {
 model Document {
   id        String       @id @default(cuid())
   title     String
-  type      DocumentType @default(WORD)
-  content   String?      @db.Text
+  type      String       @default("WORD")
+  content   String?      @db.NVarChar(Max)
   fileUrl   String?
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt

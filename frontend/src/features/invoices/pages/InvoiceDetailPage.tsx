@@ -9,6 +9,7 @@ import { invoiceService, type Invoice } from '../services/invoiceService';
 import InvoiceForm from '../components/InvoiceForm';
 import ExchangeRatePanel from '../components/ExchangeRatePanel';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCountry, formatPortCode } from '@/lib/format';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import Tooltip from '@/components/ui/Tooltip';
 
@@ -45,7 +46,7 @@ function HeaderAction({ label, text, onClick, icon: Icon, primary }: { label: st
         onClick={onClick}
         aria-label={label}
         className={primary
-          ? 'flex items-center gap-2 px-3 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:opacity-90'
+          ? 'flex items-center gap-2 px-3 py-2 text-sm bg-[hsl(var(--brand-accent))] text-white rounded-md hover:opacity-90'
           : 'flex items-center gap-2 px-3 py-2 text-sm border rounded-md hover:bg-accent'}
       >
         <Icon className="h-4 w-4" /> <span className="hidden sm:inline">{text}</span>
@@ -85,40 +86,43 @@ export default function InvoiceDetailPage() {
         <ArrowLeft className="h-4 w-4" /> Back to Invoices
       </Link>
 
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold font-mono break-all">{invoice.invoiceNumber}</h1>
-          <p className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-4 w-4" /> Invoice date {formatDate(invoice.invoiceDate)}</span>
-            <span>Created {formatDate(invoice.createdAt)}</span>
-            <span>Updated {formatDate(invoice.updatedAt)}</span>
-          </p>
-        </div>
-        <div className="flex items-center gap-2 print:hidden">
-          <HeaderAction label="Print invoice" text="Print" icon={Printer} onClick={() => window.print()} />
-          <HeaderAction label="Download PDF" text="PDF" icon={FileDown} onClick={() => invoiceService.downloadPdf(invoice.id)} />
-          <HeaderAction label="Download Excel" text="Excel" icon={Download} onClick={() => invoiceService.downloadExcel(invoice.id)} />
-          <HeaderAction label="Edit invoice" text="Edit" icon={Pencil} primary onClick={() => openEditForm(invoice.id)} />
-        </div>
-      </div>
+      {/* Fixed panel: invoice number down to the invoice amount stays visible while the rest scrolls */}
+      <div className="sticky -top-4 z-20 -mx-4 bg-background px-4 pb-2 pt-4 sm:-top-6 sm:-mx-6 sm:px-6 sm:pt-6 print:static">
+        <div className="rounded-xl border bg-card shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3 px-4 pt-3 sm:px-5">
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold font-mono break-all sm:text-2xl">{invoice.invoiceNumber}</h1>
+              <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs text-muted-foreground sm:text-sm">
+                <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> Invoice Date {formatDate(invoice.invoiceDate)}</span>
+                <span className="hidden sm:inline">Created {formatDate(invoice.createdAt)}</span>
+                <span className="hidden sm:inline">Updated {formatDate(invoice.updatedAt)}</span>
+              </p>
+            </div>
+            <div className="flex items-center gap-2 print:hidden">
+              <HeaderAction label="Print invoice" text="Print" icon={Printer} onClick={() => window.print()} />
+              <HeaderAction label="Download PDF" text="PDF" icon={FileDown} onClick={() => invoiceService.downloadPdf(invoice.id)} />
+              <HeaderAction label="Download Excel" text="Excel" icon={Download} onClick={() => invoiceService.downloadExcel(invoice.id)} />
+              <HeaderAction label="Edit invoice" text="Edit" icon={Pencil} primary onClick={() => openEditForm(invoice.id)} />
+            </div>
+          </div>
 
-      {/* Big total */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-5 py-4">
-        <div>
-          <p className="text-xs font-medium text-muted-foreground">Invoice total</p>
-          <p className="text-3xl font-bold tracking-tight">{money(invoice.total, cur)}</p>
-          {invoice.amountInWords && <p className="mt-0.5 text-sm text-muted-foreground">{invoice.amountInWords}</p>}
+          <div className="mt-3 flex items-center justify-between gap-3 border-t px-4 py-3 sm:px-5">
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-muted-foreground">Invoice Total</p>
+              <p className="text-2xl font-bold tracking-tight sm:text-3xl">{money(invoice.total, cur)}</p>
+              {invoice.amountInWords && <p className="mt-0.5 hidden text-sm text-muted-foreground sm:block">{invoice.amountInWords}</p>}
+            </div>
+            <span className="shrink-0 rounded-full border border-[hsl(var(--brand-accent))]/30 bg-[hsl(var(--brand-accent))]/10 px-3 py-1 text-sm font-semibold text-[hsl(var(--brand-accent))]">
+              {cur}
+            </span>
+          </div>
         </div>
-        <span className="rounded-full border border-[hsl(var(--brand-accent))]/30 bg-[hsl(var(--brand-accent))]/10 px-3 py-1 text-sm font-semibold text-[hsl(var(--brand-accent))]">
-          {cur}
-        </span>
       </div>
 
       <ExchangeRatePanel invoice={invoice} />
 
       {/* Parties */}
-      <Section title="Exporter and importer" icon={Building2}>
+      <Section title="Exporter and Importer" icon={Building2}>
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <div>
             <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Exporter</p>
@@ -130,7 +134,7 @@ export default function InvoiceDetailPage() {
             </dl>
           </div>
           <div>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Importer (consignee)</p>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Importer (Consignee)</p>
             <dl className="space-y-3">
               <Item label="Name" value={p.importer[0]} />
               <Item label="Address" value={p.importer[1]} />
@@ -141,13 +145,13 @@ export default function InvoiceDetailPage() {
         </div>
         <div className="mt-5 border-t pt-4">
           <Grid>
-            <Item label="Buyer (if other than consignee)" value={invoice.buyerName} />
+            <Item label="Buyer (If Other Than Consignee)" value={invoice.buyerName} />
           </Grid>
         </div>
       </Section>
 
       {/* References */}
-      <Section title="References" icon={User}>
+      <Section title="Shipping Details" icon={User}>
         <Grid>
           <Item label="Invoice No" value={invoice.invoiceNumber} />
           <Item label="Invoice Date" value={formatDate(invoice.invoiceDate)} />
@@ -159,23 +163,23 @@ export default function InvoiceDetailPage() {
       </Section>
 
       {/* Shipment */}
-      <Section title="Shipment and route" icon={Ship}>
+      <Section title="Route and Ports" icon={Ship}>
         <Grid>
           <Item label="Pre-Carriage by" value={invoice.preCarriageBy} />
           <Item label="Place of Receipt by Pre-Carrier" value={invoice.placeOfReceiptByPreCarrier} />
           <Item label="Vessel / Flight No." value={invoice.vesselFlightNo} />
-          <Item label="Port of Loading" value={invoice.portOfLoading} />
-          <Item label="Port of Discharge" value={invoice.portOfDischarge} />
-          <Item label="Final Destination" value={invoice.finalDestination} />
-          <Item label="Country of Origin" value={invoice.countryOfOrigin} />
-          <Item label="Country of Destination" value={invoice.countryOfDestination} />
-          <Item label="Loading location (importer)" value={invoice.loadingLocation?.name} />
-          <Item label="Landing location (importer)" value={invoice.landingLocation?.name} />
+          <Item label="Port of Loading" value={formatPortCode(invoice.portOfLoading)} />
+          <Item label="Port of Discharge" value={formatPortCode(invoice.portOfDischarge)} />
+          <Item label="Final Destination" value={formatPortCode(invoice.finalDestination)} />
+          <Item label="Country of Origin" value={formatCountry(invoice.countryOfOrigin)} />
+          <Item label="Country of Destination" value={formatCountry(invoice.countryOfDestination)} />
+          <Item label="Loading Location (Importer)" value={invoice.loadingLocation?.name} />
+          <Item label="Landing Location (Importer)" value={invoice.landingLocation?.name} />
         </Grid>
       </Section>
 
       {/* Goods and terms */}
-      <Section title="Goods and terms" icon={Truck}>
+      <Section title="Goods and Terms" icon={Truck}>
         <Grid>
           <Item label="Description of Goods" value={invoice.descriptionOfGoods} wide />
           <Item label="HS Code" value={invoice.hsCode} />
@@ -187,7 +191,7 @@ export default function InvoiceDetailPage() {
       {/* Line items */}
       <section className="rounded-xl border bg-card overflow-hidden">
         <h2 className="flex items-center gap-2 border-b px-5 py-3 text-sm font-semibold">
-          <Package className="h-4 w-4 text-muted-foreground" /> Line items
+          <Package className="h-4 w-4 text-muted-foreground" /> Line Items
           <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">{invoice.lineItems.length}</span>
         </h2>
         <div className="overflow-x-auto">
@@ -196,11 +200,11 @@ export default function InvoiceDetailPage() {
               <tr>
                 <th className="px-4 py-3 text-left font-medium whitespace-nowrap">Marks &amp; Nos / Container No.</th>
                 <th className="px-4 py-3 text-left font-medium">Description of Goods</th>
-                <th className="px-4 py-3 text-right font-medium">Nett wt per package</th>
-                <th className="px-4 py-3 text-right font-medium">No of boxes</th>
-                <th className="px-4 py-3 text-right font-medium">Total nett wt (kgs)</th>
-                <th className="px-4 py-3 text-right font-medium">Rate per kg</th>
-                <th className="px-4 py-3 text-right font-medium">Total per box</th>
+                <th className="px-4 py-3 text-right font-medium">Nett Wt per Package</th>
+                <th className="px-4 py-3 text-right font-medium">No of Boxes</th>
+                <th className="px-4 py-3 text-right font-medium">Total Nett Wt (Kgs)</th>
+                <th className="px-4 py-3 text-right font-medium">Rate per Kg</th>
+                <th className="px-4 py-3 text-right font-medium">Total per Box</th>
                 <th className="px-4 py-3 text-right font-medium">Amount</th>
               </tr>
             </thead>
@@ -229,7 +233,7 @@ export default function InvoiceDetailPage() {
             <Item label="No of Packages" value={invoice.totalBoxes} />
             <Item label="Total Nett Wt" value={`${Number(invoice.totalNetWeight).toFixed(2)} KGS`} />
             <Item label="Total Gross Wt" value={invoice.totalGrossWeight != null ? `${Number(invoice.totalGrossWeight).toFixed(2)} KGS` : undefined} />
-            <Item label={`Amount in words (${cur})`} value={invoice.amountInWords} />
+            <Item label={`Amount in Words (${cur})`} value={invoice.amountInWords} />
           </dl>
           <div className="space-y-2 rounded-lg bg-muted/40 p-4 text-sm">
             <div className="flex justify-between text-muted-foreground"><span>Sub Total</span><span>{money(invoice.subTotal, cur)}</span></div>

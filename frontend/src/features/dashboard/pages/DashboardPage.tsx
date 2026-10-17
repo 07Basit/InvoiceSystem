@@ -108,7 +108,7 @@ function ChartCard({ title, subtitle, children }: ChartCardProps) {
           aria-modal="true"
           aria-label={title}
         >
-          <div className="bg-background rounded-xl shadow-xl w-full max-w-5xl p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-background rounded-xl shadow-xl w-full max-w-5xl max-h-[92vh] overflow-hidden p-5 pb-3" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between mb-4">
               <div>
                 <h3 className="text-base font-semibold">{title}</h3>
@@ -123,7 +123,7 @@ function ChartCard({ title, subtitle, children }: ChartCardProps) {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="h-[60vh]">{children(true)}</div>
+            <div className="h-[min(60vh,30rem)]">{children(true)}</div>
           </div>
         </div>
       )}

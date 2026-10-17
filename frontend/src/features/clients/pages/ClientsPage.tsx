@@ -502,7 +502,7 @@ export default function ClientsPage() {
                 <button
                   onClick={saveImporter}
                   disabled={createMutation.isPending || updateMutation.isPending}
-                  className="btn-brand disabled:opacity-50 shrink-0"
+                  className="px-3 py-1.5 text-xs bg-[hsl(var(--brand-accent))] text-white rounded-md hover:opacity-90 disabled:opacity-50 shrink-0"
                 >
                   {editing ? 'Save Importer' : 'Create Importer'}
                 </button>
@@ -639,7 +639,7 @@ function LocationSection({ title, onAdd, children }: LocationSectionProps) {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="font-medium">{title}</h3>
-        <button onClick={onAdd} className="btn-brand !px-3 !py-1.5 text-xs">
+        <button onClick={onAdd} className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[hsl(var(--brand-accent))] text-white hover:opacity-90 shadow-sm transition-all text-xs font-semibold">
           <Plus className="h-3.5 w-3.5" /> Add
         </button>
       </div>

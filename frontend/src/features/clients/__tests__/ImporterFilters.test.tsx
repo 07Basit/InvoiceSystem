@@ -14,15 +14,19 @@ const setup = (over: Partial<Parameters<typeof ImporterFilters>[0]> = {}) => {
 };
 
 describe('ImporterFilters', () => {
-  it('shows each status with its count and marks the selected one', () => {
-    setup({ status: 'active' });
+  it('shows each status with its count and marks the selected one', async () => {
+    const { user } = setup({ status: 'active' });
+    await user.click(screen.getByRole('button', { name: /Filters/ }));
     expect(screen.getByRole('button', { name: /All\s*9/ })).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByRole('button', { name: /Active\s*7/ })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: /Inactive\s*2/ })).toBeInTheDocument();
   });
 
-  it('reports status changes', async () => {
+  it('keeps the status switch inside a Filters panel that opens on demand', async () => {
     const { onStatusChange, user } = setup();
+    expect(screen.queryByRole('group', { name: 'Filter by status' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Filters/ }));
+    expect(screen.getByRole('group', { name: 'Filter by status' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /Inactive/ }));
     expect(onStatusChange).toHaveBeenCalledWith('inactive');
   });

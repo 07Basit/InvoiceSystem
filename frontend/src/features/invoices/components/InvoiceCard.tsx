@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { CalendarDays, Download, Eye, FileDown, Package, Pencil, PlaneLanding, PlaneTakeoff, Trash2 } from 'lucide-react';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import Tooltip from '@/components/ui/Tooltip';
+import { formatCountry, formatPortCode } from '@/lib/format';
 import type { InvoiceListItem } from '../services/invoiceService';
 
 interface InvoiceCardProps {
@@ -77,21 +78,21 @@ export default function InvoiceCard({ invoice, onOpen, onPdf, onExcel, onEdit, o
       {hasRoute && (
         <div className="flex flex-wrap items-center gap-1.5 text-xs">
           {portOfLoading && (
-            <span title={countryOfOrigin ? `Port of loading · ${countryOfOrigin}` : 'Port of loading'} className="inline-flex items-center gap-1 rounded-md border bg-background px-2 py-0.5">
-              <PlaneTakeoff className="h-3 w-3 text-muted-foreground" /><span className="font-semibold">{portOfLoading}</span>
+            <span title={countryOfOrigin ? `Port of loading · ${formatCountry(countryOfOrigin)}` : 'Port of loading'} className="inline-flex items-center gap-1 rounded-md border bg-background px-2 py-0.5">
+              <PlaneTakeoff className="h-3 w-3 text-muted-foreground" /><span className="font-semibold">{formatPortCode(portOfLoading)}</span>
             </span>
           )}
           {portOfLoading && portOfDischarge && <span className="text-muted-foreground">→</span>}
           {portOfDischarge && (
-            <span title={countryOfDestination ? `Port of discharge · ${countryOfDestination}` : 'Port of discharge'} className="inline-flex items-center gap-1 rounded-md border bg-background px-2 py-0.5">
-              <PlaneLanding className="h-3 w-3 text-muted-foreground" /><span className="font-semibold">{portOfDischarge}</span>
+            <span title={countryOfDestination ? `Port of discharge · ${formatCountry(countryOfDestination)}` : 'Port of discharge'} className="inline-flex items-center gap-1 rounded-md border bg-background px-2 py-0.5">
+              <PlaneLanding className="h-3 w-3 text-muted-foreground" /><span className="font-semibold">{formatPortCode(portOfDischarge)}</span>
             </span>
           )}
           {showFinal && <span className="text-muted-foreground">→</span>}
           {showFinal && (
-            <span title="Final destination" className="inline-flex items-center rounded-md border bg-background px-2 py-0.5 font-semibold">{finalDestination}</span>
+            <span title="Final destination" className="inline-flex items-center rounded-md border bg-background px-2 py-0.5 font-semibold">{formatPortCode(finalDestination)}</span>
           )}
-          {countryOfDestination && <span className="text-muted-foreground">· {countryOfDestination}</span>}
+          {countryOfDestination && <span className="text-muted-foreground">· {formatCountry(countryOfDestination)}</span>}
         </div>
       )}
 

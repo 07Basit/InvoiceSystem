@@ -364,7 +364,7 @@ export default function InvoiceForm() {
               <LabeledInput label="Contact" disabled={exporterLocked} value={exporter.contact} onChange={(v) => setExporter((p) => ({ ...p, contact: v }))} />
               <LabeledInput label="Email" disabled={exporterLocked} value={exporter.email ?? ''} onChange={(v) => setExporter((p) => ({ ...p, email: v }))} />
             </div>
-            <button onClick={saveExporter} className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-primary text-primary-foreground rounded-md hover:opacity-90">
+            <button onClick={saveExporter} className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-[hsl(var(--brand-accent))] text-white rounded-md hover:opacity-90">
               <Save className="h-3.5 w-3.5" /> Save
             </button>
           </Section>
@@ -439,7 +439,7 @@ export default function InvoiceForm() {
                 <div className="flex items-center justify-end">
                   <button
                     onClick={() => setForm((p) => ({ ...p, lineItems: [...p.lineItems, { marksAndNos: '', containerNo: '', descriptionOfGoods: '', netWeightPerPackage: 0, numberOfBoxes: 0, ratePerKg: 0 }] }))}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-slate-900 to-slate-700 text-white hover:from-slate-800 hover:to-slate-600 shadow-sm transition-all text-xs font-semibold border border-slate-800/20"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[hsl(var(--brand-accent))] text-white hover:opacity-90 shadow-sm transition-all text-xs font-semibold"
                   >
                     <Plus className="h-3.5 w-3.5" /> Add
                   </button>
@@ -556,7 +556,7 @@ export default function InvoiceForm() {
                   <LabeledInput label="IFSC CODE" disabled={isBankLocked} value={bankDetails.ifscCode} onChange={(v) => setBankDetails((p) => ({ ...p, ifscCode: v }))} />
                   <LabeledInput label="SWIFT CODE" disabled={isBankLocked} value={bankDetails.swiftCode} onChange={(v) => setBankDetails((p) => ({ ...p, swiftCode: v }))} />
                 </div>
-                <button onClick={saveBankDetails} className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-primary text-primary-foreground rounded-md hover:opacity-90">
+                <button onClick={saveBankDetails} className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-[hsl(var(--brand-accent))] text-white rounded-md hover:opacity-90">
                   <Save className="h-3.5 w-3.5" /> Save
                 </button>
               </Section>
@@ -585,7 +585,7 @@ export default function InvoiceForm() {
                 >
                   <Upload className="h-3.5 w-3.5" />
                 </button>
-                <button onClick={saveSignImage} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-primary text-primary-foreground rounded-md hover:opacity-90">
+                <button onClick={saveSignImage} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-[hsl(var(--brand-accent))] text-white rounded-md hover:opacity-90">
                   <Save className="h-3.5 w-3.5" /> Save
                 </button>
               </div>
@@ -597,7 +597,7 @@ export default function InvoiceForm() {
           <div className="flex items-center justify-end gap-2">
             <button onClick={closeForm} className="px-3 py-1.5 text-xs border rounded-md hover:bg-accent">Cancel</button>
             <button onClick={saveDraft} className="px-3 py-1.5 text-xs border rounded-md hover:bg-accent">Save Draft</button>
-            <button onClick={submitInvoice} disabled={isPending} className="px-3 py-1.5 text-xs bg-primary text-primary-foreground rounded-md hover:opacity-90 disabled:opacity-50">
+            <button onClick={submitInvoice} disabled={isPending} className="px-3 py-1.5 text-xs bg-[hsl(var(--brand-accent))] text-white rounded-md hover:opacity-90 disabled:opacity-50">
               {isEditing ? 'Save Invoice' : 'Create Invoice'}
             </button>
           </div>

@@ -16,4 +16,11 @@ describe('Tooltip', () => {
     render(<Tooltip label="Edit importer" align="end"><button>x</button></Tooltip>);
     expect(screen.getByRole('tooltip').className).toContain('right-0');
   });
+
+  it('shows below the trigger by default and above it when asked', () => {
+    const { rerender } = render(<Tooltip label="Tip"><button>x</button></Tooltip>);
+    expect(screen.getByRole('tooltip').className).toContain('top-full');
+    rerender(<Tooltip label="Tip" placement="above"><button>x</button></Tooltip>);
+    expect(screen.getByRole('tooltip').className).toContain('bottom-full');
+  });
 });

@@ -128,9 +128,25 @@
   }
 }
 
+/* One focus look for every text field, dropdown and select in the app: brand-orange border and soft halo.
+   Error states (border-destructive / ring-destructive utilities) still win because utilities sit above base. */
+@layer base {
+  input:not([type='checkbox'], [type='radio'], [type='file'], [type='range']):focus,
+  input:not([type='checkbox'], [type='radio'], [type='file'], [type='range']):focus-visible,
+  select:focus,
+  select:focus-visible,
+  textarea:focus,
+  textarea:focus-visible,
+  [role='combobox']:focus-visible {
+    outline: none;
+    border-color: hsl(var(--brand-accent));
+    box-shadow: 0 0 0 3px hsl(var(--brand-accent) / 0.25);
+  }
+}
+
 @layer components {
   .input {
-    @apply w-full border rounded-md px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring transition-colors;
+    @apply w-full border rounded-md px-3 py-1.5 text-sm bg-background transition-colors;
   }
   .label {
     @apply block text-xs font-medium text-muted-foreground mb-1;

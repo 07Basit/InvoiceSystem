@@ -18,3 +18,9 @@ export function formatCountry(value?: string | null): string {
     .map((part, index) => (/^[a-z]/.test(part) && (index === 0 || !SMALL_WORDS.has(part)) ? part[0]!.toUpperCase() + part.slice(1) : part))
     .join('');
 }
+
+/** 12345.6 -> "12,345.60": amounts and weights with thousands separators and fixed decimals. */
+export function formatNumber(value: number, digits = 2): string {
+  const n = Number.isFinite(value) ? value : 0;
+  return new Intl.NumberFormat('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n);
+}

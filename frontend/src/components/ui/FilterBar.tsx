@@ -69,7 +69,7 @@ export default function FilterBar({ search, onSearchChange, searchPlaceholder, s
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder={searchPlaceholder}
             aria-label={searchLabel}
-            className="w-full rounded-lg border bg-background py-2 pl-9 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-ring [&::-webkit-search-cancel-button]:hidden"
+            className="w-full rounded-lg border bg-background py-2 pl-9 pr-9 text-sm [&::-webkit-search-cancel-button]:hidden"
           />
           {search && (
             <button

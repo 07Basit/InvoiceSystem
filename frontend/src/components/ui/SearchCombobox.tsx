@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Check, ChevronDown, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { shouldAlignRight } from '@/lib/popover';
 
 export interface ComboOption {
   /** What gets stored/returned when picked (e.g. "INR", "BOM", "India"). */
@@ -61,6 +62,7 @@ export default function SearchCombobox({
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const [dropUp, setDropUp] = useState(false);
+  const [flip, setFlip] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -90,6 +92,7 @@ export default function SearchCombobox({
   const openList = (seed = '') => {
     if (disabled) return;
     const rect = rootRef.current?.getBoundingClientRect();
+    if (rootRef.current) setFlip(shouldAlignRight(rootRef.current, 320));
     if (rect) setDropUp(window.innerHeight - rect.bottom < 340 && rect.top > window.innerHeight - rect.bottom);
     setQuery(seed);
     setActive(0);
@@ -144,8 +147,8 @@ export default function SearchCombobox({
         onClick={() => (open ? close() : openList())}
         onKeyDown={onTriggerKey}
         className={cn(
-          'flex items-center gap-2 text-left focus:outline-none focus-visible:ring-2 disabled:opacity-50 disabled:cursor-not-allowed',
-          hasError ? 'border-destructive focus-visible:ring-destructive/60' : 'focus-visible:ring-ring',
+          'flex items-center gap-2 text-left focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed',
+          hasError && 'border-destructive focus-visible:border-destructive focus-visible:shadow-[0_0_0_3px_hsl(var(--destructive)/0.3)]',
           className,
         )}
       >
@@ -155,7 +158,7 @@ export default function SearchCombobox({
       </button>
 
       {open && (
-        <div className={cn('absolute z-50 w-80 max-w-[calc(100vw-2rem)] rounded-lg border bg-card text-foreground shadow-lg', dropUp ? 'bottom-full mb-1' : 'mt-1', align === 'right' ? 'right-0' : 'left-0')}>
+        <div className={cn('absolute z-50 w-80 max-w-[calc(100vw-2rem)] rounded-lg border bg-card text-foreground shadow-lg', dropUp ? 'bottom-full mb-1' : 'mt-1', align === 'right' || flip ? 'right-0' : 'left-0')}>
           <div className="flex items-center gap-2 border-b px-3 py-2">
             <Search className="h-4 w-4 text-muted-foreground shrink-0" />
             <input

@@ -14,9 +14,7 @@ import { useDebouncedValue } from '@/lib/useDebouncedValue';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm';
 import { ApiClientError } from '@/services/api';
-import { getCurrencyOptions, toComboOption } from '@/lib/currencies';
-import { COMMON_AIRPORT_CODES, getCountryOptions, useAirportOptions } from '@/lib/places';
-import SearchCombobox, { type ComboOption } from '@/components/ui/SearchCombobox';
+import { AirportSelect, CountrySelect, CurrencySelect } from '@/components/ui/PlacePickers';
 
 const emptyImporter: CreateImporterDto = {
   name: '',
@@ -567,99 +565,10 @@ function Field({ label, value, onChange, placeholder, error }: FieldProps) {
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className={`w-full border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 ${error ? 'border-destructive focus:ring-destructive/60' : 'focus:ring-ring'}`}
+        className={`w-full border rounded-md px-3 py-2 text-sm bg-background ${error ? 'border-destructive focus:border-destructive focus:shadow-[0_0_0_3px_hsl(var(--destructive)/0.3)]' : ''}`}
       />
       {error ? <p className="text-xs text-destructive mt-1">{error}</p> : null}
     </div>
-  );
-}
-
-interface PickerFieldProps {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: ComboOption[];
-  common?: ComboOption[];
-  error?: string | undefined;
-  placeholder: string;
-  searchPlaceholder: string;
-  labelClassName?: string;
-  loading?: boolean;
-}
-
-/** A labelled, searchable dropdown that looks like the text fields around it. */
-function PickerField({ label, value, onChange, options, common, error, placeholder, searchPlaceholder, labelClassName, loading }: PickerFieldProps) {
-  // a value saved earlier that isn't in the list (e.g. an old free-text entry) still shows when editing
-  const withCurrent = value && !loading && !options.some((o) => o.value === value)
-    ? [{ value, label: value }, ...options]
-    : options;
-
-  return (
-    <div>
-      <label className="text-xs text-muted-foreground block mb-1">{label}</label>
-      <SearchCombobox
-        value={value}
-        onChange={onChange}
-        options={withCurrent}
-        {...(common ? { common } : {})}
-        ariaLabel={label}
-        placeholder={placeholder}
-        searchPlaceholder={searchPlaceholder}
-        {...(labelClassName ? { labelClassName } : {})}
-        loading={!!loading}
-        hasError={!!error}
-        className="w-full border rounded-md px-3 py-2 text-sm bg-background focus-visible:ring-2"
-      />
-      {error ? <p className="text-xs text-destructive mt-1">{error}</p> : null}
-    </div>
-  );
-}
-
-interface SimplePickerProps {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  error?: string | undefined;
-}
-
-function CurrencySelect(props: SimplePickerProps) {
-  const { common, all } = getCurrencyOptions();
-  return (
-    <PickerField
-      {...props}
-      options={all.map(toComboOption)}
-      common={common.map(toComboOption)}
-      placeholder="Select currency"
-      searchPlaceholder="Search code or name, e.g. INR"
-    />
-  );
-}
-
-function AirportSelect(props: SimplePickerProps) {
-  const airports = useAirportOptions();
-  const common = airports ? COMMON_AIRPORT_CODES.map((c) => airports.find((a) => a.value === c)).filter((a): a is ComboOption => !!a) : [];
-  return (
-    <PickerField
-      {...props}
-      options={airports ?? []}
-      common={common}
-      loading={!airports}
-      placeholder="Select airport code"
-      searchPlaceholder="Code, city or airport, e.g. BOM or Mumbai"
-      labelClassName="w-10"
-    />
-  );
-}
-
-function CountrySelect(props: SimplePickerProps) {
-  return (
-    <PickerField
-      {...props}
-      options={getCountryOptions()}
-      placeholder="Select country"
-      searchPlaceholder="Search country, e.g. India"
-      labelClassName="w-auto"
-    />
   );
 }
 

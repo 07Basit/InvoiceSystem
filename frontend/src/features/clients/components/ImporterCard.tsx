@@ -59,7 +59,7 @@ export default function ImporterCard({
   onEdit, onDelete, editLabel, deleteLabel,
 }: ImporterCardProps) {
   return (
-    <div className={cn('rounded-xl border bg-card p-4 space-y-4 transition-shadow hover:shadow-sm', draft && 'border-amber-300/70 bg-amber-50/30', inactive && 'bg-muted/40 border-dashed')}>
+    <div className={cn('rounded-xl border bg-card card-pattern p-4 space-y-4 transition-shadow hover:shadow-sm', draft && 'bg-none border-amber-300/70 bg-amber-50/30', inactive && 'bg-none bg-muted/40 border-dashed')}>
       <div className="flex items-start gap-3">
         <div className={cn('h-10 w-10 rounded-xl bg-[hsl(var(--primary))]/10 flex items-center justify-center text-[hsl(var(--primary))] text-sm font-bold shrink-0', inactive && 'grayscale opacity-60')}>
           {(name || '?').slice(0, 2).toUpperCase()}

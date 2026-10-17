@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Trash2, Save } from 'lucide-react';
+import { Building2, Plus, Trash2, Save, MapPin, Ship, Users, type LucideIcon } from 'lucide-react';
 import { createImporterSchema, type CreateImporterDto } from 'shared';
 import { useClients, useCreateClient, useDeleteClient, useImporterSummary, useUpdateClient } from '../hooks/useClients';
 import type { Importer } from '../services/clientService';
@@ -14,6 +14,7 @@ import { useDebouncedValue } from '@/lib/useDebouncedValue';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm';
 import { ApiClientError } from '@/services/api';
+import { cn } from '@/lib/utils';
 import { AirportSelect, CountrySelect, CurrencySelect } from '@/components/ui/PlacePickers';
 
 const emptyImporter: CreateImporterDto = {
@@ -414,13 +415,37 @@ export default function ClientsPage() {
       {isFormOpen && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-2 sm:p-4">
           <div className="bg-background w-full max-w-5xl max-h-[96dvh] sm:max-h-[94dvh] rounded-lg shadow-xl flex flex-col overflow-hidden">
-            <div className="flex items-center justify-center p-3 border-b shrink-0">
-              <h2 className="text-base font-semibold text-center">{editing ? 'Edit Importer' : editingDraftId ? 'Edit Draft Importer' : 'New Importer'}</h2>
+            <div className="shrink-0 border-b bg-gradient-to-r from-[hsl(var(--primary)/0.08)] to-[hsl(var(--brand-accent)/0.12)] px-3 py-3 sm:px-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--primary))] text-white"><Users className="h-4 w-4" /></span>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--primary))]">
+                      {editing ? 'Edit Importer' : editingDraftId ? 'Edit Draft Importer' : 'New Importer'}
+                    </p>
+                    <h2 className={cn('truncate text-lg font-bold leading-tight', !form.name.trim() && 'font-medium text-muted-foreground')}>
+                      {form.name.trim() || 'Importer name not set'}
+                    </h2>
+                    <p className="truncate text-xs text-muted-foreground" title={form.buyerName ?? ''}>
+                      {(form.buyerName ?? '').trim() ? `Buyer: ${form.buyerName!.trim()}` : 'No buyer name'}
+                    </p>
+                  </div>
+                </div>
+                <div className="shrink-0 text-right leading-tight">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Currency</p>
+                  <p className="text-lg font-bold text-[hsl(var(--brand-accent))]">{form.currency || '—'}</p>
+                </div>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+                <span className="rounded-md border bg-background/70 px-2 py-1 text-muted-foreground">{form.landingLocations.length} landing {form.landingLocations.length === 1 ? 'location' : 'locations'}</span>
+                <span className="rounded-md border bg-background/70 px-2 py-1 text-muted-foreground">{form.loadingLocations.length} loading {form.loadingLocations.length === 1 ? 'location' : 'locations'}</span>
+              </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-5">
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-5 bg-gradient-to-b from-[hsl(var(--primary)/0.07)] via-[hsl(var(--primary)/0.02)] to-[hsl(var(--brand-accent)/0.10)]">
             {submitError && <div className="text-sm text-destructive bg-destructive/5 border border-destructive/30 rounded-md px-3 py-2">{submitError}</div>}
 
+            <FormSection title="Importer Details" icon={Building2} tone="teal">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Field label="Name" value={form.name} error={errors['name']} onChange={(value) => { clearFieldError('name'); setForm((prev) => ({ ...prev, name: value })); }} />
               <Field label="Buyer Name (optional)" value={form.buyerName ?? ''} error={errors['buyerName']} onChange={(value) => { clearFieldError('buyerName'); setForm((prev) => ({ ...prev, buyerName: value })); }} />
@@ -429,9 +454,11 @@ export default function ClientsPage() {
               <CurrencySelect label="Currency" value={form.currency} error={errors['currency']} onChange={(value) => { clearFieldError('currency'); setForm((prev) => ({ ...prev, currency: value })); }} />
               <Field label="Address" value={form.address} error={errors['address']} onChange={(value) => { clearFieldError('address'); setForm((prev) => ({ ...prev, address: value })); }} />
             </div>
+            </FormSection>
 
             <LocationSection
               title="Landing Locations"
+              icon={MapPin}
               onAdd={() =>
                 setForm((prev) => ({
                   ...prev,
@@ -481,6 +508,7 @@ export default function ClientsPage() {
 
             <LocationSection
               title="Loading Locations"
+              icon={Ship}
               onAdd={() =>
                 setForm((prev) => ({
                   ...prev,
@@ -526,10 +554,10 @@ export default function ClientsPage() {
 
             </div>
 
-            <div className="border-t bg-background/95 backdrop-blur-sm p-3 shrink-0">
+            <div className="shrink-0 border-t bg-gradient-to-r from-[hsl(var(--primary)/0.08)] to-[hsl(var(--brand-accent)/0.12)] p-3">
               <div className="flex items-center justify-end gap-2 flex-wrap">
-                <button onClick={closeForm} className="px-3 py-1.5 text-sm border rounded-md hover:bg-accent shrink-0">Cancel</button>
-                <button onClick={saveDraft} className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm border rounded-md hover:bg-accent shrink-0">
+                <button onClick={closeForm} className="px-3 py-1.5 text-sm border rounded-md bg-background hover:bg-accent shrink-0">Cancel</button>
+                <button onClick={saveDraft} className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm border rounded-md bg-background hover:bg-accent shrink-0">
                   <Save className="h-3.5 w-3.5" /> Save Draft
                 </button>
                 <button
@@ -572,22 +600,46 @@ function Field({ label, value, onChange, placeholder, error }: FieldProps) {
   );
 }
 
+type SectionTone = 'teal' | 'orange';
+
+/** A form block with a tinted header band (teal for details, orange for shipping locations). */
+function FormSection({ title, icon: Icon, tone, action, children }: { title: string; icon: LucideIcon; tone: SectionTone; action?: ReactNode; children: ReactNode }) {
+  const band = tone === 'orange' ? 'bg-[hsl(var(--brand-accent)/0.09)] border-[hsl(var(--brand-accent)/0.25)]' : 'bg-[hsl(var(--primary)/0.06)]';
+  const tile = tone === 'orange' ? 'bg-[hsl(var(--brand-accent))]' : 'bg-[hsl(var(--primary))]';
+  return (
+    <section className="overflow-hidden rounded-md border bg-background shadow-sm">
+      <div className={cn('flex items-center justify-between gap-2 border-b px-3 py-2', band)}>
+        <h3 className="flex items-center gap-2 text-sm font-semibold tracking-tight">
+          <span className={cn('flex h-6 w-6 items-center justify-center rounded-md text-white', tile)}><Icon className="h-3.5 w-3.5" /></span>
+          {title}
+        </h3>
+        {action}
+      </div>
+      <div className="p-3">{children}</div>
+    </section>
+  );
+}
+
 interface LocationSectionProps {
   title: string;
+  icon: LucideIcon;
   onAdd: () => void;
   children: ReactNode;
 }
 
-function LocationSection({ title, onAdd, children }: LocationSectionProps) {
+function LocationSection({ title, icon, onAdd, children }: LocationSectionProps) {
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="font-medium">{title}</h3>
+    <FormSection
+      title={title}
+      icon={icon}
+      tone="orange"
+      action={
         <button onClick={onAdd} className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[hsl(var(--brand-accent))] text-white hover:opacity-90 shadow-sm transition-all text-xs font-semibold">
           <Plus className="h-3.5 w-3.5" /> Add
         </button>
-      </div>
+      }
+    >
       <div className="space-y-2">{children}</div>
-    </div>
+    </FormSection>
   );
 }

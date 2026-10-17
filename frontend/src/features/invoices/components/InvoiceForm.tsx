@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Trash2, ExternalLink } from 'lucide-react';
+import { Building2, ExternalLink, FileText, Landmark, PenLine, Package, Plus, ScrollText, Ship, Trash2, Users, type LucideIcon } from 'lucide-react';
 import { DEFAULT_DECLARATION, type CreateInvoiceDto } from 'shared';
 import { useClients } from '@/features/clients/hooks/useClients';
 import { useCreateInvoice, useInvoice, useUpdateInvoice } from '../hooks/useInvoices';
@@ -12,8 +12,9 @@ import { bankLabel } from '@/features/auth/components/BankProfilesSection';
 import type { BankProfile } from '../services/bankService';
 import type { ExporterProfile } from '../services/exporterService';
 import SearchCombobox from '@/components/ui/SearchCombobox';
-import DatePicker from '@/components/ui/DatePicker';
+import DatePicker, { formatYmd } from '@/components/ui/DatePicker';
 import NumberInput from '@/components/ui/NumberInput';
+import { cn } from '@/lib/utils';
 import { formatNumber } from '@/lib/format';
 import { AirportSelect, CountrySelect, CurrencySelect } from '@/components/ui/PlacePickers';
 import { useInvoiceStore } from '../store/invoiceStore';
@@ -159,7 +160,6 @@ export default function InvoiceForm() {
 
   const isEditing = Boolean(editingId);
   const invoice = invoiceData?.data;
-  const invoiceNumberLabel = invoice?.invoiceNumber || form.invoiceNumber;
   const allImporters = importersData?.data ?? [];
   // "Not needed" importers aren't offered for new invoices; an invoice being edited keeps its own importer selectable.
   const importers = allImporters.filter((i) => i.isActive !== false || i.id === form.importerId);
@@ -395,21 +395,39 @@ export default function InvoiceForm() {
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-2 sm:p-4">
       <div className="bg-background w-full max-w-7xl max-h-[96dvh] sm:max-h-[94dvh] rounded-lg shadow-xl flex flex-col overflow-hidden">
-        <div className="flex items-center justify-center p-3 border-b shrink-0 min-w-0">
-          <h2 className="text-base font-semibold text-center min-w-0 break-words">
-            {isEditing ? (
-              <>
-                Edit Invoice
-                {invoiceNumberLabel ? <span className="block sm:inline sm:before:content-['_—_'] text-primary">{invoiceNumberLabel}</span> : null}
-              </>
-            ) : draftId ? 'Edit Draft Invoice' : 'New Invoice'}
-          </h2>
+        <div className="shrink-0 min-w-0 border-b bg-gradient-to-r from-[hsl(var(--primary)/0.08)] to-[hsl(var(--brand-accent)/0.12)] px-3 py-3 sm:px-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--primary))] text-white"><FileText className="h-4 w-4" /></span>
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--primary))]">
+                  {isEditing ? 'Edit Invoice' : draftId ? 'Edit Draft Invoice' : 'New Invoice'}
+                </p>
+                <h2 className={cn('truncate text-lg font-bold leading-tight', !form.invoiceNumber.trim() && 'font-medium text-muted-foreground')}>
+                  {form.invoiceNumber.trim() || 'Invoice no. not set'}
+                </h2>
+                <p className="truncate text-xs text-muted-foreground" title={form.importerName ?? ''}>
+                  {(form.importerName ?? '').trim() || 'Choose an importer to begin'}
+                </p>
+              </div>
+            </div>
+            <div className="shrink-0 text-right leading-tight">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Invoice total</p>
+              <p className="text-lg font-bold text-[hsl(var(--brand-accent))]">{form.currency} {formatNumber(total)}</p>
+            </div>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+            {form.invoiceDate ? <span className="rounded-md border bg-background/70 px-2 py-1 text-muted-foreground">{formatYmd(toDateInput(form.invoiceDate))}</span> : null}
+            {form.currency ? <span className="rounded-md border bg-background/70 px-2 py-1 font-semibold">{form.currency}</span> : null}
+            <span className="rounded-md border bg-background/70 px-2 py-1 text-muted-foreground">{totalBoxes} {totalBoxes === 1 ? 'box' : 'boxes'}</span>
+            <span className="rounded-md border bg-background/70 px-2 py-1 text-muted-foreground">{formatNumber(totalNetWeight)} KGS nett</span>
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 bg-gradient-to-b from-[hsl(var(--primary)/0.07)] via-[hsl(var(--primary)/0.02)] to-[hsl(var(--brand-accent)/0.10)]">
           {submitError ? <div className="text-xs text-destructive bg-destructive/5 border border-destructive/30 rounded-md px-3 py-2">{submitError}</div> : null}
 
-          <Section title="Exporter" action={<ManageLink to="/profile" label="Manage exporter profiles" />}>
+          <Section title="Exporter" icon={Building2} tone="teal" action={<ManageLink to="/profile" label="Manage exporter profiles" />}>
             <div className="max-w-sm">
               <label className="label">Exporter profile</label>
               <SearchCombobox
@@ -432,7 +450,7 @@ export default function InvoiceForm() {
             <p className="text-[11px] text-muted-foreground">This invoice keeps its own copy of these details. Changing them here does not change the saved profile.</p>
           </Section>
 
-          <Section title="Importer" action={<ManageLink to="/importers" label="Manage importers" />}>
+          <Section title="Importer" icon={Users} tone="teal" action={<ManageLink to="/importers" label="Manage importers" />}>
             <div className="max-w-sm">
               <label className="label">Importer</label>
               <SearchCombobox
@@ -460,7 +478,7 @@ export default function InvoiceForm() {
             </div>
           </Section>
 
-          <Section title="Invoice Details">
+          <Section title="Invoice Details" icon={FileText} tone="teal">
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-2">
                 <Field label="Invoice No" value={form.invoiceNumber} error={errors.invoiceNumber} onChange={(v) => { clearFieldError('invoiceNumber'); setForm((p) => ({ ...p, invoiceNumber: v })); }} />
@@ -487,7 +505,7 @@ export default function InvoiceForm() {
             </div>
           </Section>
 
-          <Section title="Shipping Details">
+          <Section title="Shipping Details" icon={Ship} tone="orange">
             <div className="space-y-3">
               <div className="grid grid-cols-3 gap-2">
                 <Field label="Pre-Carriage by" value={form.preCarriageBy ?? ''} error={errors.preCarriageBy} onChange={(v) => { clearFieldError('preCarriageBy'); setForm((p) => ({ ...p, preCarriageBy: v })); }} />
@@ -522,7 +540,7 @@ export default function InvoiceForm() {
             </div>
           </Section>
 
-          <Section title="Product Details">
+          <Section title="Product Details" icon={Package} tone="orange">
             <div className="space-y-4">
               <div className="space-y-2">
                 {/* Phones: one stacked card per product */}
@@ -637,7 +655,7 @@ export default function InvoiceForm() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-4">
-              <Section title="Bank Detail" action={<ManageLink to="/profile" label="Manage bank accounts" />}>
+              <Section title="Bank Detail" icon={Landmark} tone="teal" action={<ManageLink to="/profile" label="Manage bank accounts" />}>
                 <div className="max-w-sm">
                   <label className="label">Bank account</label>
                   <SearchCombobox
@@ -660,7 +678,7 @@ export default function InvoiceForm() {
                 <p className="text-[11px] text-muted-foreground">This invoice keeps its own copy of these details. Changing them here does not change the saved account.</p>
               </Section>
 
-              <Section title="Declaration">
+              <Section title="Declaration" icon={ScrollText} tone="teal">
                 <textarea
                   aria-label="Declaration"
                   rows={4}
@@ -678,7 +696,7 @@ export default function InvoiceForm() {
               </Section>
             </div>
 
-            <Section title="Seal & Sign" action={<ManageLink to="/profile" label="Manage seal & sign" />}>
+            <Section title="Seal & Sign" icon={PenLine} tone="teal" action={<ManageLink to="/profile" label="Manage seal & sign" />}>
               <div className="max-w-sm">
                 <label className="label">Seal &amp; sign</label>
                 <SearchCombobox
@@ -702,10 +720,10 @@ export default function InvoiceForm() {
           </div>
         </div>
 
-        <div className="sticky bottom-0 border-t bg-background/95 backdrop-blur-sm p-3 shrink-0">
+        <div className="sticky bottom-0 shrink-0 border-t bg-gradient-to-r from-[hsl(var(--primary)/0.08)] to-[hsl(var(--brand-accent)/0.12)] p-3">
           <div className="flex items-center justify-end gap-2">
-            <button onClick={closeForm} className="px-3 py-1.5 text-xs border rounded-md hover:bg-accent">Cancel</button>
-            <button onClick={saveDraft} className="px-3 py-1.5 text-xs border rounded-md hover:bg-accent">Save Draft</button>
+            <button onClick={closeForm} className="px-3 py-1.5 text-xs border rounded-md bg-background hover:bg-accent">Cancel</button>
+            <button onClick={saveDraft} className="px-3 py-1.5 text-xs border rounded-md bg-background hover:bg-accent">Save Draft</button>
             <button onClick={submitInvoice} disabled={isPending} className="px-3 py-1.5 text-xs bg-[hsl(var(--brand-accent))] text-white rounded-md hover:opacity-90 disabled:opacity-50">
               {isEditing ? 'Save Invoice' : 'Create Invoice'}
             </button>
@@ -750,15 +768,25 @@ function ManageLink({ to, label }: { to: string; label: string }) {
   );
 }
 
-function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
+type SectionTone = 'teal' | 'orange';
+
+/** A form block with a tinted header band (teal for people and references, orange for shipping and goods). */
+function Section({ title, icon: Icon, tone = 'teal', children, action }: {
+  title: string; icon: LucideIcon; tone?: SectionTone; children: React.ReactNode; action?: React.ReactNode;
+}) {
+  const band = tone === 'orange' ? 'bg-[hsl(var(--brand-accent)/0.09)] border-[hsl(var(--brand-accent)/0.25)]' : 'bg-[hsl(var(--primary)/0.06)]';
+  const tile = tone === 'orange' ? 'bg-[hsl(var(--brand-accent))]' : 'bg-[hsl(var(--primary))]';
   return (
-    <div className="border rounded-md p-3 space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold tracking-tight">{title}</h3>
+    <section className="overflow-hidden rounded-md border bg-background shadow-sm">
+      <div className={cn('flex items-center justify-between gap-2 border-b px-3 py-2', band)}>
+        <h3 className="flex items-center gap-2 text-sm font-semibold tracking-tight">
+          <span className={cn('flex h-6 w-6 items-center justify-center rounded-md text-white', tile)}><Icon className="h-3.5 w-3.5" /></span>
+          {title}
+        </h3>
         {action}
       </div>
-      {children}
-    </div>
+      <div className="space-y-2 p-3">{children}</div>
+    </section>
   );
 }
 

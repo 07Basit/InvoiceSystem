@@ -145,6 +145,14 @@
 }
 
 @layer components {
+  /* Card backdrop: teal glow top-left, orange glow bottom-right, over a faint dot grid. Add `bg-none` to drop it. */
+  .card-pattern {
+    background-image:
+      radial-gradient(circle at 0% 0%, hsl(var(--primary) / 0.10), transparent 55%),
+      radial-gradient(circle at 100% 100%, hsl(var(--brand-accent) / 0.14), transparent 55%),
+      radial-gradient(hsl(var(--primary) / 0.08) 1px, transparent 1.2px);
+    background-size: auto, auto, 14px 14px;
+  }
   .input {
     @apply w-full border rounded-md px-3 py-1.5 text-sm bg-background transition-colors;
   }

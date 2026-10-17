@@ -41,8 +41,8 @@ export default function InvoiceCard({ invoice, onOpen, onPdf, onExcel, onEdit, o
     <div
       onClick={onOpen}
       className={cn(
-        'group cursor-pointer rounded-xl border bg-card p-4 space-y-3 transition-all hover:shadow-md hover:border-[hsl(var(--brand-accent))]/40',
-        invoice.excludedFromRevenue && 'bg-amber-50 border-amber-200',
+        'group cursor-pointer rounded-xl border bg-card card-pattern p-4 space-y-3 transition-all hover:shadow-md hover:border-[hsl(var(--brand-accent))]/40',
+        invoice.excludedFromRevenue && 'bg-none bg-amber-50 border-amber-200',
       )}
     >
       <div className="flex items-start justify-between gap-3">

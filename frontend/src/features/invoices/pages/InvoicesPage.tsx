@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import type { CreateInvoiceDto } from 'shared';
 import { useInvoiceStore } from '../store/invoiceStore';
 import { invoiceService } from '../services/invoiceService';
@@ -37,6 +38,15 @@ export default function InvoicesPage() {
   const { showToast } = useToast();
   const [drafts, setDrafts] = useState<InvoiceDraft[]>(() => readInvoiceDrafts());
   const { data: summary } = useInvoiceSummary();
+
+  // The top bar's "New invoice" arrives as /invoices?new=1: open the form once and tidy the URL
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      openCreateForm();
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams, openCreateForm]);
 
   useEffect(() => {
     const handleDraftUpdate = () => setDrafts(readInvoiceDrafts());

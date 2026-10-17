@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { Building2, Plus, Trash2, Save, MapPin, Ship, Users, type LucideIcon } from 'lucide-react';
 import { createImporterSchema, type CreateImporterDto } from 'shared';
@@ -124,6 +125,16 @@ export default function ClientsPage() {
     setForm(emptyImporter);
     setIsFormOpen(true);
   };
+
+  // The top bar's "New importer" arrives as /importers?new=1: open the form once and tidy the URL
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      openCreate();
+      setSearchParams({}, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const openEdit = (importer: Importer) => {
     setEditing(importer);

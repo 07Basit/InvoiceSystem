@@ -31,6 +31,7 @@ interface DashboardStats {
     total: number;
     currency: string;
     excludedFromRevenue: boolean;
+    importerName: string | null;
     importer: { name: string };
   }>;
   importers: Array<{
@@ -278,7 +279,7 @@ export default function DashboardPage() {
                 <div className="min-w-0">
                   <p className="font-mono text-sm font-semibold">{inv.invoiceNumber}</p>
                   <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                    {inv.importer.name} · {formatDate(inv.invoiceDate)}
+                    {inv.importerName ?? inv.importer.name} · {formatDate(inv.invoiceDate)}
                   </p>
                 </div>
                 <div className="flex flex-col items-end shrink-0 ml-3">

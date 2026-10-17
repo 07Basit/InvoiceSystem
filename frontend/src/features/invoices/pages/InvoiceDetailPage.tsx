@@ -9,7 +9,7 @@ import { invoiceService, type Invoice } from '../services/invoiceService';
 import InvoiceForm from '../components/InvoiceForm';
 import ExchangeRatePanel from '../components/ExchangeRatePanel';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { formatCountry, formatPortCode } from '@/lib/format';
+import { formatCountry, formatNumber, formatPortCode } from '@/lib/format';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import Tooltip from '@/components/ui/Tooltip';
 
@@ -63,7 +63,8 @@ function parties(invoice: Invoice) {
   const importer = invoice.importer;
   return {
     exporter: [invoice.exporterName, invoice.exporterAddress, invoice.exporterContact, invoice.exporterEmail],
-    importer: [importer.name, importer.address, importer.contact, importer.email],
+    // the invoice's own copy (name falls back to the importer for safety); address/contact/email are only ever the copy
+    importer: [invoice.importerName ?? importer.name, invoice.importerAddress, invoice.importerContact, invoice.importerEmail],
   };
 }
 
@@ -188,6 +189,29 @@ export default function InvoiceDetailPage() {
         </Grid>
       </Section>
 
+      {/* Bank details: the invoice's own copy */}
+      <Section title="Bank Details" icon={Building2}>
+        <Grid>
+          <Item label="Bank Name" value={invoice.bankName} />
+          <Item label="Account Number" value={invoice.bankAccountNumber} />
+          <Item label="IFSC Code" value={invoice.bankIfscCode} />
+          <Item label="SWIFT Code" value={invoice.bankSwiftCode} />
+        </Grid>
+      </Section>
+
+      {invoice.declaration ? (
+        <Section title="Declaration" icon={Building2}>
+          <p className="whitespace-pre-line text-sm leading-relaxed">{invoice.declaration}</p>
+        </Section>
+      ) : null}
+
+      {invoice.signImage ? (
+        <Section title="Seal & Sign" icon={Building2}>
+          <img src={invoice.signImage} alt={invoice.signName ?? 'Seal and sign'} className="max-h-28 w-auto rounded-md border bg-white p-2 object-contain" />
+          {invoice.signName ? <p className="mt-1 text-xs text-muted-foreground">{invoice.signName}</p> : null}
+        </Section>
+      ) : null}
+
       {/* Line items */}
       <section className="rounded-xl border bg-card overflow-hidden">
         <h2 className="flex items-center gap-2 border-b px-5 py-3 text-sm font-semibold">
@@ -213,9 +237,9 @@ export default function InvoiceDetailPage() {
                 <tr key={item.id}>
                   <td className="px-4 py-3 whitespace-nowrap">{item.marksAndNos || item.containerNo || <span className="text-muted-foreground">—</span>}</td>
                   <td className="px-4 py-3">{item.descriptionOfGoods}</td>
-                  <td className="px-4 py-3 text-right whitespace-nowrap">{Number(item.netWeightPerPackage).toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right whitespace-nowrap">{formatNumber(Number(item.netWeightPerPackage))}</td>
                   <td className="px-4 py-3 text-right">{item.numberOfBoxes}</td>
-                  <td className="px-4 py-3 text-right whitespace-nowrap">{Number(item.totalNetWeight).toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right whitespace-nowrap">{formatNumber(Number(item.totalNetWeight))}</td>
                   <td className="px-4 py-3 text-right whitespace-nowrap">{money(item.ratePerKg, cur)}</td>
                   <td className="px-4 py-3 text-right whitespace-nowrap">{money(item.totalPerBox, cur)}</td>
                   <td className="px-4 py-3 text-right font-semibold whitespace-nowrap">{money(item.amount, cur)}</td>
@@ -231,13 +255,12 @@ export default function InvoiceDetailPage() {
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <dl className="space-y-3">
             <Item label="No of Packages" value={invoice.totalBoxes} />
-            <Item label="Total Nett Wt" value={`${Number(invoice.totalNetWeight).toFixed(2)} KGS`} />
-            <Item label="Total Gross Wt" value={invoice.totalGrossWeight != null ? `${Number(invoice.totalGrossWeight).toFixed(2)} KGS` : undefined} />
+            <Item label="Total Nett Wt" value={`${formatNumber(Number(invoice.totalNetWeight))} KGS`} />
+            <Item label="Total Gross Wt" value={invoice.totalGrossWeight != null ? `${formatNumber(Number(invoice.totalGrossWeight))} KGS` : undefined} />
             <Item label={`Amount in Words (${cur})`} value={invoice.amountInWords} />
           </dl>
           <div className="space-y-2 rounded-lg bg-muted/40 p-4 text-sm">
             <div className="flex justify-between text-muted-foreground"><span>Sub Total</span><span>{money(invoice.subTotal, cur)}</span></div>
-            <div className="flex justify-between text-muted-foreground"><span>Round Off</span><span>{money(invoice.roundOff, cur)}</span></div>
             <div className="flex justify-between border-t pt-2 text-base font-bold"><span>Total</span><span>{money(invoice.total, cur)}</span></div>
           </div>
         </div>
@@ -248,7 +271,7 @@ export default function InvoiceDetailPage() {
         {invoice.notes ? <p className="whitespace-pre-wrap text-sm">{invoice.notes}</p> : <p className="text-sm text-muted-foreground">No notes.</p>}
       </Section>
 
-      <p className="text-xs text-muted-foreground print:hidden">Importer: {importer.name} · Invoice ID {invoice.id}</p>
+      <p className="text-xs text-muted-foreground print:hidden">Importer: {invoice.importerName ?? importer.name} · Invoice ID {invoice.id}</p>
 
       <InvoiceForm />
     </div>

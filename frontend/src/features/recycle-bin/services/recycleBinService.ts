@@ -8,6 +8,7 @@ export interface DeletedInvoice {
   currency: string;
   deletedAt: string;
   createdAt: string;
+  importerName?: string | null;
   importer: { name: string };
 }
 

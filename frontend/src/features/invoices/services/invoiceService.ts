@@ -67,6 +67,11 @@ export interface Invoice {
   portOfDischarge?: string | null;
   finalDestination?: string | null;
   buyerName?: string | null;
+  /** The importer's details as printed on this invoice (copied when it was made; later importer edits don't change them) */
+  importerName?: string | null;
+  importerAddress?: string | null;
+  importerContact?: string | null;
+  importerEmail?: string | null;
   countryOfOrigin?: string | null;
   countryOfDestination?: string | null;
   descriptionOfGoods?: string | null;
@@ -84,6 +89,10 @@ export interface Invoice {
   exporterAddress?: string | null;
   exporterContact?: string | null;
   exporterEmail?: string | null;
+  bankName?: string | null;
+  bankAccountNumber?: string | null;
+  bankIfscCode?: string | null;
+  bankSwiftCode?: string | null;
   lineItems: InvoiceLineItem[];
   totalBoxes: number;
   totalNetWeight: number;
@@ -93,6 +102,9 @@ export interface Invoice {
   total: number;
   amountInWords?: string | null;
   notes?: string | null;
+  declaration?: string | null;
+  signName?: string | null;
+  signImage?: string | null;
   createdAt: string;
   updatedAt: string;
 }

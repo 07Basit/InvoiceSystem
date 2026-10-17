@@ -1,18 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Trash2, Lock, Unlock, Save, Upload } from 'lucide-react';
-import type { CreateInvoiceDto, UpsertExporterProfileDto } from 'shared';
+import { Plus, Trash2, ExternalLink } from 'lucide-react';
+import { DEFAULT_DECLARATION, type CreateInvoiceDto } from 'shared';
 import { useClients } from '@/features/clients/hooks/useClients';
 import { useCreateInvoice, useInvoice, useUpdateInvoice } from '../hooks/useInvoices';
-import { useExporterProfile, useSaveExporterProfile } from '../hooks/useExporterProfile';
+import { useExporterProfiles } from '../hooks/useExporterProfiles';
+import { useBankProfiles } from '../hooks/useBankProfiles';
+import { useSignProfiles } from '../hooks/useSignProfiles';
+import type { SignProfile } from '../services/signService';
+import { bankLabel } from '@/features/auth/components/BankProfilesSection';
+import type { BankProfile } from '../services/bankService';
+import type { ExporterProfile } from '../services/exporterService';
+import SearchCombobox from '@/components/ui/SearchCombobox';
+import DatePicker from '@/components/ui/DatePicker';
+import NumberInput from '@/components/ui/NumberInput';
+import { formatNumber } from '@/lib/format';
+import { AirportSelect, CountrySelect, CurrencySelect } from '@/components/ui/PlacePickers';
 import { useInvoiceStore } from '../store/invoiceStore';
 import { useToast } from '@/components/ui/toast';
 import { ApiClientError } from '@/services/api';
-import defaultInvoiceSign from '@/assets/invoice/InvoiceSign.png';
 
 const invoiceDraftListKey = 'invoice-draft-list-v1';
-const bankDetailsStorageKey = 'invoice-bank-details-v1';
-const invoiceSignStorageKey = 'invoice-sign-v2';
 
 type FieldErrors = Record<string, string>;
 
@@ -22,12 +30,6 @@ interface InvoiceDraft {
   data: CreateInvoiceDto;
 }
 
-interface BankDetails {
-  bankName: string;
-  accountNumber: string;
-  ifscCode: string;
-  swiftCode: string;
-}
 
 const initialInvoice: CreateInvoiceDto = {
   importerId: '',
@@ -45,17 +47,25 @@ const initialInvoice: CreateInvoiceDto = {
   portOfDischarge: '',
   finalDestination: '',
   buyerName: '',
+  importerName: '',
+  importerAddress: '',
+  importerContact: '',
+  importerEmail: '',
   countryOfOrigin: '',
   countryOfDestination: '',
   descriptionOfGoods: 'FRUITS & VEGETABLES',
   hsCode: '709',
-  termsOfDelivery: 'CNF YUL',
+  termsOfDelivery: 'CNF',
   termsOfPayment: 'ADVANCE',
   currency: '',
   exporterName: '',
   exporterAddress: '',
   exporterContact: '',
   exporterEmail: '',
+  bankName: '',
+  bankAccountNumber: '',
+  bankIfscCode: '',
+  bankSwiftCode: '',
   lineItems: [
     { marksAndNos: '', containerNo: '', descriptionOfGoods: '', netWeightPerPackage: 0, numberOfBoxes: 0, ratePerKg: 0 },
   ],
@@ -63,16 +73,12 @@ const initialInvoice: CreateInvoiceDto = {
   roundOff: 0,
   amountInWords: '',
   notes: '',
+  declaration: DEFAULT_DECLARATION,
+  signName: '',
+  signImage: '',
 };
 
-const emptyExporter: UpsertExporterProfileDto = { name: '', address: '', contact: '', email: '', isLocked: false };
 
-const defaultBankDetails: BankDetails = {
-  bankName: 'HDFC BANK',
-  accountNumber: '5036834342323',
-  ifscCode: 'HDFC45300321',
-  swiftCode: 'HDFCINDFBXXX',
-};
 
 function toDateInput(iso: string) { return iso.slice(0, 10); }
 function toIsoDate(v: string) { return new Date(`${v}T00:00:00.000Z`).toISOString(); }
@@ -116,32 +122,40 @@ function formatAmountInWords(amount: number, currency: string) {
 function readInvoiceDrafts(): InvoiceDraft[] {
   try { const raw = localStorage.getItem(invoiceDraftListKey); if (!raw) return []; const p = JSON.parse(raw) as InvoiceDraft[]; return Array.isArray(p) ? p : []; } catch { return []; }
 }
-function readBankDetails(): BankDetails {
-  try { const raw = localStorage.getItem(bankDetailsStorageKey); if (!raw) return defaultBankDetails; const p = JSON.parse(raw) as BankDetails; return p ? { ...defaultBankDetails, ...p } : defaultBankDetails; } catch { return defaultBankDetails; }
-}
-function readSignImage() { return localStorage.getItem(invoiceSignStorageKey) || defaultInvoiceSign; }
+/** Terms of Delivery are always "CNF" followed by the final destination's code (e.g. "CNF YYZ"). */
+export const cnfTerms = (finalDestination?: string | null) => `CNF${finalDestination?.trim() ? ` ${finalDestination.trim().toUpperCase()}` : ''}`;
+
+const signFields = (p: SignProfile) => ({ signName: p.name, signImage: p.image });
+
+const bankFields = (p: BankProfile) => ({ bankName: p.bankName, bankAccountNumber: p.accountNumber, bankIfscCode: p.ifscCode ?? '', bankSwiftCode: p.swiftCode ?? '' });
+
+const exporterFields = (p: ExporterProfile) => ({ exporterName: p.name, exporterAddress: p.address, exporterContact: p.contact, exporterEmail: p.email ?? '' });
 
 export default function InvoiceForm() {
   const { isFormOpen, editingId, draftId, draftData, closeForm } = useInvoiceStore();
   const { data: invoiceData } = useInvoice(editingId ?? '');
   const { data: importersData } = useClients({ limit: 100, sort: 'name' });
-  const { data: exporterData } = useExporterProfile();
-  const saveExporterMutation = useSaveExporterProfile();
+  const { data: exporterData } = useExporterProfiles();
+  const { data: signData } = useSignProfiles();
+  // "Not needed" seals & signs are hidden from new invoices (an edited invoice keeps its own copy)
+  const signProfiles = (signData?.data ?? []).filter((p) => p.isActive);
+  const { data: bankData } = useBankProfiles();
+  // "Not needed" accounts are hidden from new invoices (an edited invoice keeps its own copy)
+  const bankProfiles = (bankData?.data ?? []).filter((p) => p.isActive);
+  const allExporterProfiles = exporterData?.data ?? [];
+  // "Not needed" profiles are hidden from new invoices (an edited invoice's own copy is unaffected)
+  const exporterProfiles = allExporterProfiles.filter((p) => p.isActive);
   const createMutation = useCreateInvoice();
   const updateMutation = useUpdateInvoice();
   const { showToast } = useToast();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<CreateInvoiceDto>(initialInvoice);
-  const [exporter, setExporter] = useState<UpsertExporterProfileDto>(emptyExporter);
-  const [exporterLocked, setExporterLocked] = useState(false);
+  const [exporterProfileId, setExporterProfileId] = useState('');
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [buyerOrderNoAndDate, setBuyerOrderNoAndDate] = useState('');
-  const [bankDetails, setBankDetails] = useState<BankDetails>(() => readBankDetails());
-  const [isBankLocked, setIsBankLocked] = useState(true);
-  const [signImage, setSignImage] = useState<string>(() => readSignImage());
-  const [isSignLocked, setIsSignLocked] = useState(true);
+  const [bankProfileId, setBankProfileId] = useState('');
+  const [signProfileId, setSignProfileId] = useState('');
 
   const isEditing = Boolean(editingId);
   const invoice = invoiceData?.data;
@@ -152,13 +166,6 @@ export default function InvoiceForm() {
   const selectedImporter = useMemo(() => importers.find((i) => i.id === form.importerId), [form.importerId, importers]);
 
   useEffect(() => {
-    if (exporterData?.data) {
-      setExporter({ name: exporterData.data.name, address: exporterData.data.address, contact: exporterData.data.contact, email: exporterData.data.email ?? '', isLocked: exporterData.data.isLocked });
-      setExporterLocked(Boolean(exporterData.data.isLocked));
-    }
-  }, [exporterData]);
-
-  useEffect(() => {
     if (!invoice || !isEditing) return;
     setForm({
       importerId: invoice.importerId, invoiceNumber: invoice.invoiceNumber, invoiceDate: invoice.invoiceDate,
@@ -167,25 +174,82 @@ export default function InvoiceForm() {
       vesselFlightNo: invoice.vesselFlightNo ?? 'By Air', loadingLocationId: invoice.loadingLocationId ?? undefined,
       landingLocationId: invoice.landingLocationId ?? undefined, portOfLoading: invoice.portOfLoading ?? '',
       portOfDischarge: invoice.portOfDischarge ?? '', finalDestination: invoice.finalDestination ?? '',
-      buyerName: invoice.buyerName ?? '', countryOfOrigin: invoice.countryOfOrigin ?? '', countryOfDestination: invoice.countryOfDestination ?? '',
+      buyerName: invoice.buyerName ?? '',
+      // the invoice's own copy of the importer's details, not the importer's current ones
+      importerName: invoice.importerName ?? invoice.importer.name, importerAddress: invoice.importerAddress ?? '',
+      importerContact: invoice.importerContact ?? '', importerEmail: invoice.importerEmail ?? '',
+      countryOfOrigin: invoice.countryOfOrigin ?? '', countryOfDestination: invoice.countryOfDestination ?? '',
       descriptionOfGoods: invoice.descriptionOfGoods ?? 'FRUITS & VEGETABLES', hsCode: invoice.hsCode ?? '709',
-      termsOfDelivery: invoice.termsOfDelivery ?? 'CNF YUL', termsOfPayment: invoice.termsOfPayment ?? 'ADVANCE',
+      termsOfDelivery: invoice.termsOfDelivery ?? cnfTerms(invoice.finalDestination), termsOfPayment: invoice.termsOfPayment ?? 'ADVANCE',
       currency: invoice.currency, exporterName: invoice.exporterName ?? '', exporterAddress: invoice.exporterAddress ?? '',
       exporterContact: invoice.exporterContact ?? '', exporterEmail: invoice.exporterEmail ?? '',
+      bankName: invoice.bankName ?? '', bankAccountNumber: invoice.bankAccountNumber ?? '', bankIfscCode: invoice.bankIfscCode ?? '', bankSwiftCode: invoice.bankSwiftCode ?? '',
       lineItems: invoice.lineItems.map((item) => {
         const combined = item.marksAndNos || item.containerNo || '';
         return { marksAndNos: combined, containerNo: combined, descriptionOfGoods: item.descriptionOfGoods, netWeightPerPackage: Number(item.netWeightPerPackage), numberOfBoxes: item.numberOfBoxes, ratePerKg: Number(item.ratePerKg) };
       }),
-      totalGrossWeight: invoice.totalGrossWeight ?? undefined, roundOff: Number(invoice.roundOff),
-      amountInWords: invoice.amountInWords ?? '', notes: invoice.notes ?? '',
+      totalGrossWeight: invoice.totalGrossWeight ?? undefined, roundOff: 0,
+      amountInWords: invoice.amountInWords ?? '', notes: invoice.notes ?? '', declaration: invoice.declaration ?? DEFAULT_DECLARATION, signName: invoice.signName ?? '', signImage: invoice.signImage ?? '',
     });
     setBuyerOrderNoAndDate('');
   }, [invoice, isEditing]);
 
   useEffect(() => {
-    if (!isFormOpen) { setForm(initialInvoice); setErrors({}); setSubmitError(null); setBuyerOrderNoAndDate(''); return; }
+    if (!isFormOpen) { setForm(initialInvoice); setErrors({}); setSubmitError(null); setBuyerOrderNoAndDate(''); setExporterProfileId(''); setBankProfileId(''); setSignProfileId(''); return; }
     if (!isEditing && draftData) { setForm(draftData); setErrors({}); setSubmitError(null); }
   }, [isFormOpen, isEditing, draftData]);
+
+  // A NEW invoice starts from the default exporter profile (or the only one). Editing never does this:
+  // an existing invoice keeps the exporter details it was saved with.
+  useEffect(() => {
+    if (!isFormOpen || isEditing || exporterProfiles.length === 0) return;
+    const start = exporterProfiles.find((p) => p.isDefault) ?? (exporterProfiles.length === 1 ? exporterProfiles[0] : undefined);
+    if (!start) return;
+    setForm((prev) => (prev.exporterName || prev.exporterAddress || prev.exporterContact || prev.exporterEmail ? prev : { ...prev, ...exporterFields(start) }));
+    setExporterProfileId(start.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFormOpen, isEditing, exporterData]);
+
+  // Same for the bank account: a NEW invoice starts from the default (or only) account.
+  useEffect(() => {
+    if (!isFormOpen || isEditing || bankProfiles.length === 0) return;
+    const start = bankProfiles.find((p) => p.isDefault) ?? (bankProfiles.length === 1 ? bankProfiles[0] : undefined);
+    if (!start) return;
+    setForm((prev) => (prev.bankName || prev.bankAccountNumber || prev.bankIfscCode || prev.bankSwiftCode ? prev : { ...prev, ...bankFields(start) }));
+    setBankProfileId(start.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFormOpen, isEditing, bankData]);
+
+  // And the seal & sign: a NEW invoice starts from the default (or only) one.
+  useEffect(() => {
+    if (!isFormOpen || isEditing || signProfiles.length === 0) return;
+    const start = signProfiles.find((p) => p.isDefault) ?? (signProfiles.length === 1 ? signProfiles[0] : undefined);
+    if (!start) return;
+    setForm((prev) => (prev.signImage ? prev : { ...prev, ...signFields(start) }));
+    setSignProfileId(start.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFormOpen, isEditing, signData]);
+
+  const chooseSignProfile = (id: string) => {
+    setSignProfileId(id);
+    const profile = signProfiles.find((p) => p.id === id);
+    if (profile) setForm((prev) => ({ ...prev, ...signFields(profile) }));
+  };
+
+  const chooseBankProfile = (id: string) => {
+    setBankProfileId(id);
+    const profile = bankProfiles.find((p) => p.id === id);
+    if (profile) setForm((prev) => ({ ...prev, ...bankFields(profile) }));
+  };
+
+  const chooseExporterProfile = (id: string) => {
+    setExporterProfileId(id);
+    const profile = exporterProfiles.find((p) => p.id === id);
+    if (profile) {
+      clearFieldError('exporterName'); clearFieldError('exporterAddress'); clearFieldError('exporterContact');
+      setForm((prev) => ({ ...prev, ...exporterFields(profile) }));
+    }
+  };
 
   const lineDetails = form.lineItems.map((item) => {
     const totalNetWeight = Number(item.netWeightPerPackage) * Number(item.numberOfBoxes);
@@ -197,14 +261,13 @@ export default function InvoiceForm() {
   const totalNetWeight = lineDetails.reduce((s, i) => s + i.totalNetWeight, 0);
   const totalBoxes = form.lineItems.reduce((s, i) => s + Number(i.numberOfBoxes), 0);
   const subTotal = lineDetails.reduce((s, i) => s + i.amount, 0);
-  const roundOff = Number(form.roundOff ?? 0);
-  const total = subTotal + roundOff;
-  const resolvedCurrency = selectedImporter?.currency ?? form.currency;
+  const total = subTotal; // no round off on invoices
+  const resolvedCurrency = form.currency;
   const autoAmountInWords = useMemo(() => formatAmountInWords(total, resolvedCurrency || form.currency || 'USD'), [total, resolvedCurrency, form.currency]);
 
   useEffect(() => { setForm((prev) => ({ ...prev, amountInWords: autoAmountInWords })); }, [autoAmountInWords]);
 
-  const isPending = createMutation.isPending || updateMutation.isPending || saveExporterMutation.isPending;
+  const isPending = createMutation.isPending || updateMutation.isPending;
 
   const clearFieldError = (key: string) => setErrors((prev) => { if (!prev[key]) return prev; const n = { ...prev }; delete n[key]; return n; });
 
@@ -214,35 +277,34 @@ export default function InvoiceForm() {
     if (!importer) return;
     const fl = importer.landingLocations[0]; const lo = importer.loadingLocations[0];
     setForm((prev) => ({
-      ...prev, importerId, buyerName: '', currency: importer.currency,
+      ...prev, importerId, buyerName: importer.buyerName ?? '', currency: importer.currency,
+      importerName: importer.name, importerAddress: importer.address ?? '', importerContact: importer.contact ?? '', importerEmail: importer.email ?? '',
       landingLocationId: fl?.id, loadingLocationId: lo?.id,
-      portOfDischarge: fl?.portOfDischarge ?? '', finalDestination: fl?.finalDestination ?? '', countryOfDestination: fl?.countryOfDestination ?? '',
+      portOfDischarge: fl?.portOfDischarge ?? '', finalDestination: fl?.finalDestination ?? '', termsOfDelivery: cnfTerms(fl?.finalDestination), countryOfDestination: fl?.countryOfDestination ?? '',
       portOfLoading: lo?.portOfLoading ?? '', countryOfOrigin: lo?.countryOfOrigin ?? '',
     }));
   };
 
-  const saveExporter = async () => {
-    try {
-      await saveExporterMutation.mutateAsync({ ...exporter, isLocked: exporterLocked });
-      setForm((prev) => ({ ...prev, exporterName: exporter.name, exporterAddress: exporter.address, exporterContact: exporter.contact, exporterEmail: exporter.email }));
-      showToast('Exporter saved', 'Exporter details updated.', 'success');
-    } catch (error) { showToast('Unable to save exporter', error instanceof Error ? error.message : 'Please try again.', 'error'); }
+  // Picking one of the importer's saved locations copies its values into this invoice; they stay editable
+  // here and never change the importer.
+  const chooseLanding = (id: string) => {
+    const loc = selectedImporter?.landingLocations.find((l) => l.id === id);
+    if (!loc) return;
+    ['portOfDischarge', 'finalDestination', 'countryOfDestination'].forEach(clearFieldError);
+    setForm((p) => ({ ...p, landingLocationId: loc.id, portOfDischarge: loc.portOfDischarge, finalDestination: loc.finalDestination, termsOfDelivery: cnfTerms(loc.finalDestination), countryOfDestination: loc.countryOfDestination }));
   };
-
-  const saveBankDetails = () => { localStorage.setItem(bankDetailsStorageKey, JSON.stringify(bankDetails)); showToast('Bank details saved', 'Bank details were updated.', 'success'); };
-  const saveSignImage = () => { localStorage.setItem(invoiceSignStorageKey, signImage); showToast('Sign saved', 'Sign and stamp image was updated.', 'success'); };
-
-  const handleSignUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => { if (typeof reader.result === 'string') setSignImage(reader.result); };
-    reader.readAsDataURL(file);
+  const chooseLoading = (id: string) => {
+    const loc = selectedImporter?.loadingLocations.find((l) => l.id === id);
+    if (!loc) return;
+    ['portOfLoading', 'countryOfOrigin'].forEach(clearFieldError);
+    setForm((p) => ({ ...p, loadingLocationId: loc.id, portOfLoading: loc.portOfLoading, countryOfOrigin: loc.countryOfOrigin }));
   };
 
   const saveDraft = () => {
     const draft: InvoiceDraft = {
       id: draftId ?? `draft-${Date.now()}`, createdAt: new Date().toISOString(),
-      data: { ...form, currency: (resolvedCurrency || form.currency || '').toUpperCase() },
+      // the (large) seal & sign image is not kept in the draft; the default is filled in again when it is reopened
+      data: { ...form, signName: '', signImage: '', currency: (resolvedCurrency || form.currency || '').toUpperCase() },
     };
     const existing = readInvoiceDrafts();
     const next = draftId ? existing.map((i) => (i.id === draft.id ? draft : i)) : [draft, ...existing];
@@ -255,11 +317,15 @@ export default function InvoiceForm() {
   const validateForm = (): FieldErrors => {
     const e: FieldErrors = {};
     if (!form.importerId) e.importerId = 'Importer is required.';
+    if ((form.importerEmail ?? '').trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((form.importerEmail ?? '').trim())) e.importerEmail = 'Enter a valid email address.';
     if (!form.invoiceNumber.trim()) e.invoiceNumber = 'Invoice number is required.';
     if (!form.invoiceDate) e.invoiceDate = 'Invoice date is required.';
-    if (!(form.exportersRef ?? '').trim()) e.exportersRef = 'Exporter\'s Ref. is required.';
-    if (!(form.otherReferences ?? '').trim()) e.otherReferences = 'Other Reference(s) is required.';
-    if (!(form.awbNumber ?? '').trim()) e.awbNumber = 'AWB NO is required.';
+    if (!isEditing) {
+      if (!(form.exporterName ?? '').trim()) e.exporterName = 'Exporter name is required.';
+      if (!(form.exporterAddress ?? '').trim()) e.exporterAddress = 'Exporter address is required.';
+      if (!(form.exporterContact ?? '').trim()) e.exporterContact = 'Exporter contact is required.';
+    }
+    if ((form.exporterEmail ?? '').trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((form.exporterEmail ?? '').trim())) e.exporterEmail = 'Enter a valid email address.';
     if (!(form.preCarriageBy ?? '').trim()) e.preCarriageBy = 'Pre-Carriage by is required.';
     if (!(form.placeOfReceiptByPreCarrier ?? '').trim()) e.placeOfReceiptByPreCarrier = 'Place of Receipt is required.';
     if (!(form.vesselFlightNo ?? '').trim()) e.vesselFlightNo = 'Vessel Flight No. is required.';
@@ -270,15 +336,14 @@ export default function InvoiceForm() {
     if (!(form.countryOfDestination ?? '').trim()) e.countryOfDestination = 'Country of Destination is required.';
     if (!(form.descriptionOfGoods ?? '').trim()) e.descriptionOfGoods = 'Description of Goods is required.';
     if (!(form.hsCode ?? '').trim()) e.hsCode = 'HS Code is required.';
-    if (!(form.termsOfDelivery ?? '').trim()) e.termsOfDelivery = 'Terms of Delivery is required.';
     if (!(form.termsOfPayment ?? '').trim()) e.termsOfPayment = 'Terms of Payment is required.';
     if (!(resolvedCurrency || form.currency).trim()) e.currency = 'Currency is required.';
+    if (form.totalGrossWeight !== undefined && form.totalGrossWeight < totalNetWeight) e.totalGrossWeight = `Gross weight can't be less than the total nett weight (${formatNumber(totalNetWeight)} KGS).`;
     form.lineItems.forEach((item, index) => {
-      if (!(item.marksAndNos ?? '').trim()) e[`lineItems.${index}.marksAndNos`] = 'Marks/Container is required.';
       if (!(item.descriptionOfGoods ?? '').trim()) e[`lineItems.${index}.descriptionOfGoods`] = 'Description is required.';
       if (Number(item.netWeightPerPackage) <= 0) e[`lineItems.${index}.netWeightPerPackage`] = 'Must be > 0.';
-      if (Number(item.numberOfBoxes) < 0) e[`lineItems.${index}.numberOfBoxes`] = 'Cannot be negative.';
-      if (Number(item.ratePerKg) < 0) e[`lineItems.${index}.ratePerKg`] = 'Cannot be negative.';
+      if (!Number.isInteger(Number(item.numberOfBoxes)) || Number(item.numberOfBoxes) < 1) e[`lineItems.${index}.numberOfBoxes`] = 'Enter a whole number, 1 or more.';
+      if (!(Number(item.ratePerKg) > 0)) e[`lineItems.${index}.ratePerKg`] = 'Must be > 0.';
     });
     return e;
   };
@@ -290,9 +355,13 @@ export default function InvoiceForm() {
     const payload: CreateInvoiceDto = {
       ...form, invoiceDate: form.invoiceDate,
       currency: (resolvedCurrency || form.currency).toUpperCase(),
-      exporterName: form.exporterName || exporter.name, exporterAddress: form.exporterAddress || exporter.address,
-      exporterContact: form.exporterContact || exporter.contact, exporterEmail: form.exporterEmail || exporter.email || undefined,
-      amountInWords: autoAmountInWords, roundOff,
+      exporterName: form.exporterName?.trim() || undefined, exporterAddress: form.exporterAddress?.trim() || undefined,
+      exporterContact: form.exporterContact?.trim() || undefined, exporterEmail: form.exporterEmail?.trim() || undefined,
+      declaration: form.declaration?.trim() || DEFAULT_DECLARATION,
+      signName: form.signName?.trim() || undefined, signImage: form.signImage || undefined,
+      bankName: form.bankName?.trim() || undefined, bankAccountNumber: form.bankAccountNumber?.trim() || undefined,
+      bankIfscCode: form.bankIfscCode?.trim() || undefined, bankSwiftCode: form.bankSwiftCode?.trim() || undefined,
+      amountInWords: autoAmountInWords, roundOff: 0,
       lineItems: form.lineItems.map((item) => ({ ...item, containerNo: item.marksAndNos, netWeightPerPackage: Number(item.netWeightPerPackage), numberOfBoxes: Number(item.numberOfBoxes), ratePerKg: Number(item.ratePerKg) })),
     };
     try {
@@ -323,19 +392,6 @@ export default function InvoiceForm() {
 
   if (!isFormOpen) return null;
 
-  const lockBtn = (locked: boolean, onToggle: () => void) => (
-    <button
-      onClick={onToggle}
-      className={[
-        'inline-flex items-center gap-1.5 text-[11px] border rounded-md px-2 py-1 transition-colors',
-        locked ? 'bg-muted border-border text-muted-foreground' : 'bg-emerald-50 border-emerald-200 text-emerald-700',
-      ].join(' ')}
-    >
-      {locked ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
-      {locked ? 'Locked' : 'Unlocked'}
-    </button>
-  );
-
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-2 sm:p-4">
       <div className="bg-background w-full max-w-7xl max-h-[96dvh] sm:max-h-[94dvh] rounded-lg shadow-xl flex flex-col overflow-hidden">
@@ -353,28 +409,54 @@ export default function InvoiceForm() {
         <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4">
           {submitError ? <div className="text-xs text-destructive bg-destructive/5 border border-destructive/30 rounded-md px-3 py-2">{submitError}</div> : null}
 
-          <Section title="Exporter">
-            <div className="flex items-center justify-between mb-2">
-              <span />
-              {lockBtn(exporterLocked, () => setExporterLocked((p) => !p))}
+          <Section title="Exporter" action={<ManageLink to="/profile" label="Manage exporter profiles" />}>
+            <div className="max-w-sm">
+              <label className="label">Exporter profile</label>
+              <SearchCombobox
+                ariaLabel="Exporter profile"
+                value={exporterProfileId}
+                onChange={chooseExporterProfile}
+                options={exporterProfiles.map((p) => ({ value: p.id, label: p.name, description: p.isDefault ? 'Default' : p.contact }))}
+                placeholder={isEditing ? "Keep this invoice's exporter" : exporterProfiles.length ? 'Select an exporter profile' : 'No profiles yet'}
+                searchPlaceholder="Search exporter profiles…"
+                labelClassName="w-auto max-w-[65%] truncate"
+                className="input"
+              />
             </div>
             <div className="grid grid-cols-2 xl:grid-cols-4 gap-2">
-              <LabeledInput label="Name" disabled={exporterLocked} value={exporter.name} onChange={(v) => setExporter((p) => ({ ...p, name: v }))} />
-              <LabeledInput label="Address" disabled={exporterLocked} value={exporter.address} onChange={(v) => setExporter((p) => ({ ...p, address: v }))} />
-              <LabeledInput label="Contact" disabled={exporterLocked} value={exporter.contact} onChange={(v) => setExporter((p) => ({ ...p, contact: v }))} />
-              <LabeledInput label="Email" disabled={exporterLocked} value={exporter.email ?? ''} onChange={(v) => setExporter((p) => ({ ...p, email: v }))} />
+              <LabeledInput label="Name" value={form.exporterName ?? ''} error={errors.exporterName} onChange={(v) => { clearFieldError('exporterName'); setForm((p) => ({ ...p, exporterName: v })); }} />
+              <LabeledInput label="Address" value={form.exporterAddress ?? ''} error={errors.exporterAddress} onChange={(v) => { clearFieldError('exporterAddress'); setForm((p) => ({ ...p, exporterAddress: v })); }} />
+              <LabeledInput label="Contact" value={form.exporterContact ?? ''} error={errors.exporterContact} onChange={(v) => { clearFieldError('exporterContact'); setForm((p) => ({ ...p, exporterContact: v })); }} />
+              <LabeledInput label="Email" value={form.exporterEmail ?? ''} error={errors.exporterEmail} onChange={(v) => { clearFieldError('exporterEmail'); setForm((p) => ({ ...p, exporterEmail: v })); }} />
             </div>
-            <button onClick={saveExporter} className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-[hsl(var(--brand-accent))] text-white rounded-md hover:opacity-90">
-              <Save className="h-3.5 w-3.5" /> Save
-            </button>
+            <p className="text-[11px] text-muted-foreground">This invoice keeps its own copy of these details. Changing them here does not change the saved profile.</p>
           </Section>
 
-          <Section title="Importer">
+          <Section title="Importer" action={<ManageLink to="/importers" label="Manage importers" />}>
+            <div className="max-w-sm">
+              <label className="label">Importer</label>
+              <SearchCombobox
+                ariaLabel="Importer"
+                value={form.importerId}
+                onChange={applyImporterDefaults}
+                options={[
+                  ...(form.importerId && !importers.some((i) => i.id === form.importerId) ? [{ value: form.importerId, label: form.importerName || 'Current importer' }] : []),
+                  ...importers.map((i) => ({ value: i.id, label: i.name, description: i.currency })),
+                ]}
+                placeholder="Select importer"
+                searchPlaceholder="Search importers…"
+                labelClassName="w-auto max-w-[65%] truncate"
+                hasError={!!errors.importerId}
+                className="input"
+              />
+              {errors.importerId ? <p className="err">{errors.importerId}</p> : null}
+            </div>
+            {/* Filled from the importer you pick (like the ports below) and saved with this invoice: editing the importer later never changes it. */}
             <div className="grid grid-cols-2 xl:grid-cols-4 gap-2">
-              <StatReadOnly label="Name" value={selectedImporter?.name ?? '-'} />
-              <StatReadOnly label="Address" value={selectedImporter?.address ?? '-'} />
-              <StatReadOnly label="Contact" value={selectedImporter?.contact ?? '-'} />
-              <StatReadOnly label="Email" value={selectedImporter?.email ?? '-'} />
+              <LabeledInput label="Name" value={form.importerName ?? ''} onChange={(v) => setForm((p) => ({ ...p, importerName: v }))} />
+              <LabeledInput label="Address" value={form.importerAddress ?? ''} onChange={(v) => setForm((p) => ({ ...p, importerAddress: v }))} />
+              <LabeledInput label="Contact" value={form.importerContact ?? ''} onChange={(v) => setForm((p) => ({ ...p, importerContact: v }))} />
+              <LabeledInput label="Email" value={form.importerEmail ?? ''} error={errors.importerEmail} onChange={(v) => { clearFieldError('importerEmail'); setForm((p) => ({ ...p, importerEmail: v })); }} />
             </div>
           </Section>
 
@@ -382,26 +464,25 @@ export default function InvoiceForm() {
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-2">
                 <Field label="Invoice No" value={form.invoiceNumber} error={errors.invoiceNumber} onChange={(v) => { clearFieldError('invoiceNumber'); setForm((p) => ({ ...p, invoiceNumber: v })); }} />
-                <DateField label="Invoice Date" value={toDateInput(form.invoiceDate)} error={errors.invoiceDate} onChange={(v) => { clearFieldError('invoiceDate'); setForm((p) => ({ ...p, invoiceDate: toIsoDate(v) })); }} />
+                <div>
+                  <label className="label">Invoice Date</label>
+                  <DatePicker ariaLabel="Invoice Date" value={toDateInput(form.invoiceDate)} hasError={!!errors.invoiceDate} onChange={(v) => { clearFieldError('invoiceDate'); setForm((p) => ({ ...p, invoiceDate: toIsoDate(v) })); }} />
+                  {errors.invoiceDate ? <p className="err">{errors.invoiceDate}</p> : null}
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <Field label="Exporter's Ref." value={form.exportersRef ?? ''} error={errors.exportersRef} onChange={(v) => { clearFieldError('exportersRef'); setForm((p) => ({ ...p, exportersRef: v })); }} />
                 <Field label="Buyer's Order No. & Date" value={buyerOrderNoAndDate} onChange={setBuyerOrderNoAndDate} />
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="label">Importer</label>
-                  <select value={form.importerId} onChange={(e) => applyImporterDefaults(e.target.value)} className="input">
-                    <option value="">Select importer</option>
-                    {importers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                  </select>
-                  {errors.importerId ? <p className="err">{errors.importerId}</p> : null}
-                </div>
-                <Field label="Buyer (If other than consignee :" value={form.buyerName ?? ''} onChange={(v) => setForm((p) => ({ ...p, buyerName: v }))} />
+                <Field label="Other Reference(s)" value={form.otherReferences ?? ''} error={errors.otherReferences} onChange={(v) => { clearFieldError('otherReferences'); setForm((p) => ({ ...p, otherReferences: v })); }} />
+                <Field label="Buyer (If other than consignee)" value={form.buyerName ?? ''} onChange={(v) => setForm((p) => ({ ...p, buyerName: v }))} />
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <Field label="Other Reference(s)" value={form.otherReferences ?? ''} error={errors.otherReferences} onChange={(v) => { clearFieldError('otherReferences'); setForm((p) => ({ ...p, otherReferences: v })); }} />
                 <Field label="AWB NO" value={form.awbNumber ?? ''} error={errors.awbNumber} onChange={(v) => { clearFieldError('awbNumber'); setForm((p) => ({ ...p, awbNumber: v })); }} />
+                <div className="rounded-md border border-[hsl(var(--brand-accent))]/30 border-l-4 border-l-[hsl(var(--brand-accent))] bg-[hsl(var(--brand-accent))]/5 px-2 pb-2">
+                  <CurrencySelect variant="form" label="Currency" value={form.currency} error={errors.currency} onChange={(v) => { clearFieldError('currency'); setForm((p) => ({ ...p, currency: v })); }} />
+                </div>
               </div>
             </div>
           </Section>
@@ -413,21 +494,29 @@ export default function InvoiceForm() {
                 <Field label="Place of Receipt by Pre-Carrier" value={form.placeOfReceiptByPreCarrier ?? ''} error={errors.placeOfReceiptByPreCarrier} onChange={(v) => { clearFieldError('placeOfReceiptByPreCarrier'); setForm((p) => ({ ...p, placeOfReceiptByPreCarrier: v })); }} />
                 <Field label="Vessel Flight No." value={form.vesselFlightNo ?? ''} error={errors.vesselFlightNo} onChange={(v) => { clearFieldError('vesselFlightNo'); setForm((p) => ({ ...p, vesselFlightNo: v })); }} />
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                <Field label="Port of Loading" value={form.portOfLoading ?? ''} error={errors.portOfLoading} onChange={(v) => { clearFieldError('portOfLoading'); setForm((p) => ({ ...p, portOfLoading: v })); }} />
-                <Field label="Port of Discharge" value={form.portOfDischarge ?? ''} error={errors.portOfDischarge} onChange={(v) => { clearFieldError('portOfDischarge'); setForm((p) => ({ ...p, portOfDischarge: v })); }} />
-                <Field label="Final Destination" value={form.finalDestination ?? ''} error={errors.finalDestination} onChange={(v) => { clearFieldError('finalDestination'); setForm((p) => ({ ...p, finalDestination: v })); }} />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Field label="Country of Origin" value={form.countryOfOrigin ?? ''} error={errors.countryOfOrigin} onChange={(v) => { clearFieldError('countryOfOrigin'); setForm((p) => ({ ...p, countryOfOrigin: v })); }} />
-                <Field label="Country of Destination" value={form.countryOfDestination ?? ''} error={errors.countryOfDestination} onChange={(v) => { clearFieldError('countryOfDestination'); setForm((p) => ({ ...p, countryOfDestination: v })); }} />
-              </div>
+              <LocationGroup title="Loading" hint="Origin">
+                <LocationPicker label="Loading location" ariaLabel="Loading location" value={form.loadingLocationId ?? ''} onChange={chooseLoading} importerChosen={!!form.importerId}
+                  options={(selectedImporter?.loadingLocations ?? []).map((l) => ({ value: l.id, label: l.name || l.portOfLoading, description: [l.portOfLoading, l.countryOfOrigin].filter(Boolean).join(' · ') }))} />
+                <div className="grid grid-cols-2 gap-2">
+                  <AirportSelect variant="form" label="Port of Loading" value={form.portOfLoading ?? ''} error={errors.portOfLoading} onChange={(v) => { clearFieldError('portOfLoading'); setForm((p) => ({ ...p, portOfLoading: v })); }} />
+                  <CountrySelect variant="form" label="Country of Origin" value={form.countryOfOrigin ?? ''} error={errors.countryOfOrigin} onChange={(v) => { clearFieldError('countryOfOrigin'); setForm((p) => ({ ...p, countryOfOrigin: v })); }} />
+                </div>
+              </LocationGroup>
+              <LocationGroup title="Landing" hint="Destination">
+                <LocationPicker label="Landing location" ariaLabel="Landing location" value={form.landingLocationId ?? ''} onChange={chooseLanding} importerChosen={!!form.importerId}
+                  options={(selectedImporter?.landingLocations ?? []).map((l) => ({ value: l.id, label: l.name || l.portOfDischarge, description: [l.portOfDischarge, l.finalDestination, l.countryOfDestination].filter(Boolean).join(' · ') }))} />
+                <div className="grid grid-cols-3 gap-2">
+                  <AirportSelect variant="form" label="Port of Discharge" value={form.portOfDischarge ?? ''} error={errors.portOfDischarge} onChange={(v) => { clearFieldError('portOfDischarge'); setForm((p) => ({ ...p, portOfDischarge: v })); }} />
+                  <AirportSelect variant="form" label="Final Destination" value={form.finalDestination ?? ''} error={errors.finalDestination} onChange={(v) => { clearFieldError('finalDestination'); setForm((p) => ({ ...p, finalDestination: v, termsOfDelivery: cnfTerms(v) })); }} />
+                  <CountrySelect variant="form" label="Country of Destination" value={form.countryOfDestination ?? ''} error={errors.countryOfDestination} onChange={(v) => { clearFieldError('countryOfDestination'); setForm((p) => ({ ...p, countryOfDestination: v })); }} />
+                </div>
+              </LocationGroup>
               <div className="grid grid-cols-2 gap-2">
                 <Field label="Description of Goods" value={form.descriptionOfGoods ?? ''} error={errors.descriptionOfGoods} onChange={(v) => { clearFieldError('descriptionOfGoods'); setForm((p) => ({ ...p, descriptionOfGoods: v })); }} />
                 <Field label="HS Code" value={form.hsCode ?? ''} error={errors.hsCode} onChange={(v) => { clearFieldError('hsCode'); setForm((p) => ({ ...p, hsCode: v })); }} />
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <Field label="Terms of Delivery" value={form.termsOfDelivery ?? ''} error={errors.termsOfDelivery} onChange={(v) => { clearFieldError('termsOfDelivery'); setForm((p) => ({ ...p, termsOfDelivery: v })); }} />
+                <Field label="Terms of Delivery (CNF + destination code)" readOnly value={form.termsOfDelivery ?? ''} onChange={() => {}} />
                 <Field label="Terms of Payment" value={form.termsOfPayment ?? ''} error={errors.termsOfPayment} onChange={(v) => { clearFieldError('termsOfPayment'); setForm((p) => ({ ...p, termsOfPayment: v })); }} />
               </div>
             </div>
@@ -436,15 +525,34 @@ export default function InvoiceForm() {
           <Section title="Product Details">
             <div className="space-y-4">
               <div className="space-y-2">
-                <div className="flex items-center justify-end">
-                  <button
-                    onClick={() => setForm((p) => ({ ...p, lineItems: [...p.lineItems, { marksAndNos: '', containerNo: '', descriptionOfGoods: '', netWeightPerPackage: 0, numberOfBoxes: 0, ratePerKg: 0 }] }))}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[hsl(var(--brand-accent))] text-white hover:opacity-90 shadow-sm transition-all text-xs font-semibold"
-                  >
-                    <Plus className="h-3.5 w-3.5" /> Add
-                  </button>
+                {/* Phones: one stacked card per product */}
+                <div className="space-y-3 sm:hidden">
+                  {form.lineItems.map((item, index) => (
+                    <div key={`card-${index}`} className="rounded-md border p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-semibold">Product {index + 1}</p>
+                        {form.lineItems.length > 1 ? (
+                          <button type="button" aria-label={`Remove product ${index + 1}`} onClick={() => removeLine(index)} className="p-1 hover:bg-destructive/10 rounded-md"><Trash2 className="h-3.5 w-3.5 text-destructive" /></button>
+                        ) : null}
+                      </div>
+                      <div><label className="label">Marks & Nos / Container No.</label>{lineField(index, 'marks')}</div>
+                      <div><label className="label">Description of Goods</label>{lineField(index, 'description')}</div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div><label className="label">Nett wt per package</label>{lineField(index, 'weight')}</div>
+                        <div><label className="label">No of boxes</label>{lineField(index, 'boxes')}</div>
+                        <div><label className="label">Rate per KG</label>{lineField(index, 'rate')}</div>
+                        <div><label className="label">Total nett wt</label><p className="text-sm py-1.5">{formatNumber(lineDetails[index]?.totalNetWeight ?? 0)} KGS</p></div>
+                      </div>
+                      <div className="flex justify-between border-t pt-2 text-sm">
+                        <span className="text-muted-foreground">Total per box: {form.currency} {formatNumber(lineDetails[index]?.totalPerBox ?? 0)}</span>
+                        <span className="font-semibold">{form.currency} {formatNumber(lineDetails[index]?.amount ?? 0)}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div className="overflow-x-auto border rounded-md">
+
+                {/* Larger screens: table */}
+                <div className="hidden sm:block overflow-x-auto border rounded-md">
                   <table className="w-full text-xs">
                     <thead className="bg-muted/40">
                       <tr>
@@ -454,40 +562,25 @@ export default function InvoiceForm() {
                         <th className="text-left p-2">NO OF BOXES</th>
                         <th className="text-left p-2"><span className="block">TOTAL</span><span className="block">NETT WT KGS</span></th>
                         <th className="text-left p-2"><span className="block">RATE PER</span><span className="block">KGS</span></th>
-                        <th className="text-left p-2">TOTAL PER BOX</th>
-                        <th className="text-left p-2"><span className="block">Amount</span><span className="block">({selectedImporter?.currency ?? form.currency})</span></th>
+                        <th className="text-left p-2"><span className="block">TOTAL PER</span><span className="block">BOX</span></th>
+                        <th className="text-left p-2"><span className="block">Amount</span><span className="block">({form.currency})</span></th>
                         <th className="p-2" />
                       </tr>
                     </thead>
                     <tbody>
                       {form.lineItems.map((item, index) => (
                         <tr key={`line-${index}`} className="border-t align-top">
-                          <td className="p-2 min-w-[200px]">
-                            <input value={item.marksAndNos ?? ''} onChange={(e) => { clearFieldError(`lineItems.${index}.marksAndNos`); updateLine(index, { marksAndNos: e.target.value, containerNo: e.target.value }); }} placeholder="Marks & Nos / Container No" className="w-full border rounded px-2 py-1 text-xs" />
-                            {errors[`lineItems.${index}.marksAndNos`] ? <p className="err">{errors[`lineItems.${index}.marksAndNos`]}</p> : null}
-                          </td>
-                          <td className="p-2 min-w-[160px]">
-                            <input value={item.descriptionOfGoods} onChange={(e) => { clearFieldError(`lineItems.${index}.descriptionOfGoods`); updateLine(index, { descriptionOfGoods: e.target.value }); }} className="w-full border rounded px-2 py-1 text-xs" />
-                            {errors[`lineItems.${index}.descriptionOfGoods`] ? <p className="err">{errors[`lineItems.${index}.descriptionOfGoods`]}</p> : null}
-                          </td>
-                          <td className="p-2 min-w-[110px]">
-                            <input type="number" step="0.01" value={item.netWeightPerPackage} onChange={(e) => { clearFieldError(`lineItems.${index}.netWeightPerPackage`); updateLine(index, { netWeightPerPackage: parseNumber(e.target.value) }); }} className="w-full border rounded px-2 py-1 text-xs" />
-                            {errors[`lineItems.${index}.netWeightPerPackage`] ? <p className="err">{errors[`lineItems.${index}.netWeightPerPackage`]}</p> : null}
-                          </td>
-                          <td className="p-2 min-w-[90px]">
-                            <input type="number" step="1" value={item.numberOfBoxes} onChange={(e) => { clearFieldError(`lineItems.${index}.numberOfBoxes`); updateLine(index, { numberOfBoxes: parseNumber(e.target.value) }); }} className="w-full border rounded px-2 py-1 text-xs" />
-                            {errors[`lineItems.${index}.numberOfBoxes`] ? <p className="err">{errors[`lineItems.${index}.numberOfBoxes`]}</p> : null}
-                          </td>
-                          <td className="p-2 min-w-[110px] whitespace-nowrap">{lineDetails[index]?.totalNetWeight.toFixed(2)} KGS</td>
-                          <td className="p-2 min-w-[110px]">
-                            <input type="number" step="0.01" value={item.ratePerKg} onChange={(e) => { clearFieldError(`lineItems.${index}.ratePerKg`); updateLine(index, { ratePerKg: parseNumber(e.target.value) }); }} className="w-full border rounded px-2 py-1 text-xs" />
-                            {errors[`lineItems.${index}.ratePerKg`] ? <p className="err">{errors[`lineItems.${index}.ratePerKg`]}</p> : null}
-                          </td>
-                          <td className="p-2 min-w-[110px] whitespace-nowrap">{selectedImporter?.currency ?? form.currency} {lineDetails[index]?.totalPerBox.toFixed(2)}</td>
-                          <td className="p-2 min-w-[110px] whitespace-nowrap">{selectedImporter?.currency ?? form.currency} {lineDetails[index]?.amount.toFixed(2)}</td>
+                          <td className="p-2 min-w-[200px]">{lineField(index, 'marks')}</td>
+                          <td className="p-2 min-w-[160px]">{lineField(index, 'description')}</td>
+                          <td className="p-2 min-w-[110px]">{lineField(index, 'weight')}</td>
+                          <td className="p-2 min-w-[90px]">{lineField(index, 'boxes')}</td>
+                          <td className="p-2 min-w-[110px] whitespace-nowrap">{formatNumber(lineDetails[index]?.totalNetWeight ?? 0)} KGS</td>
+                          <td className="p-2 min-w-[110px]">{lineField(index, 'rate')}</td>
+                          <td className="p-2 min-w-[110px] whitespace-nowrap">{form.currency} {formatNumber(lineDetails[index]?.totalPerBox ?? 0)}</td>
+                          <td className="p-2 min-w-[110px] whitespace-nowrap">{form.currency} {formatNumber(lineDetails[index]?.amount ?? 0)}</td>
                           <td className="p-2">
                             {form.lineItems.length > 1 ? (
-                              <button onClick={() => removeLine(index)} className="p-1 hover:bg-destructive/10 rounded-md"><Trash2 className="h-3.5 w-3.5 text-destructive" /></button>
+                              <button type="button" aria-label={`Remove product ${index + 1}`} onClick={() => removeLine(index)} className="p-1 hover:bg-destructive/10 rounded-md"><Trash2 className="h-3.5 w-3.5 text-destructive" /></button>
                             ) : null}
                           </td>
                         </tr>
@@ -495,6 +588,14 @@ export default function InvoiceForm() {
                     </tbody>
                   </table>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => setForm((p) => ({ ...p, lineItems: [...p.lineItems, { marksAndNos: '', containerNo: '', descriptionOfGoods: '', netWeightPerPackage: 0, numberOfBoxes: 0, ratePerKg: 0 }] }))}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[hsl(var(--brand-accent))] text-white hover:opacity-90 shadow-sm transition-all text-xs font-semibold"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add product
+                </button>
               </div>
 
               <div className="grid grid-cols-2 gap-x-4 gap-y-2 border rounded-md p-3">
@@ -505,38 +606,29 @@ export default function InvoiceForm() {
                 </div>
                 <div>
                   <label className="label">SUB TOTAL</label>
-                  <input readOnly value={`${selectedImporter?.currency ?? form.currency} ${subTotal.toFixed(2)}`} className="input bg-muted/40" />
+                  <input readOnly value={`${form.currency} ${formatNumber(subTotal)}`} className="input bg-muted/40" />
                 </div>
 
                 <div>
                   <label className="label">TOTAL NETT WT</label>
-                  <input readOnly value={`${totalNetWeight.toFixed(2)} KGS`} className="input bg-muted/40" />
+                  <input readOnly value={`${formatNumber(totalNetWeight)} KGS`} className="input bg-muted/40" />
                 </div>
                 <div>
-                  <label className="label">ROUND OFF</label>
-                  <input value={String(form.roundOff ?? 0)} onChange={(e) => setForm((p) => ({ ...p, roundOff: parseNumber(e.target.value) }))} className="input" />
+                  <label className="label">Total</label>
+                  <input readOnly value={`${form.currency} ${formatNumber(total)}`} className="input bg-muted/40" />
                 </div>
 
                 <div>
                   <label className="label">TOTAL GROSS WT</label>
                   <div className="relative">
-                    <input
-                      value={form.totalGrossWeight !== undefined ? String(form.totalGrossWeight) : ''}
-                      onChange={(e) => setForm((p) => ({ ...p, totalGrossWeight: e.target.value ? parseNumber(e.target.value) : undefined }))}
-                      className="input pr-9"
-                    />
-                    {form.totalGrossWeight !== undefined && String(form.totalGrossWeight) !== '' ? (
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground pointer-events-none">KGS</span>
-                    ) : null}
+                    <NumberInput ariaLabel="Total gross weight" hasError={!!errors.totalGrossWeight} value={form.totalGrossWeight} onChange={(v) => { clearFieldError('totalGrossWeight'); setForm((p) => { const { totalGrossWeight: _drop, ...rest } = p; return v === undefined ? rest : { ...rest, totalGrossWeight: v }; }); }} className="input pr-9" />
+                    {form.totalGrossWeight ? <span className="absolute right-2 top-[11px] text-[11px] text-muted-foreground pointer-events-none">KGS</span> : null}
                   </div>
-                </div>
-                <div>
-                  <label className="label">Total</label>
-                  <input readOnly value={`${selectedImporter?.currency ?? form.currency} ${total.toFixed(2)}`} className="input bg-muted/40" />
+                  {errors.totalGrossWeight ? <p className="err">{errors.totalGrossWeight}</p> : null}
                 </div>
 
                 <div className="col-span-2">
-                  <label className="label">Amount in words ({selectedImporter?.currency ?? form.currency})</label>
+                  <label className="label">Amount in words ({form.currency})</label>
                   <input readOnly value={form.amountInWords ?? ''} className="input bg-muted/40" />
                 </div>
               </div>
@@ -545,50 +637,67 @@ export default function InvoiceForm() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-4">
-              <Section title="Bank Detail">
-                <div className="flex items-center justify-between mb-2">
-                  <span />
-                  {lockBtn(isBankLocked, () => setIsBankLocked((p) => !p))}
+              <Section title="Bank Detail" action={<ManageLink to="/profile" label="Manage bank accounts" />}>
+                <div className="max-w-sm">
+                  <label className="label">Bank account</label>
+                  <SearchCombobox
+                    ariaLabel="Bank account"
+                    value={bankProfileId}
+                    onChange={chooseBankProfile}
+                    options={bankProfiles.map((p) => ({ value: p.id, label: bankLabel(p), description: p.isDefault ? 'Default' : '' }))}
+                    placeholder={isEditing ? "Keep this invoice's bank details" : bankProfiles.length ? 'Select a bank account' : 'No bank accounts yet'}
+                    searchPlaceholder="Search bank accounts…"
+                    labelClassName="w-auto max-w-[70%] truncate"
+                    className="input"
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <LabeledInput label="BANK NAME" disabled={isBankLocked} value={bankDetails.bankName} onChange={(v) => setBankDetails((p) => ({ ...p, bankName: v }))} />
-                  <LabeledInput label="ACCOUNT NUMBER" disabled={isBankLocked} value={bankDetails.accountNumber} onChange={(v) => setBankDetails((p) => ({ ...p, accountNumber: v }))} />
-                  <LabeledInput label="IFSC CODE" disabled={isBankLocked} value={bankDetails.ifscCode} onChange={(v) => setBankDetails((p) => ({ ...p, ifscCode: v }))} />
-                  <LabeledInput label="SWIFT CODE" disabled={isBankLocked} value={bankDetails.swiftCode} onChange={(v) => setBankDetails((p) => ({ ...p, swiftCode: v }))} />
+                  <LabeledInput label="BANK NAME" value={form.bankName ?? ''} onChange={(v) => setForm((p) => ({ ...p, bankName: v }))} />
+                  <LabeledInput label="ACCOUNT NUMBER" value={form.bankAccountNumber ?? ''} onChange={(v) => setForm((p) => ({ ...p, bankAccountNumber: v }))} />
+                  <LabeledInput label="IFSC CODE" value={form.bankIfscCode ?? ''} onChange={(v) => setForm((p) => ({ ...p, bankIfscCode: v }))} />
+                  <LabeledInput label="SWIFT CODE" value={form.bankSwiftCode ?? ''} onChange={(v) => setForm((p) => ({ ...p, bankSwiftCode: v }))} />
                 </div>
-                <button onClick={saveBankDetails} className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-[hsl(var(--brand-accent))] text-white rounded-md hover:opacity-90">
-                  <Save className="h-3.5 w-3.5" /> Save
-                </button>
+                <p className="text-[11px] text-muted-foreground">This invoice keeps its own copy of these details. Changing them here does not change the saved account.</p>
               </Section>
 
               <Section title="Declaration">
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  We declare that this Invoice shows the actual price of the goods described and that all particulars are true and correct.
-                </p>
+                <textarea
+                  aria-label="Declaration"
+                  rows={4}
+                  maxLength={2000}
+                  value={form.declaration ?? ''}
+                  onChange={(e) => setForm((p) => ({ ...p, declaration: e.target.value }))}
+                  className="input resize-y text-xs leading-relaxed"
+                />
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                  <span>Press Enter for a new line. This invoice keeps its own wording.</span>
+                  {(form.declaration ?? '') !== DEFAULT_DECLARATION && (
+                    <button type="button" onClick={() => setForm((p) => ({ ...p, declaration: DEFAULT_DECLARATION }))} className="font-semibold text-[hsl(var(--brand-accent))] hover:underline">Reset to standard text</button>
+                  )}
+                </div>
               </Section>
             </div>
 
-            <Section title="Sign & Stamp">
-              <div className="flex items-center justify-between mb-2">
-                <span />
-                {lockBtn(isSignLocked, () => setIsSignLocked((p) => !p))}
+            <Section title="Seal & Sign" action={<ManageLink to="/profile" label="Manage seal & sign" />}>
+              <div className="max-w-sm">
+                <label className="label">Seal &amp; sign</label>
+                <SearchCombobox
+                  ariaLabel="Seal and sign"
+                  value={signProfileId}
+                  onChange={chooseSignProfile}
+                  options={signProfiles.map((p) => ({ value: p.id, label: p.name, description: p.isDefault ? 'Default' : '' }))}
+                  placeholder={isEditing ? "Keep this invoice's seal & sign" : signProfiles.length ? 'Select a seal & sign' : 'No seal & sign yet'}
+                  searchPlaceholder="Search seals & signs…"
+                  labelClassName="w-auto max-w-[70%] truncate"
+                  className="input"
+                />
               </div>
-              <div className="border rounded-md p-2 flex items-center justify-center bg-muted/10 h-28">
-                <img src={signImage} alt="Invoice signature" className="max-h-24 w-auto object-contain" />
+              <div className="border rounded-md p-2 flex items-center justify-center bg-white h-28">
+                {form.signImage
+                  ? <img src={form.signImage} alt={form.signName || 'Seal and sign'} className="max-h-24 w-auto object-contain" />
+                  : <span className="text-xs text-muted-foreground">No seal &amp; sign on this invoice</span>}
               </div>
-              <div className="mt-2 flex items-center gap-2">
-                <input ref={fileInputRef} type="file" accept="image/*" disabled={isSignLocked} onChange={handleSignUpload} className="hidden" />
-                <button
-                  disabled={isSignLocked}
-                  onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs border rounded-md hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  <Upload className="h-3.5 w-3.5" />
-                </button>
-                <button onClick={saveSignImage} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-[hsl(var(--brand-accent))] text-white rounded-md hover:opacity-90">
-                  <Save className="h-3.5 w-3.5" /> Save
-                </button>
-              </div>
+              <p className="text-[11px] text-muted-foreground">This invoice keeps its own copy. Changing the saved seal &amp; sign later does not change it.</p>
             </Section>
           </div>
         </div>
@@ -606,6 +715,25 @@ export default function InvoiceForm() {
     </div>
   , document.body);
 
+  /** One input per product field, shared by the phone cards and the desktop table. */
+  function lineField(index: number, field: 'marks' | 'description' | 'weight' | 'boxes' | 'rate') {
+    const item = form.lineItems[index]!;
+    const cls = 'w-full border rounded px-2 py-1 text-xs';
+    const err = (key: string) => (errors[`lineItems.${index}.${key}`] ? <p className="err">{errors[`lineItems.${index}.${key}`]}</p> : null);
+    const num = (key: 'netWeightPerPackage' | 'numberOfBoxes' | 'ratePerKg', name: string, opts: { integer?: boolean; decimals?: number }) => (
+      <>
+        <NumberInput ariaLabel={`${name} for product ${index + 1}`} hasError={!!errors[`lineItems.${index}.${key}`]} value={item[key]} className={cls}
+          {...opts} onChange={(v) => { clearFieldError(`lineItems.${index}.${key}`); updateLine(index, { [key]: v ?? 0 }); }} />
+        {err(key)}
+      </>
+    );
+    if (field === 'marks') return (<><input aria-label={`Marks and container no for product ${index + 1}`} value={item.marksAndNos ?? ''} onChange={(e) => { clearFieldError(`lineItems.${index}.marksAndNos`); updateLine(index, { marksAndNos: e.target.value, containerNo: e.target.value }); }} placeholder="Marks & Nos / Container No" className={cls} />{err('marksAndNos')}</>);
+    if (field === 'description') return (<><input aria-label={`Description of goods for product ${index + 1}`} value={item.descriptionOfGoods} onChange={(e) => { clearFieldError(`lineItems.${index}.descriptionOfGoods`); updateLine(index, { descriptionOfGoods: e.target.value }); }} className={cls} />{err('descriptionOfGoods')}</>);
+    if (field === 'weight') return num('netWeightPerPackage', 'Nett weight per package', { decimals: 3 });
+    if (field === 'boxes') return num('numberOfBoxes', 'Number of boxes', { integer: true });
+    return num('ratePerKg', 'Rate per kg', { decimals: 4 });
+  }
+
   function updateLine(index: number, patch: Partial<CreateInvoiceDto['lineItems'][number]>) {
     setForm((p) => ({ ...p, lineItems: p.lineItems.map((item, i) => (i === index ? { ...item, ...patch } : item)) }));
   }
@@ -614,10 +742,21 @@ export default function InvoiceForm() {
   }
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function ManageLink({ to, label }: { to: string; label: string }) {
+  return (
+    <a href={to} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground">
+      {label} <ExternalLink className="h-3 w-3" />
+    </a>
+  );
+}
+
+function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
     <div className="border rounded-md p-3 space-y-2">
-      <h3 className="text-sm font-semibold tracking-tight">{title}</h3>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold tracking-tight">{title}</h3>
+        {action}
+      </div>
       {children}
     </div>
   );
@@ -634,31 +773,47 @@ function Field({ label, value, onChange, readOnly, error }: FieldProps) {
   );
 }
 
-interface DateFieldProps { label: string; value: string; onChange: (v: string) => void; error?: string | undefined; }
-function DateField({ label, value, onChange, error }: DateFieldProps) {
+/** A tinted block that keeps the loading and landing details visually apart. */
+function LocationGroup({ title, hint, children }: { title: string; hint: string; children: React.ReactNode }) {
   return (
-    <div>
-      <label className="label">{label}</label>
-      <input type="date" value={value} onChange={(e) => onChange(e.target.value)} className="input" />
-      {error ? <p className="err">{error}</p> : null}
+    <div className="space-y-2 rounded-md border border-[hsl(var(--brand-accent))]/30 border-l-4 border-l-[hsl(var(--brand-accent))] bg-[hsl(var(--brand-accent))]/5 p-3">
+      <p className="text-xs font-bold uppercase tracking-wide text-[hsl(var(--brand-accent))]">
+        {title} <span className="text-sm font-semibold normal-case tracking-normal text-muted-foreground">({hint})</span>
+      </p>
+      {children}
     </div>
   );
 }
 
-function StatReadOnly({ label, value }: { label: string; value: string }) {
+/** Picker for the importer's saved loading/landing locations (managed on the Importers page). */
+function LocationPicker({ label, ariaLabel, value, onChange, options, importerChosen }: {
+  label: string; ariaLabel: string; value: string; onChange: (id: string) => void; options: { value: string; label: string; description: string }[]; importerChosen: boolean;
+}) {
+  const empty = options.length === 0;
   return (
-    <div>
+    <div className="max-w-sm">
       <label className="label">{label}</label>
-      <input value={value} readOnly className="input bg-muted/40" />
+      <SearchCombobox
+        ariaLabel={ariaLabel}
+        value={value}
+        onChange={onChange}
+        options={options}
+        disabled={empty}
+        placeholder={!importerChosen ? 'Select an importer first' : empty ? "No saved locations for this importer" : 'Choose a saved location'}
+        searchPlaceholder="Search saved locations…"
+        labelClassName="w-auto max-w-[55%] truncate"
+        className="input"
+      />
     </div>
   );
 }
 
-function LabeledInput({ label, value, onChange, disabled }: { label: string; value: string; onChange: (v: string) => void; disabled?: boolean }) {
+function LabeledInput({ label, value, onChange, disabled, error }: { label: string; value: string; onChange: (v: string) => void; disabled?: boolean; error?: string | undefined }) {
   return (
     <div>
       <label className="label">{label}</label>
       <input disabled={disabled} value={value} onChange={(e) => onChange(e.target.value)} className="input disabled:bg-muted/40" />
+      {error ? <p className="err">{error}</p> : null}
     </div>
   );
 }

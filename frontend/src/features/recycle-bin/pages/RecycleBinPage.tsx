@@ -131,7 +131,7 @@ export default function RecycleBinPage() {
                     {invoices.map((inv) => (
                       <tr key={inv.id}>
                         <td className="font-mono text-sm font-medium">{inv.invoiceNumber}</td>
-                        <td className="text-muted-foreground">{inv.importer.name}</td>
+                        <td className="text-muted-foreground">{inv.importerName ?? inv.importer.name}</td>
                         <td className="font-medium">
                           {inv.currency} {Number(inv.total).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                         </td>

@@ -32,6 +32,7 @@ function ActionButton({ label, onClick, children, danger, disabled }: { label: s
 }
 
 export default function InvoiceCard({ invoice, onOpen, onPdf, onExcel, onEdit, onDelete, deleting }: InvoiceCardProps) {
+  const importerName = invoice.importerName ?? invoice.importer.name; // the invoice's own copy
   const { portOfLoading, portOfDischarge, finalDestination, countryOfOrigin, countryOfDestination } = invoice;
   const hasRoute = !!(portOfLoading || portOfDischarge || finalDestination);
   const showFinal = !!finalDestination && finalDestination !== portOfDischarge;
@@ -67,10 +68,10 @@ export default function InvoiceCard({ invoice, onOpen, onPdf, onExcel, onEdit, o
 
       <div className="flex items-center gap-2.5">
         <div className="h-8 w-8 rounded-lg bg-[hsl(var(--primary))]/10 flex items-center justify-center text-[hsl(var(--primary))] text-[11px] font-bold shrink-0">
-          {invoice.importer.name.slice(0, 2).toUpperCase()}
+          {importerName.slice(0, 2).toUpperCase()}
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-semibold truncate">{invoice.importer.name}</p>
+          <p className="text-sm font-semibold truncate">{importerName}</p>
           {invoice.buyerName ? <p className="text-xs text-muted-foreground truncate">Buyer: {invoice.buyerName}</p> : null}
         </div>
       </div>

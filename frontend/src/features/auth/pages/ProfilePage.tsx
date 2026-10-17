@@ -8,6 +8,9 @@ import { userInitial } from '../components/UserMenu';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm';
 import { ApiClientError } from '@/services/api';
+import ExporterProfilesSection from '../components/ExporterProfilesSection';
+import BankProfilesSection from '../components/BankProfilesSection';
+import SignProfilesSection from '../components/SignProfilesSection';
 
 const dateTime = (iso: string | null | undefined) =>
   iso ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso)) : '—';
@@ -107,7 +110,7 @@ export default function ProfilePage() {
     <div className="space-y-6 max-w-3xl mx-auto">
       <div>
         <h1 className="text-2xl font-bold">My Profile</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Manage your account details and security</p>
+        <p className="text-sm text-muted-foreground mt-0.5">Manage your account, exporter profiles, bank accounts, seal & sign and security</p>
       </div>
 
       {/* Identity */}
@@ -148,6 +151,15 @@ export default function ProfilePage() {
           </button>
         </form>
       </Card>
+
+      {/* Exporter profiles */}
+      <ExporterProfilesSection />
+
+      {/* Bank accounts */}
+      <BankProfilesSection />
+
+      {/* Seal & sign */}
+      <SignProfilesSection />
 
       {/* Password */}
       <Card title="Change password" description="At least 8 characters, with a letter and a number. Other devices are signed out when you change it.">

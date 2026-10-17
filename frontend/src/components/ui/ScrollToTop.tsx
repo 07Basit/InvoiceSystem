@@ -31,7 +31,7 @@ export default function ScrollToTop({ targetRef, threshold = 400 }: ScrollToTopP
   return (
     <div
       className={cn(
-        'fixed bottom-5 right-5 z-40 transition-all duration-200 print:hidden sm:bottom-6 sm:right-6',
+        'fixed bottom-5 right-5 z-30 transition-all duration-200 print:hidden sm:bottom-6 sm:right-6',
         visible ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-3 opacity-0',
       )}
       aria-hidden={!visible}

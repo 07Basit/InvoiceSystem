@@ -12,6 +12,8 @@ const envSchema = z.object({
   SESSION_JWT_EXPIRES_IN: z.string().default('12h'),
   // ExchangeRate-API key: used for currencies the ECB doesn't cover, on recent invoices only. Optional.
   EXCHANGERATE_API_KEY: z.string().trim().optional(),
+  // Requests allowed per client per 15 minutes across the whole API. Defaults: 1000 in production, 5000 in development.
+  RATE_LIMIT_MAX: z.coerce.number().int().positive().optional(),
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
 });
 
@@ -32,4 +34,7 @@ if (
   process.exit(1);
 }
 
-export const config = parsed.data;
+export const config = {
+  ...parsed.data,
+  RATE_LIMIT_MAX: parsed.data.RATE_LIMIT_MAX ?? (parsed.data.NODE_ENV === 'production' ? 1000 : 5000),
+};

@@ -57,7 +57,7 @@ export default function FilterBar({ search, onSearchChange, searchPlaceholder, s
         className={cn(
           // pinned to the top of the page area; the negative margins let the background reach the page edges
           // the page's space-y-6 sets its own margins on every child, so these use ! to pull the bar closer to the cards on both sides
-          'sticky -top-4 z-40 -mx-4 !mb-[-0.75rem] !mt-3 flex items-center gap-2 bg-background px-4 py-1 transition-shadow sm:-top-6 sm:-mx-6 sm:px-6',
+          'sticky -top-4 z-20 -mx-4 !mb-[-0.75rem] !mt-3 flex items-center gap-2 bg-background px-4 py-1 transition-shadow sm:-top-6 sm:-mx-6 sm:px-6',
           stuck && 'shadow-[0_6px_10px_-8px_rgba(0,0,0,0.25)]',
         )}
       >

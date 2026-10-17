@@ -1,12 +1,12 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import { config } from './config';
 import { requestLogger } from './middleware/requestLogger';
 import { errorHandler } from './middleware/errorHandler';
 import { apiRouter } from './routes';
+import { createApiLimiter } from './middleware/rateLimit';
 
 const app = express();
 
@@ -24,15 +24,7 @@ app.use(
     exposedHeaders: ['Content-Disposition'],
   }),
 );
-app.use(
-  rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 200,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { success: false, data: null, error: { code: 'RATE_LIMITED', message: 'Too many requests' }, meta: null },
-  }),
-);
+app.use(createApiLimiter(config.RATE_LIMIT_MAX));
 
 // ---------------------------------------------------------------------------
 // Body Parsing

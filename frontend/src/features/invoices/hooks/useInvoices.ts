@@ -43,6 +43,25 @@ export function useUpdateInvoice() {
   });
 }
 
+function useRateMutation<T>(fn: (v: T) => Promise<unknown>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: invoiceKeys.all });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+}
+
+export function useSetManualRate() {
+  return useRateMutation(({ id, rate }: { id: string; rate: number }) => invoiceService.setManualRate(id, rate));
+}
+
+export function useClearManualRate() {
+  return useRateMutation((id: string) => invoiceService.clearManualRate(id));
+}
+
 export function useDeleteInvoice() {
   const qc = useQueryClient();
   return useMutation({

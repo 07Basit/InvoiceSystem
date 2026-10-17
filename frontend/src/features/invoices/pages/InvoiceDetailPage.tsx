@@ -2,8 +2,8 @@ import { useParams, Link } from 'react-router-dom';
 import { useInvoice } from '../hooks/useInvoices';
 import { useInvoiceStore } from '../store/invoiceStore';
 import { invoiceService } from '../services/invoiceService';
-import { StatusBadge } from '../components/StatusBadge';
 import InvoiceForm from '../components/InvoiceForm';
+import ExchangeRatePanel from '../components/ExchangeRatePanel';
 import { formatDate } from '@/lib/utils';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { ArrowLeft, FileDown, Download, Pencil, Printer } from 'lucide-react';
@@ -30,7 +30,6 @@ export default function InvoiceDetailPage() {
         <div>
           <h1 className="text-2xl font-bold font-mono">{invoice.invoiceNumber}</h1>
           <div className="flex items-center gap-3 mt-2">
-            <StatusBadge status={invoice.status} />
             <span className="text-sm text-muted-foreground">Created {formatDate(invoice.createdAt)}</span>
           </div>
         </div>
@@ -61,6 +60,8 @@ export default function InvoiceDetailPage() {
           </button>
         </div>
       </div>
+
+      <ExchangeRatePanel invoice={invoice} />
 
       {/* Client Card */}
       <div className="border rounded-lg p-5">

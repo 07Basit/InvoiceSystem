@@ -10,6 +10,8 @@ const envSchema = z.object({
   // Lifetime of a "keep me signed in" session; sessions without it use SESSION_JWT_EXPIRES_IN.
   JWT_EXPIRES_IN: z.string().default('7d'),
   SESSION_JWT_EXPIRES_IN: z.string().default('12h'),
+  // ExchangeRate-API key: used for currencies the ECB doesn't cover, on recent invoices only. Optional.
+  EXCHANGERATE_API_KEY: z.string().trim().optional(),
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
 });
 

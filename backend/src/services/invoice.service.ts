@@ -2,6 +2,8 @@ import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { prisma } from '../lib/prisma';
 import { AppError } from '../utils/AppError';
+import { logger } from '../utils/logger';
+import { currencyService } from './currency.service';
 import type { CreateInvoiceDto, ListInvoicesQuery, PaginationMeta, UpdateInvoiceDto } from 'shared';
 
 type InvoiceLineInput = CreateInvoiceDto['lineItems'][number];
@@ -46,12 +48,10 @@ export const invoiceService = {
     const search = query.search;
     const sort = query.sort === 'invoiceDate' || query.sort === 'invoiceNumber' || query.sort === 'total' ? query.sort : 'createdAt';
     const order = query.order === 'asc' ? 'asc' : 'desc';
-    const status = query.status;
     const importerId = query.importerId;
 
     const where: Prisma.InvoiceWhereInput = {
       deletedAt: null,
-      ...(status ? { status } : {}),
       ...(importerId ? { importerId } : {}),
       ...(search
         ? {
@@ -78,9 +78,18 @@ export const invoiceService = {
       prisma.invoice.count({ where }),
     ]);
 
+    // Flag invoices that can't be converted to the reporting currency (they are left out of dashboard revenue).
+    let excludedIds = new Set<string>();
+    try {
+      const { convert } = await currencyService.buildConverter(invoices);
+      excludedIds = new Set(invoices.filter((inv) => convert(inv) === null).map((inv) => inv.id));
+    } catch (err) {
+      logger.warn('Could not check exchange rates for invoice list', { error: (err as Error).message });
+    }
+
     const totalPages = Math.ceil(total / limit);
     return {
-      data: invoices,
+      data: invoices.map((inv) => ({ ...inv, excludedFromRevenue: excludedIds.has(inv.id) })),
       meta: { page, limit, total, totalPages, hasNext: page < totalPages, hasPrev: page > 1 },
     };
   },
@@ -101,6 +110,43 @@ export const invoiceService = {
     }
 
     return invoice;
+  },
+
+  /** Invoice plus how it is valued in the reporting currency (used by the detail page). */
+  async getByIdWithConversion(id: string) {
+    const invoice = await this.getById(id);
+    const { baseCurrency, convertDetailed } = await currencyService.buildConverter([invoice]);
+    const result = convertDetailed(invoice);
+    return {
+      ...invoice,
+      conversion: {
+        baseCurrency,
+        source: result?.source ?? ('missing' as const),
+        rate: result?.rate ?? null,
+        value: result?.value ?? null,
+        provider: result?.provider ?? null,
+      },
+    };
+  },
+
+  /** Stores a user-entered exchange rate (reporting currency per 1 invoice-currency unit) for this invoice. */
+  async setManualRate(id: string, rate: number) {
+    const invoice = await this.getById(id);
+    const base = await currencyService.getBaseCurrency();
+    if (invoice.currency === base) {
+      throw new AppError(`Invoice is already in ${base}, no exchange rate is needed`, 400, 'RATE_NOT_NEEDED');
+    }
+    await prisma.invoice.update({
+      where: { id },
+      data: { manualRate: new Decimal(rate), manualRateBase: base, manualRateSetAt: new Date() },
+    });
+    return this.getByIdWithConversion(id);
+  },
+
+  async clearManualRate(id: string) {
+    await this.getById(id);
+    await prisma.invoice.update({ where: { id }, data: { manualRate: null, manualRateBase: null, manualRateSetAt: null } });
+    return this.getByIdWithConversion(id);
   },
 
   async create(dto: CreateInvoiceDto) {
@@ -136,7 +182,6 @@ export const invoiceService = {
       data: {
         invoiceNumber: dto.invoiceNumber,
         invoiceDate: new Date(dto.invoiceDate),
-        status: dto.status,
         importerId: dto.importerId,
         landingLocationId: dto.landingLocationId ?? null,
         loadingLocationId: dto.loadingLocationId ?? null,
@@ -233,7 +278,6 @@ export const invoiceService = {
         data: {
           ...(dto.invoiceNumber !== undefined ? { invoiceNumber: dto.invoiceNumber } : {}),
           ...(dto.invoiceDate !== undefined ? { invoiceDate: new Date(dto.invoiceDate) } : {}),
-          ...(dto.status !== undefined ? { status: dto.status } : {}),
           ...(dto.importerId !== undefined ? { importerId: dto.importerId } : {}),
           ...(dto.landingLocationId !== undefined ? { landingLocationId: dto.landingLocationId } : {}),
           ...(dto.loadingLocationId !== undefined ? { loadingLocationId: dto.loadingLocationId } : {}),

@@ -11,7 +11,6 @@ export const recycleService = {
         select: {
           id: true,
           invoiceNumber: true,
-          status: true,
           total: true,
           currency: true,
           deletedAt: true,

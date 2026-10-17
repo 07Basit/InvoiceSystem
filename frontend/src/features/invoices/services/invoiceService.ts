@@ -20,11 +20,20 @@ export interface InvoiceImporter {
   currency: string;
 }
 
+export interface InvoiceConversion {
+  baseCurrency: string;
+  source: 'same' | 'auto' | 'manual' | 'missing';
+  /** reporting-currency units per 1 invoice-currency unit */
+  rate: number | null;
+  value: number | null;
+  /** which service the automatic rate came from */
+  provider?: 'ECB' | 'EXCHANGERATE_API' | null;
+}
+
 export interface Invoice {
   id: string;
   invoiceNumber: string;
   invoiceDate: string;
-  status: 'DRAFT' | 'SENT' | 'PAID' | 'OVERDUE' | 'CANCELLED';
   importerId: string;
   importer: InvoiceImporter;
   landingLocationId?: string | null;
@@ -46,6 +55,10 @@ export interface Invoice {
   termsOfDelivery?: string | null;
   termsOfPayment?: string | null;
   currency: string;
+  /** No exchange rate available, so the invoice is left out of dashboard revenue */
+  excludedFromRevenue?: boolean;
+  /** Only on the detail endpoint: how the invoice is valued in the reporting currency */
+  conversion?: InvoiceConversion;
   exporterName?: string | null;
   exporterAddress?: string | null;
   exporterContact?: string | null;
@@ -83,6 +96,16 @@ export const invoiceService = {
 
   async update(id: string, dto: UpdateInvoiceDto) {
     const { data } = await apiClient.put<ApiResponse<Invoice>>(`/invoices/${id}`, dto);
+    return data;
+  },
+
+  async setManualRate(id: string, rate: number) {
+    const { data } = await apiClient.put<ApiResponse<Invoice>>(`/invoices/${id}/exchange-rate`, { rate });
+    return data;
+  },
+
+  async clearManualRate(id: string) {
+    const { data } = await apiClient.delete<ApiResponse<Invoice>>(`/invoices/${id}/exchange-rate`);
     return data;
   },
 

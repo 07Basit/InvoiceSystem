@@ -10,7 +10,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// InvoiceStatus values: DRAFT | SENT | PAID | OVERDUE | CANCELLED
 // DocumentType values: WORD | PDF
 // SQL Server does not support native enums — validated via Zod in application layer
 
@@ -83,6 +82,34 @@ model ExporterProfile {
 }
 
 // ---------------------------------------------------------------------------
+// Currency conversion (dashboard reporting)
+// ---------------------------------------------------------------------------
+
+// Singleton row holding the currency all dashboard figures are reported in.
+model CurrencySettings {
+  id           String   @id @default(cuid())
+  baseCurrency String   @default("USD")
+  updatedAt    DateTime @updatedAt
+
+  @@map("currency_settings")
+}
+
+// Historical daily rates fetched from the rates provider and cached permanently:
+// a past day's rate never changes, so each invoice keeps the rate of its own date.
+model FxRate {
+  id           String   @id @default(cuid())
+  date         DateTime @db.Date
+  fromCurrency String
+  toCurrency   String
+  rate         Decimal  @db.Decimal(18, 8)
+  // Where the rate came from: ECB (Frankfurter) or EXCHANGERATE_API (latest rate, for recent invoices)
+  source       String   @default("ECB")
+
+  @@unique([fromCurrency, toCurrency, date])
+  @@map("fx_rates")
+}
+
+// ---------------------------------------------------------------------------
 // Invoice
 // ---------------------------------------------------------------------------
 
@@ -90,7 +117,6 @@ model Invoice {
   id                         String           @id @default(cuid())
   invoiceNumber              String           @unique
   invoiceDate                DateTime
-  status                     String           @default("DRAFT")
   importerId                 String
   importer                   Importer         @relation(fields: [importerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   landingLocationId          String?
@@ -127,6 +153,10 @@ model Invoice {
   total                      Decimal          @default(0) @db.Decimal(12, 2)
   amountInWords              String?           @db.NVarChar(Max)
   notes                      String?           @db.NVarChar(Max)
+  // Exchange rate typed in by the user when no automatic rate exists: units of `manualRateBase` per 1 `currency`.
+  manualRate                 Decimal?          @db.Decimal(18, 8)
+  manualRateBase             String?
+  manualRateSetAt            DateTime?
   createdAt                  DateTime         @default(now())
   updatedAt                  DateTime         @updatedAt
   deletedAt                  DateTime?
@@ -135,8 +165,6 @@ model Invoice {
   @@index([importerId])
   @@index([landingLocationId])
   @@index([loadingLocationId])
-  @@index([status])
-  @@index([status, deletedAt])
   @@index([invoiceNumber])
   @@index([invoiceDate])
   @@index([deletedAt])

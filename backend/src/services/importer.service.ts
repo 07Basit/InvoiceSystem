@@ -57,7 +57,7 @@ export const importerService = {
           where: { deletedAt: null },
           orderBy: { createdAt: 'desc' },
           take: 10,
-          select: { id: true, invoiceNumber: true, status: true, total: true, createdAt: true },
+          select: { id: true, invoiceNumber: true, total: true, createdAt: true },
         },
       },
     });

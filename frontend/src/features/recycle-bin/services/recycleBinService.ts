@@ -4,7 +4,6 @@ import type { ApiResponse } from 'shared';
 export interface DeletedInvoice {
   id: string;
   invoiceNumber: string;
-  status: string;
   total: number;
   currency: string;
   deletedAt: string;

@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
 import { logger } from '../utils/logger';
 import { invoiceService } from '../services/invoice.service';
-import type { CreateInvoiceDto, ListInvoicesQuery, UpdateInvoiceDto } from 'shared';
+import type { CreateInvoiceDto, ListInvoicesQuery, ManualRateDto, UpdateInvoiceDto } from 'shared';
 import * as XLSX from 'xlsx';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
@@ -14,7 +14,7 @@ export const listInvoices = asyncHandler(async (req: Request, res: Response) => 
 
 export const getInvoice = asyncHandler(async (req: Request, res: Response) => {
   const id = String(req.params['id']);
-  const invoice = await invoiceService.getById(id);
+  const invoice = await invoiceService.getByIdWithConversion(id);
   logger.info('Invoice fetched', { invoiceId: invoice.id, action: 'get_invoice' });
   res.json({ success: true, data: invoice, error: null, meta: null });
 });
@@ -31,6 +31,21 @@ export const updateInvoice = asyncHandler(async (req: Request, res: Response) =>
   const id = String(req.params['id']);
   const invoice = await invoiceService.update(id, dto);
   logger.info('Invoice updated', { invoiceId: invoice.id, action: 'update_invoice' });
+  res.json({ success: true, data: invoice, error: null, meta: null });
+});
+
+export const setInvoiceManualRate = asyncHandler(async (req: Request, res: Response) => {
+  const id = String(req.params['id']);
+  const { rate } = req.body as ManualRateDto;
+  const invoice = await invoiceService.setManualRate(id, rate);
+  logger.info('Invoice exchange rate set manually', { invoiceId: id, rate, action: 'set_manual_rate' });
+  res.json({ success: true, data: invoice, error: null, meta: null });
+});
+
+export const clearInvoiceManualRate = asyncHandler(async (req: Request, res: Response) => {
+  const id = String(req.params['id']);
+  const invoice = await invoiceService.clearManualRate(id);
+  logger.info('Invoice manual exchange rate removed', { invoiceId: id, action: 'clear_manual_rate' });
   res.json({ success: true, data: invoice, error: null, meta: null });
 });
 
@@ -156,7 +171,6 @@ export const exportInvoices = asyncHandler(async (_req: Request, res: Response) 
   const result = await invoiceService.list({ page: 1, limit: 1000, order: 'desc', sort: 'createdAt' });
   const invoices = result.data as Array<{
     invoiceNumber: string;
-    status: string;
     currency: string;
     total: number;
     invoiceDate: string;
@@ -165,11 +179,10 @@ export const exportInvoices = asyncHandler(async (_req: Request, res: Response) 
 
   const wb = XLSX.utils.book_new();
   const wsData = [
-    ['Invoice Number', 'Invoice Date', 'Status', 'Importer', 'Currency', 'Total'],
+    ['Invoice Number', 'Invoice Date', 'Importer', 'Currency', 'Total'],
     ...invoices.map((item) => [
       item.invoiceNumber,
       new Date(item.invoiceDate).toISOString().split('T')[0],
-      item.status,
       item.importer.name,
       item.currency,
       Number(item.total),

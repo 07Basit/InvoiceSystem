@@ -57,8 +57,6 @@ async function main() {
 
   console.log('✅ Created exporter profile and importer');
 
-  const statuses: string[] = ['PAID', 'SENT', 'DRAFT', 'OVERDUE'];
-
   for (let i = 1; i <= 5; i++) {
     const kgsPerBox = 8 + i;
     const boxes = 20 + i * 2;
@@ -72,7 +70,6 @@ async function main() {
       data: {
         invoiceNumber: `INV-2026-${String(i).padStart(3, '0')}`,
         invoiceDate: new Date(Date.now() - i * 2 * 24 * 60 * 60 * 1000),
-        status: statuses[i % statuses.length]!,
         importerId: importer.id,
         landingLocationId: importer.landingLocations[0]?.id ?? null,
         loadingLocationId: importer.loadingLocations[0]?.id ?? null,

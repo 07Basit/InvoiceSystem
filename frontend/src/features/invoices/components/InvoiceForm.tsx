@@ -63,7 +63,6 @@ const initialInvoice: CreateInvoiceDto = {
   roundOff: 0,
   amountInWords: '',
   notes: '',
-  status: 'DRAFT',
 };
 
 const emptyExporter: UpsertExporterProfileDto = { name: '', address: '', contact: '', email: '', isLocked: false };
@@ -176,7 +175,7 @@ export default function InvoiceForm() {
         return { marksAndNos: combined, containerNo: combined, descriptionOfGoods: item.descriptionOfGoods, netWeightPerPackage: Number(item.netWeightPerPackage), numberOfBoxes: item.numberOfBoxes, ratePerKg: Number(item.ratePerKg) };
       }),
       totalGrossWeight: invoice.totalGrossWeight ?? undefined, roundOff: Number(invoice.roundOff),
-      amountInWords: invoice.amountInWords ?? '', notes: invoice.notes ?? '', status: invoice.status,
+      amountInWords: invoice.amountInWords ?? '', notes: invoice.notes ?? '',
     });
     setBuyerOrderNoAndDate('');
   }, [invoice, isEditing]);
@@ -241,7 +240,7 @@ export default function InvoiceForm() {
   const saveDraft = () => {
     const draft: InvoiceDraft = {
       id: draftId ?? `draft-${Date.now()}`, createdAt: new Date().toISOString(),
-      data: { ...form, currency: (resolvedCurrency || form.currency || '').toUpperCase(), status: 'DRAFT' },
+      data: { ...form, currency: (resolvedCurrency || form.currency || '').toUpperCase() },
     };
     const existing = readInvoiceDrafts();
     const next = draftId ? existing.map((i) => (i.id === draft.id ? draft : i)) : [draft, ...existing];
@@ -288,7 +287,7 @@ export default function InvoiceForm() {
     if (Object.keys(fieldErrors).length > 0) { setErrors(fieldErrors); return; }
     const payload: CreateInvoiceDto = {
       ...form, invoiceDate: form.invoiceDate,
-      currency: (resolvedCurrency || form.currency).toUpperCase(), status: 'DRAFT',
+      currency: (resolvedCurrency || form.currency).toUpperCase(),
       exporterName: form.exporterName || exporter.name, exporterAddress: form.exporterAddress || exporter.address,
       exporterContact: form.exporterContact || exporter.contact, exporterEmail: form.exporterEmail || exporter.email || undefined,
       amountInWords: autoAmountInWords, roundOff,

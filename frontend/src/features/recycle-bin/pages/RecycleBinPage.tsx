@@ -122,7 +122,6 @@ export default function RecycleBinPage() {
                     <tr>
                       <th>Invoice #</th>
                       <th>Importer</th>
-                      <th>Status</th>
                       <th>Total</th>
                       <th>Deleted</th>
                       <th className="text-right">Actions</th>
@@ -133,12 +132,6 @@ export default function RecycleBinPage() {
                       <tr key={inv.id}>
                         <td className="font-mono text-sm font-medium">{inv.invoiceNumber}</td>
                         <td className="text-muted-foreground">{inv.importer.name}</td>
-                        <td>
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-50 text-red-600 border border-red-200">
-                            <span className="h-1.5 w-1.5 rounded-full bg-red-400 shrink-0" />
-                            {inv.status}
-                          </span>
-                        </td>
                         <td className="font-medium">
                           {inv.currency} {Number(inv.total).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                         </td>

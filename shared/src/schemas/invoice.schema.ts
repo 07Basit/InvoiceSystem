@@ -4,8 +4,6 @@ import { paginationQuerySchema } from './pagination.schema';
 // ---------------------------------------------------------------------------
 // Enums
 // ---------------------------------------------------------------------------
-export const invoiceStatusSchema = z.enum(['DRAFT', 'SENT', 'PAID', 'OVERDUE', 'CANCELLED']);
-export type InvoiceStatus = z.infer<typeof invoiceStatusSchema>;
 
 // ---------------------------------------------------------------------------
 // Line Item
@@ -57,7 +55,6 @@ export const createInvoiceSchema = z.object({
   roundOff: z.coerce.number().default(0),
   amountInWords: z.string().trim().max(500).optional(),
   notes: z.string().trim().max(2000).optional(),
-  status: invoiceStatusSchema.default('DRAFT'),
 });
 
 export type CreateInvoiceDto = z.infer<typeof createInvoiceSchema>;
@@ -72,7 +69,6 @@ export type UpdateInvoiceDto = z.infer<typeof updateInvoiceSchema>;
 // List Query
 // ---------------------------------------------------------------------------
 export const listInvoicesQuerySchema = paginationQuerySchema.extend({
-  status: invoiceStatusSchema.optional(),
   importerId: z.string().cuid().optional(),
   sort: z.enum(['createdAt', 'invoiceDate', 'total', 'invoiceNumber']).default('createdAt'),
 });

@@ -6,6 +6,8 @@ import {
   createInvoice,
   updateInvoice,
   deleteInvoice,
+  setInvoiceManualRate,
+  clearInvoiceManualRate,
   downloadInvoicePdf,
   downloadInvoiceExcel,
   importInvoices,
@@ -15,6 +17,7 @@ import {
   createInvoiceSchema,
   updateInvoiceSchema,
   listInvoicesQuerySchema,
+  manualRateSchema,
 } from 'shared';
 
 const router = Router();
@@ -27,6 +30,8 @@ router.get('/:id/download/pdf', downloadInvoicePdf);
 router.get('/:id/download/excel', downloadInvoiceExcel);
 router.post('/', validate(createInvoiceSchema), createInvoice);
 router.put('/:id', validate(updateInvoiceSchema), updateInvoice);
+router.put('/:id/exchange-rate', validate(manualRateSchema), setInvoiceManualRate);
+router.delete('/:id/exchange-rate', clearInvoiceManualRate);
 router.delete('/:id', deleteInvoice);
 
 export default router;

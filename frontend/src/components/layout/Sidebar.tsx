@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, FileText, Users, FileEdit, Receipt, TrendingUp, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import SidebarArt, { SidebarGlobe, SidebarSparkles } from './SidebarArt';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard', end: true },
@@ -30,11 +31,13 @@ export default function Sidebar({ isMobileOpen, onCloseMobile }: SidebarProps) {
           'w-64 flex flex-col shrink-0',
           'fixed inset-y-0 left-0 z-[60] transition-transform duration-200 lg:relative lg:translate-x-0',
           isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
-          'bg-[hsl(var(--sidebar-bg))]',
+          'bg-[hsl(var(--sidebar-bg))] overflow-hidden',
         )}
       >
+        <SidebarGlobe />
+        <SidebarSparkles />
         {/* Logo / Brand */}
-        <div className="h-16 flex items-center px-5 border-b border-[hsl(var(--sidebar-border))]">
+        <div className="relative h-16 flex items-center px-5 border-b border-[hsl(var(--sidebar-border))]">
           <div className="flex items-center gap-2.5">
             <div className="h-8 w-8 rounded-lg bg-[hsl(var(--brand-accent))] flex items-center justify-center shadow-lg">
               <TrendingUp className="h-4 w-4 text-white" />
@@ -47,7 +50,7 @@ export default function Sidebar({ isMobileOpen, onCloseMobile }: SidebarProps) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-5 space-y-0.5">
+        <nav className="relative shrink-0 px-3 py-5 space-y-0.5">
           <p className="text-[10px] uppercase tracking-widest text-[hsl(var(--sidebar-fg))]/50 px-3 mb-3 font-semibold">
             Navigation
           </p>
@@ -79,23 +82,29 @@ export default function Sidebar({ isMobileOpen, onCloseMobile }: SidebarProps) {
           ))}
         </nav>
 
+        {/* Quiet line art fills the space between the menu and the footer */}
+        <div className="relative flex min-h-0 flex-1 items-end overflow-hidden px-5 pb-2">
+          <SidebarArt />
+        </div>
+
         {/* Footer */}
-        <div className="px-3 pb-3">
+        <div className="relative px-3 pb-3">
           <NavLink
             to="/recycle-bin"
             onClick={onCloseMobile}
             className={({ isActive }) =>
               cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150',
+                'border',
                 isActive
-                  ? 'bg-red-600/20 text-red-300 shadow-md'
-                  : 'text-[hsl(var(--sidebar-fg))]/60 hover:bg-red-600/10 hover:text-red-300',
+                  ? 'border-red-300/60 bg-red-500/50 text-white shadow-md'
+                  : 'border-red-400/45 bg-gradient-to-r from-red-500/35 to-red-500/15 text-red-100 hover:from-red-500/45 hover:to-red-500/25',
               )
             }
           >
             {({ isActive }) => (
               <>
-                <Trash2 className={cn('h-4 w-4 shrink-0', isActive ? 'text-red-300' : '')} />
+                <Trash2 className={cn('h-4 w-4 shrink-0', isActive ? 'text-red-100' : 'text-red-300')} />
                 <span>Recycle Bin</span>
                 {isActive && (
                   <span className="ml-auto h-1.5 w-1.5 rounded-full bg-red-300/80" />
@@ -105,7 +114,7 @@ export default function Sidebar({ isMobileOpen, onCloseMobile }: SidebarProps) {
           </NavLink>
         </div>
 
-        <div className="p-4 border-t border-[hsl(var(--sidebar-border))]">
+        <div className="relative p-4 border-t border-[hsl(var(--sidebar-border))]">
           <div className="flex items-center gap-2.5 px-1">
             <div className="h-7 w-7 rounded-full bg-[hsl(var(--sidebar-hover-bg))] flex items-center justify-center">
               <FileText className="h-3.5 w-3.5 text-[hsl(var(--sidebar-fg))]" />

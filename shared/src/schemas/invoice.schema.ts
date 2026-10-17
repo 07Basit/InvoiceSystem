@@ -70,6 +70,10 @@ export type UpdateInvoiceDto = z.infer<typeof updateInvoiceSchema>;
 // ---------------------------------------------------------------------------
 export const listInvoicesQuerySchema = paginationQuerySchema.extend({
   importerId: z.string().cuid().optional(),
+  // invoice date filters: a year, a month (1-12), or both; and the invoice currency
+  year: z.coerce.number().int().min(1900).max(2200).optional(),
+  month: z.coerce.number().int().min(1).max(12).optional(),
+  currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/, 'Use a 3-letter currency code').optional(),
   sort: z.enum(['createdAt', 'invoiceDate', 'total', 'invoiceNumber']).default('createdAt'),
 });
 

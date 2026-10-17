@@ -49,10 +49,30 @@ export const invoiceService = {
     const sort = query.sort === 'invoiceDate' || query.sort === 'invoiceNumber' || query.sort === 'total' ? query.sort : 'createdAt';
     const order = query.order === 'asc' ? 'asc' : 'desc';
     const importerId = query.importerId;
+    // Query-string values can arrive as text ("2023"), and "2023" + 1 would be "20231", so convert explicitly.
+    const year = query.year !== undefined && query.year !== null ? Number(query.year) : undefined;
+    const month = query.month !== undefined && query.month !== null ? Number(query.month) : undefined;
+    const { currency } = query;
+
+    // A year (with or without a month) is a plain date range. A month on its own means "that month in any year",
+    // which Prisma can't express, so the matching ids are looked up with a small raw query.
+    let invoiceDate: Prisma.InvoiceWhereInput['invoiceDate'];
+    let idsForMonth: string[] | undefined;
+    if (year) {
+      const start = new Date(Date.UTC(year, (month ?? 1) - 1, 1));
+      const end = month ? new Date(Date.UTC(year, month, 1)) : new Date(Date.UTC(year + 1, 0, 1));
+      invoiceDate = { gte: start, lt: end };
+    } else if (month) {
+      const rows = await prisma.$queryRaw<Array<{ id: string }>>`SELECT id FROM invoices WHERE deletedAt IS NULL AND MONTH(invoiceDate) = ${month}`;
+      idsForMonth = rows.map((r) => r.id);
+    }
 
     const where: Prisma.InvoiceWhereInput = {
       deletedAt: null,
       ...(importerId ? { importerId } : {}),
+      ...(currency ? { currency } : {}),
+      ...(invoiceDate ? { invoiceDate } : {}),
+      ...(idsForMonth ? { id: { in: idsForMonth } } : {}),
       ...(search
         ? {
             OR: [
@@ -123,15 +143,34 @@ export const invoiceService = {
     const now = new Date();
     let thisMonth = 0;
     let totalValue = 0;
+    let monthValue = 0;
     let notInRevenue = 0;
+    const years = new Set<number>();
+    const currencies = new Set<string>();
     for (const inv of invoices) {
       const d = new Date(inv.invoiceDate);
-      if (d.getUTCFullYear() === now.getUTCFullYear() && d.getUTCMonth() === now.getUTCMonth()) thisMonth += 1;
+      const inThisMonth = d.getUTCFullYear() === now.getUTCFullYear() && d.getUTCMonth() === now.getUTCMonth();
+      if (inThisMonth) thisMonth += 1;
+      years.add(d.getUTCFullYear());
+      currencies.add(inv.currency);
       const value = convert(inv);
       if (value === null) notInRevenue += 1;
-      else totalValue += value;
+      else {
+        totalValue += value;
+        if (inThisMonth) monthValue += value;
+      }
     }
-    return { total: invoices.length, thisMonth, totalValue, baseCurrency, notInRevenue };
+    return {
+      total: invoices.length,
+      thisMonth,
+      totalValue,
+      monthValue,
+      baseCurrency,
+      notInRevenue,
+      // what the Invoices page can filter by
+      years: [...years].sort((a, b) => b - a),
+      currencies: [...currencies].sort(),
+    };
   },
 
   /** Invoice plus how it is valued in the reporting currency (used by the detail page). */

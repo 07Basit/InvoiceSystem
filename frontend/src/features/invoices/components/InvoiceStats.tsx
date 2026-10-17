@@ -18,14 +18,14 @@ function compactCurrency(amount: number, currency: string): string {
 
 /** Four small headline tiles shown above the invoice list. */
 export default function InvoiceStats({ summary }: InvoiceStatsProps) {
-  const { total, thisMonth, totalValue, baseCurrency, notInRevenue } = summary;
+  const { total, thisMonth, totalValue, monthValue, baseCurrency, notInRevenue } = summary;
 
   const tiles = [
     { key: 'total', label: 'Total invoices', value: String(total), icon: FileText, tone: 'bg-violet-100 text-violet-700' },
-    { key: 'month', label: 'This month', value: String(thisMonth), icon: CalendarDays, tone: 'bg-blue-100 text-blue-700' },
+    { key: 'month', label: 'Invoices this month', value: String(thisMonth), icon: CalendarDays, tone: 'bg-blue-100 text-blue-700' },
     {
-      key: 'value', label: `Total value (${baseCurrency})`, value: compactCurrency(totalValue, baseCurrency), icon: Wallet,
-      tone: 'bg-emerald-100 text-emerald-700', title: formatCurrency(totalValue, baseCurrency),
+      key: 'value', label: `Revenue this month (${baseCurrency})`, value: compactCurrency(monthValue, baseCurrency), icon: Wallet,
+      tone: 'bg-emerald-100 text-emerald-700', title: `${formatCurrency(monthValue, baseCurrency)} this month. All time: ${formatCurrency(totalValue, baseCurrency)}`,
     },
     {
       key: 'norate', label: 'Not in revenue', value: String(notInRevenue), icon: AlertTriangle,

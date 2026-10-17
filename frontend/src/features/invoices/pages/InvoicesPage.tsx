@@ -4,9 +4,11 @@ import { useInvoiceStore } from '../store/invoiceStore';
 import { invoiceService } from '../services/invoiceService';
 import InvoiceTable from '../components/InvoiceTable';
 import InvoiceForm from '../components/InvoiceForm';
-import { Plus, Download, Search, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Download, Pencil, Trash2 } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
 import InvoiceStats from '../components/InvoiceStats';
+import InvoiceFilters from '../components/InvoiceFilters';
+import { useClients } from '@/features/clients/hooks/useClients';
 import Tooltip from '@/components/ui/Tooltip';
 import { useInvoiceSummary } from '../hooks/useInvoices';
 
@@ -30,7 +32,8 @@ function readInvoiceDrafts() {
 }
 
 export default function InvoicesPage() {
-  const { search, openCreateForm, openDraftForm, setSearch } = useInvoiceStore();
+  const { search, filters, openCreateForm, openDraftForm, setSearch, setFilter, clearFilters } = useInvoiceStore();
+  const { data: importersData } = useClients({ limit: 100, sort: 'name' });
   const { showToast } = useToast();
   const [drafts, setDrafts] = useState<InvoiceDraft[]>(() => readInvoiceDrafts());
   const { data: summary } = useInvoiceSummary();
@@ -123,18 +126,16 @@ export default function InvoicesPage() {
         </div>
       ) : null}
 
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-full sm:max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search invoices…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-sm border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring transition-colors"
-          />
-        </div>
-      </div>
+      <InvoiceFilters
+        search={search}
+        onSearchChange={setSearch}
+        filters={filters}
+        onFilterChange={setFilter}
+        onClear={clearFilters}
+        years={summary?.data?.years ?? []}
+        currencies={summary?.data?.currencies ?? []}
+        importers={importersData?.data ?? []}
+      />
 
       <InvoiceTable />
 

@@ -9,12 +9,17 @@ import { useDeleteInvoice } from '../hooks/useInvoices';
 import { useConfirm } from '@/components/ui/confirm';
 
 export default function InvoiceTable() {
-  const { search, page, setPage, openEditForm } = useInvoiceStore();
+  const { search, filters, page, setPage, openEditForm, clearFilters } = useInvoiceStore();
   const { data, isLoading, isError } = useInvoices({
-    search: search || undefined,
+    ...(search ? { search } : {}),
+    ...(filters.year ? { year: Number(filters.year) } : {}),
+    ...(filters.month ? { month: Number(filters.month) } : {}),
+    ...(filters.importerId ? { importerId: filters.importerId } : {}),
+    ...(filters.currency ? { currency: filters.currency } : {}),
     page,
     limit: 20,
   });
+  const isFiltering = search !== '' || Object.values(filters).some((v) => v !== '');
   const deleteMutation = useDeleteInvoice();
   const navigate = useNavigate();
   const confirm = useConfirm();
@@ -41,8 +46,9 @@ export default function InvoiceTable() {
         <div className="h-14 w-14 rounded-2xl bg-muted/60 flex items-center justify-center mb-4">
           <FileDown className="h-6 w-6 text-muted-foreground/50" />
         </div>
-        <p className="text-sm font-semibold text-foreground">No invoices found</p>
-        <p className="text-xs text-muted-foreground mt-1">Create your first invoice to get started.</p>
+        <p className="text-sm font-semibold text-foreground">{isFiltering ? 'No invoices match your search or filters' : 'No invoices found'}</p>
+        <p className="text-xs text-muted-foreground mt-1">{isFiltering ? 'Try a different year, month, importer or currency.' : 'Create your first invoice to get started.'}</p>
+        {isFiltering && <button onClick={clearFilters} className="mt-3 text-sm font-semibold underline">Clear search and filters</button>}
       </div>
     );
   }

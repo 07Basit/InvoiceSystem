@@ -29,9 +29,14 @@ export interface InvoiceSummary {
   thisMonth: number;
   /** sum of all invoices converted into baseCurrency */
   totalValue: number;
+  /** same, for invoices dated this month only */
+  monthValue: number;
   baseCurrency: string;
   /** invoices with no exchange rate, so left out of totalValue */
   notInRevenue: number;
+  /** years and currencies that actually occur in the invoices, for the filter dropdowns */
+  years: number[];
+  currencies: string[];
 }
 
 export interface InvoiceConversion {

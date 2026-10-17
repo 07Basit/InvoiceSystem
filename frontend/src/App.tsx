@@ -13,6 +13,8 @@ const ImportersPage = lazy(() => import('@/features/clients/pages/ClientsPage'))
 const DocumentsPage = lazy(() => import('@/features/documents/pages/DocumentsPage'));
 const DashboardPage = lazy(() => import('@/features/dashboard/pages/DashboardPage'));
 const RecycleBinPage = lazy(() => import('@/features/recycle-bin/pages/RecycleBinPage'));
+const NotificationsPage = lazy(() => import('@/features/notifications/pages/NotificationsPage'));
+const NotificationDetailPage = lazy(() => import('@/features/notifications/pages/NotificationDetailPage'));
 
 const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -29,6 +31,8 @@ const router = createBrowserRouter([
           { path: 'importers', element: <ImportersPage /> },
           { path: 'documents', element: <DocumentsPage /> },
           { path: 'recycle-bin', element: <RecycleBinPage /> },
+          { path: 'notifications', element: <NotificationsPage /> },
+          { path: 'notifications/:id', element: <NotificationDetailPage /> },
           { path: 'profile', element: <ProfilePage /> },
         ],
       },

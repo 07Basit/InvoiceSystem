@@ -230,5 +230,33 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
+  notifications Notification[]
+
   @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Notifications (one row per recipient; created by the server when something notable happens)
+// ---------------------------------------------------------------------------
+
+model Notification {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       String    // success | info | warning | error
+  category   String    // invoice | importer | currency | system
+  title      String
+  message    String?   @db.NVarChar(Max)
+  // JSON array of { label, value } pairs shown on the notification page
+  details    String?   @db.NVarChar(Max)
+  // where "Open" should take the person, e.g. /invoices/abc, and the button text
+  link       String?
+  linkLabel  String?
+  actorName  String?
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@map("notifications")
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
 }

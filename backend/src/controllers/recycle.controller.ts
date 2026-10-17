@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
 import { logger } from '../utils/logger';
 import { recycleService } from '../services/recycle.service';
+import { actorOf, events } from '../services/notification.events';
 
 const ALLOWED_TYPES = ['invoice', 'importer'] as const;
 type RecordType = (typeof ALLOWED_TYPES)[number];
@@ -24,6 +25,8 @@ export const restoreRecord = asyncHandler(async (req: Request, res: Response) =>
   const type = validateType(String(req.params['type']));
   const id = String(req.params['id']);
   const result = await recycleService.restore(type, id);
+  if (type === 'invoice') await events.invoiceRestored(actorOf(req), id);
+  else await events.importerRestored(actorOf(req), id);
   logger.info('Record restored', { type, id, action: 'restore_record' });
   res.json({ success: true, data: result, error: null, meta: null });
 });
@@ -31,7 +34,9 @@ export const restoreRecord = asyncHandler(async (req: Request, res: Response) =>
 export const permanentDeleteRecord = asyncHandler(async (req: Request, res: Response) => {
   const type = validateType(String(req.params['type']));
   const id = String(req.params['id']);
+  const label = await events.snapshotRecord(type, id); // the row is gone after the delete
   await recycleService.permanentDelete(type, id);
+  await events.recordPermanentlyDeleted(actorOf(req), type, label);
   logger.info('Record permanently deleted', { type, id, action: 'permanent_delete' });
   res.json({ success: true, data: null, error: null, meta: null });
 });

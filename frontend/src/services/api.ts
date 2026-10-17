@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { notifyUnauthorized } from '@/lib/authEvents';
+import { queryClient } from '@/lib/queryClient';
 
 const viteEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
 const BASE_URL = viteEnv?.['VITE_API_BASE_URL'] ?? '/api/v1';
@@ -34,7 +35,16 @@ export const apiClient = axios.create({
 
 // Response interceptor — unwrap data or throw ApiError
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Anything that changes data (create/edit/delete) may have produced a notification on the server, so the
+    // bell's unread count and lists are refreshed right away instead of waiting for the next poll.
+    const method = String(response.config.method ?? 'get').toLowerCase();
+    // (notification calls refresh their own queries, so they are skipped here to avoid doing it twice)
+    if (method !== 'get' && !/\/(auth|notifications)(\/|$)/.test(String(response.config.url ?? ''))) {
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    }
+    return response;
+  },
   (error) => {
     const apiError = error.response?.data?.error as ApiErrorPayload | undefined;
     const message =

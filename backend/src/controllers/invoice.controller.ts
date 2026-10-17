@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
 import { logger } from '../utils/logger';
 import { invoiceService } from '../services/invoice.service';
+import { actorOf, events } from '../services/notification.events';
 import type { CreateInvoiceDto, ListInvoicesQuery, ManualRateDto, UpdateInvoiceDto } from 'shared';
 import * as XLSX from 'xlsx';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
@@ -27,6 +28,7 @@ export const getInvoice = asyncHandler(async (req: Request, res: Response) => {
 export const createInvoice = asyncHandler(async (req: Request, res: Response) => {
   const dto = req.body as CreateInvoiceDto;
   const invoice = await invoiceService.create(dto);
+  await events.invoiceCreated(actorOf(req), invoice.id);
   logger.info('Invoice created', { invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber, action: 'create_invoice' });
   res.status(201).json({ success: true, data: invoice, error: null, meta: null });
 });
@@ -35,6 +37,7 @@ export const updateInvoice = asyncHandler(async (req: Request, res: Response) =>
   const dto = req.body as UpdateInvoiceDto;
   const id = String(req.params['id']);
   const invoice = await invoiceService.update(id, dto);
+  await events.invoiceUpdated(actorOf(req), invoice.id);
   logger.info('Invoice updated', { invoiceId: invoice.id, action: 'update_invoice' });
   res.json({ success: true, data: invoice, error: null, meta: null });
 });
@@ -43,6 +46,7 @@ export const setInvoiceManualRate = asyncHandler(async (req: Request, res: Respo
   const id = String(req.params['id']);
   const { rate } = req.body as ManualRateDto;
   const invoice = await invoiceService.setManualRate(id, rate);
+  await events.invoiceRateSet(actorOf(req), id, rate, invoice.conversion.baseCurrency);
   logger.info('Invoice exchange rate set manually', { invoiceId: id, rate, action: 'set_manual_rate' });
   res.json({ success: true, data: invoice, error: null, meta: null });
 });
@@ -50,6 +54,7 @@ export const setInvoiceManualRate = asyncHandler(async (req: Request, res: Respo
 export const clearInvoiceManualRate = asyncHandler(async (req: Request, res: Response) => {
   const id = String(req.params['id']);
   const invoice = await invoiceService.clearManualRate(id);
+  await events.invoiceRateCleared(actorOf(req), id);
   logger.info('Invoice manual exchange rate removed', { invoiceId: id, action: 'clear_manual_rate' });
   res.json({ success: true, data: invoice, error: null, meta: null });
 });
@@ -57,6 +62,7 @@ export const clearInvoiceManualRate = asyncHandler(async (req: Request, res: Res
 export const deleteInvoice = asyncHandler(async (req: Request, res: Response) => {
   const id = String(req.params['id']);
   await invoiceService.softDelete(id);
+  await events.invoiceDeleted(actorOf(req), id);
   logger.info('Invoice deleted (soft)', { invoiceId: id, action: 'delete_invoice' });
   res.json({ success: true, data: null, error: null, meta: null });
 });

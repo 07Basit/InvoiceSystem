@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
 import { logger } from '../utils/logger';
 import { importerService } from '../services/importer.service';
+import { actorOf, events } from '../services/notification.events';
 import type { CreateImporterDto, ListImportersQuery, UpdateImporterDto } from 'shared';
 
 export const listImporters = asyncHandler(async (req: Request, res: Response) => {
@@ -25,6 +26,7 @@ export const getImporter = asyncHandler(async (req: Request, res: Response) => {
 export const createImporter = asyncHandler(async (req: Request, res: Response) => {
   const dto = req.body as CreateImporterDto;
   const importer = await importerService.create(dto);
+  await events.importerCreated(actorOf(req), importer.id);
   logger.info('Importer created', { importerId: importer.id, action: 'create_importer' });
   res.status(201).json({ success: true, data: importer, error: null, meta: null });
 });
@@ -33,6 +35,10 @@ export const updateImporter = asyncHandler(async (req: Request, res: Response) =
   const dto = req.body as UpdateImporterDto;
   const id = String(req.params['id']);
   const importer = await importerService.update(id, dto);
+  // flipping "not needed" on or off is the only change when isActive is the only field sent
+  const onlyToggled = dto.isActive !== undefined && Object.keys(dto).length === 1;
+  if (onlyToggled) await events.importerActiveChanged(actorOf(req), importer.id, dto.isActive === true);
+  else await events.importerUpdated(actorOf(req), importer.id);
   logger.info('Importer updated', { importerId: importer.id, action: 'update_importer' });
   res.json({ success: true, data: importer, error: null, meta: null });
 });
@@ -40,6 +46,7 @@ export const updateImporter = asyncHandler(async (req: Request, res: Response) =
 export const deleteImporter = asyncHandler(async (req: Request, res: Response) => {
   const id = String(req.params['id']);
   await importerService.softDelete(id);
+  await events.importerDeleted(actorOf(req), id);
   logger.info('Importer deleted (soft)', { importerId: id, action: 'delete_importer' });
   res.json({ success: true, data: null, error: null, meta: null });
 });

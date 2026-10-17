@@ -10,6 +10,11 @@ export const listImporters = asyncHandler(async (req: Request, res: Response) =>
   res.json({ success: true, data: result.data, error: null, meta: result.meta });
 });
 
+export const getImporterSummary = asyncHandler(async (_req: Request, res: Response) => {
+  const summary = await importerService.summary();
+  res.json({ success: true, data: summary, error: null, meta: null });
+});
+
 export const getImporter = asyncHandler(async (req: Request, res: Response) => {
   const id = String(req.params['id']);
   const importer = await importerService.getById(id);

@@ -15,26 +15,42 @@ export const importerService = {
     const limit = Number.isFinite(Number(query.limit)) ? Math.min(100, Math.max(1, Math.floor(Number(query.limit)))) : 20;
     const search = query.search;
     const sort = query.sort === 'buyerName' || query.sort === 'createdAt' ? query.sort : 'name';
-    const order = query.order === 'asc' ? 'asc' : 'desc';
+    const order = query.order === 'desc' ? 'desc' : 'asc';
+    const status = query.status === 'active' || query.status === 'inactive' ? query.status : 'all';
+
+    // Every word typed has to match somewhere (name, buyer, contact, address, currency, ports or countries).
+    const terms = (search ?? '').split(/\s+/).filter(Boolean);
+    const matchesTerm = (term: string): Prisma.ImporterWhereInput => ({
+      OR: [
+        { name: { contains: term } },
+        { buyerName: { contains: term } },
+        { contact: { contains: term } },
+        { email: { contains: term } },
+        { address: { contains: term } },
+        { currency: { contains: term } },
+        { landingLocations: { some: { OR: [
+          { name: { contains: term } }, { portOfDischarge: { contains: term } },
+          { finalDestination: { contains: term } }, { countryOfDestination: { contains: term } },
+        ] } } },
+        { loadingLocations: { some: { OR: [
+          { name: { contains: term } }, { portOfLoading: { contains: term } }, { countryOfOrigin: { contains: term } },
+        ] } } },
+      ],
+    });
 
     const where: Prisma.ImporterWhereInput = {
       deletedAt: null,
-      ...(search
-        ? {
-            OR: [
-              { name: { contains: search } },
-              { buyerName: { contains: search } },
-              { contact: { contains: search } },
-            ],
-          }
-        : {}),
+      ...(status === 'active' ? { isActive: true } : {}),
+      ...(status === 'inactive' ? { isActive: false } : {}),
+      ...(terms.length ? { AND: terms.map(matchesTerm) } : {}),
     };
 
     const [importers, total] = await prisma.$transaction([
       prisma.importer.findMany({
         where,
         include: importerInclude,
-        orderBy: { [sort]: order },
+        // active importers first, then the chosen order; id keeps the order stable between pages
+        orderBy: [{ isActive: 'desc' }, { [sort]: order }, { id: 'asc' }],
         skip: (page - 1) * limit,
         take: limit,
       }),
@@ -46,6 +62,15 @@ export const importerService = {
       data: importers,
       meta: { page, limit, total, totalPages, hasNext: page < totalPages, hasPrev: page > 1 },
     };
+  },
+
+  /** Headline counts for the Importers page. */
+  async summary() {
+    const [total, active] = await Promise.all([
+      prisma.importer.count({ where: { deletedAt: null } }),
+      prisma.importer.count({ where: { deletedAt: null, isActive: true } }),
+    ]);
+    return { total, active, inactive: total - active };
   },
 
   async getById(id: string) {

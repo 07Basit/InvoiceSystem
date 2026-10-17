@@ -26,13 +26,15 @@ describe('search filters (SQL Server compatible)', () => {
     expect(hasInsensitiveMode(where)).toBe(false);
   });
 
-  it('importers: searches name, buyer and contact', async () => {
+  it('importers: searches name, buyer, contact, email, address, currency, ports and countries', async () => {
     await importerService.list({ search: 'maple', page: 1, limit: 20 } as never);
     const { where } = prismaMock.importer.findMany.mock.calls[0]![0]!;
-    expect(where).toEqual({
-      deletedAt: null,
-      OR: [{ name: { contains: 'maple' } }, { buyerName: { contains: 'maple' } }, { contact: { contains: 'maple' } }],
-    });
+    // one group per typed word; the word may match any of these fields
+    expect(where).toMatchObject({ deletedAt: null, AND: [{ OR: expect.any(Array) }] });
+    const group = JSON.stringify((where as { AND: unknown[] }).AND[0]);
+    for (const field of ['name', 'buyerName', 'contact', 'email', 'address', 'currency', 'portOfDischarge', 'portOfLoading', 'countryOfDestination', 'countryOfOrigin']) {
+      expect(group).toContain(`"${field}":{"contains":"maple"}`);
+    }
     expect(hasInsensitiveMode(where)).toBe(false);
   });
 

@@ -1,6 +1,6 @@
 import FilterBar from '@/components/ui/FilterBar';
 import { cn } from '@/lib/utils';
-import type { StatusFilter } from '../utils/filterImporters';
+export type StatusFilter = 'all' | 'active' | 'inactive';
 
 interface ImporterFiltersProps {
   query: string;

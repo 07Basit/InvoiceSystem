@@ -45,6 +45,8 @@ export type UpdateImporterDto = z.infer<typeof updateImporterSchema>;
 
 export const listImportersQuerySchema = paginationQuerySchema.extend({
   sort: z.enum(['name', 'buyerName', 'createdAt']).default('name'),
+  // "not needed" importers are marked inactive; 'all' returns both
+  status: z.enum(['all', 'active', 'inactive']).default('all'),
 });
 
 export type ListImportersQuery = z.infer<typeof listImportersQuerySchema>;

@@ -3,6 +3,7 @@ import { validate } from '../middleware/validate';
 import {
   listImporters,
   getImporter,
+  getImporterSummary,
   createImporter,
   updateImporter,
   deleteImporter,
@@ -12,6 +13,7 @@ import { createImporterSchema, listImportersQuerySchema, updateImporterSchema } 
 const router = Router();
 
 router.get('/', validate(listImportersQuerySchema, 'query'), listImporters);
+router.get('/summary', getImporterSummary);
 router.get('/:id', getImporter);
 router.post('/', validate(createImporterSchema), createImporter);
 router.put('/:id', validate(updateImporterSchema), updateImporter);

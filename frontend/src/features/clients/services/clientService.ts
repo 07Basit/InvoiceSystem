@@ -32,9 +32,20 @@ export interface Importer {
   _count?: { invoices: number };
 }
 
+export interface ImporterSummary {
+  total: number;
+  active: number;
+  inactive: number;
+}
+
 export const clientService = {
   async getAll(query: Partial<ListImportersQuery> = {}) {
     const { data } = await apiClient.get<ApiResponse<Importer[]>>('/importers', { params: query });
+    return data;
+  },
+
+  async getSummary() {
+    const { data } = await apiClient.get<ApiResponse<ImporterSummary>>('/importers/summary');
     return data;
   },
 

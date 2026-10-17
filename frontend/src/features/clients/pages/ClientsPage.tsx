@@ -1,14 +1,16 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Trash2, Save } from 'lucide-react';
 import { createImporterSchema, type CreateImporterDto } from 'shared';
-import { useClients, useCreateClient, useDeleteClient, useUpdateClient } from '../hooks/useClients';
+import { useClients, useCreateClient, useDeleteClient, useImporterSummary, useUpdateClient } from '../hooks/useClients';
 import type { Importer } from '../services/clientService';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ImporterCard from '../components/ImporterCard';
 import ImporterStats from '../components/ImporterStats';
-import ImporterFilters from '../components/ImporterFilters';
-import { filterImporters, type StatusFilter } from '../utils/filterImporters';
+import ImporterFilters, { type StatusFilter } from '../components/ImporterFilters';
+import Pagination from '@/components/ui/Pagination';
+import { IMPORTERS_TWO_COLUMNS_FROM, scrollMainToTop, usePageSize } from '@/lib/pagination';
+import { useDebouncedValue } from '@/lib/useDebouncedValue';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm';
 import { ApiClientError } from '@/services/api';
@@ -41,15 +43,28 @@ interface ImporterDraft {
 }
 
 export default function ClientsPage() {
-  const { data, isLoading, isError, error, refetch } = useClients({ limit: 100, sort: 'name' });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [page, setPage] = useState(1);
+  const pageSize = usePageSize(IMPORTERS_TWO_COLUMNS_FROM);
+  const debouncedSearch = useDebouncedValue(searchQuery.trim(), 300);
+
+  // Search, status and paging all happen on the server; active importers come first, then A to Z.
+  const { data, isLoading, isError, error, refetch } = useClients({
+    page,
+    limit: pageSize,
+    sort: 'name',
+    order: 'asc',
+    status: statusFilter,
+    ...(debouncedSearch ? { search: debouncedSearch } : {}),
+  });
+  const { data: summaryData } = useImporterSummary();
   const createMutation = useCreateClient();
   const updateMutation = useUpdateClient();
   const deleteMutation = useDeleteClient();
   const { showToast } = useToast();
   const confirm = useConfirm();
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editing, setEditing] = useState<Importer | null>(null);
   const [form, setForm] = useState<CreateImporterDto>(emptyImporter);
@@ -67,13 +82,11 @@ export default function ClientsPage() {
   });
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
 
-  // Active importers first, "not needed" ones after (each group keeps the name order from the server).
-  const importers = [...(data?.data ?? [])].sort((a, b) => Number(a.isActive === false) - Number(b.isActive === false));
-  const activeCount = importers.filter((i) => i.isActive !== false).length;
-  const inactiveCount = importers.length - activeCount;
-  const visibleImporters = filterImporters(importers, searchQuery, statusFilter);
-  // Drafts aren't importers yet, so they only show under "All" (and still respect the search text).
-  const visibleDrafts = statusFilter === 'all'
+  const importers = data?.data ?? [];
+  const meta = data?.meta;
+  const summary = summaryData?.data ?? { total: 0, active: 0, inactive: 0 };
+  // Drafts aren't importers yet: they only appear on the first page of "All", and still respect the search text.
+  const visibleDrafts = statusFilter === 'all' && page === 1
     ? drafts.filter((d) => {
         const terms = searchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
         const text = [d.data.name, d.data.buyerName, d.data.contact, d.data.email, d.data.currency].filter(Boolean).join(' ').toLowerCase();
@@ -81,6 +94,28 @@ export default function ClientsPage() {
       })
     : [];
   const isFiltering = searchQuery.trim() !== '' || statusFilter !== 'all';
+
+  const changePage = (next: number) => {
+    setPage(next);
+    scrollMainToTop();
+  };
+  const changeSearch = (value: string) => { setSearchQuery(value); setPage(1); };
+  const changeStatus = (value: StatusFilter) => { setStatusFilter(value); setPage(1); };
+
+  // A different screen size means different page boundaries, so start again from page 1.
+  const lastPageSize = useRef(pageSize);
+  useEffect(() => {
+    if (lastPageSize.current !== pageSize) {
+      lastPageSize.current = pageSize;
+      setPage(1);
+    }
+  }, [pageSize]);
+
+  // If the last card on the last page was just deleted or deactivated, step back to the new last page.
+  const totalPages = meta?.totalPages ?? 0;
+  useEffect(() => {
+    if (totalPages > 0 && page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const openCreate = () => {
     setEditing(null);
@@ -282,20 +317,16 @@ export default function ClientsPage() {
       </div>
 
       {!isLoading && !isError && (
-        <ImporterStats
-          total={importers.length}
-          active={activeCount}
-          inactive={inactiveCount}
-        />
+        <ImporterStats total={summary.total} active={summary.active} inactive={summary.inactive} />
       )}
 
-      {!isLoading && !isError && importers.length > 0 && (
+      {!isLoading && !isError && summary.total > 0 && (
         <ImporterFilters
           query={searchQuery}
-          onQueryChange={setSearchQuery}
+          onQueryChange={changeSearch}
           status={statusFilter}
-          onStatusChange={setStatusFilter}
-          counts={{ all: importers.length, active: activeCount, inactive: inactiveCount }}
+          onStatusChange={changeStatus}
+          counts={{ all: summary.total, active: summary.active, inactive: summary.inactive }}
         />
       )}
 
@@ -311,14 +342,14 @@ export default function ClientsPage() {
         </div>
       )}
 
-      {!isLoading && !isError && importers.length === 0 && (
+      {!isLoading && !isError && summary.total === 0 && visibleDrafts.length === 0 && (
         <div className="text-center py-16 text-muted-foreground">No importers found. Create one to start invoicing.</div>
       )}
 
-      {!isLoading && !isError && importers.length > 0 && isFiltering && visibleImporters.length === 0 && visibleDrafts.length === 0 && (
+      {!isLoading && !isError && summary.total > 0 && isFiltering && importers.length === 0 && visibleDrafts.length === 0 && (
         <div className="text-center py-12 text-muted-foreground">
           <p>No importers match your search or filter.</p>
-          <button onClick={() => { setSearchQuery(''); setStatusFilter('all'); }} className="mt-2 text-sm font-semibold underline">Clear filters</button>
+          <button onClick={() => { changeSearch(''); changeStatus('all'); }} className="mt-2 text-sm font-semibold underline">Clear filters</button>
         </div>
       )}
 
@@ -343,7 +374,7 @@ export default function ClientsPage() {
           />
         ))}
 
-        {visibleImporters.map((importer) => (
+        {importers.map((importer) => (
           <ImporterCard
             key={importer.id}
             name={importer.name}
@@ -377,6 +408,10 @@ export default function ClientsPage() {
           />
         ))}
       </div>}
+
+      {!isError && meta && (
+        <Pagination page={meta.page} totalPages={meta.totalPages} total={meta.total} pageSize={meta.limit} onPageChange={changePage} noun="importers" />
+      )}
 
       {isFormOpen && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-2 sm:p-4">

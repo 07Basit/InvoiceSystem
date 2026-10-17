@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { clientService } from '../services/clientService';
 import type { CreateImporterDto, UpdateImporterDto, ListImportersQuery } from 'shared';
 
@@ -12,6 +12,15 @@ export function useClients(query: Partial<ListImportersQuery> = {}) {
   return useQuery({
     queryKey: clientKeys.list(query),
     queryFn: () => clientService.getAll(query),
+    // keep the current page on screen while the next one loads, so the list doesn't flash or jump
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useImporterSummary() {
+  return useQuery({
+    queryKey: [...clientKeys.all, 'summary'] as const,
+    queryFn: () => clientService.getSummary(),
   });
 }
 

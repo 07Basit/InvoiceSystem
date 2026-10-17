@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { invoiceService } from '../services/invoiceService';
 import type { CreateInvoiceDto, UpdateInvoiceDto, ListInvoicesQuery } from 'shared';
 
@@ -12,6 +12,7 @@ export function useInvoices(query: Partial<ListInvoicesQuery> = {}) {
   return useQuery({
     queryKey: invoiceKeys.list(query),
     queryFn: () => invoiceService.getAll(query),
+    placeholderData: keepPreviousData,
   });
 }
 

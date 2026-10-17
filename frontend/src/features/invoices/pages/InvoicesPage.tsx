@@ -6,6 +6,9 @@ import InvoiceTable from '../components/InvoiceTable';
 import InvoiceForm from '../components/InvoiceForm';
 import { Plus, Download, Search, Pencil, Trash2 } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
+import InvoiceStats from '../components/InvoiceStats';
+import Tooltip from '@/components/ui/Tooltip';
+import { useInvoiceSummary } from '../hooks/useInvoices';
 
 const invoiceDraftListKey = 'invoice-draft-list-v1';
 
@@ -30,6 +33,7 @@ export default function InvoicesPage() {
   const { search, openCreateForm, openDraftForm, setSearch } = useInvoiceStore();
   const { showToast } = useToast();
   const [drafts, setDrafts] = useState<InvoiceDraft[]>(() => readInvoiceDrafts());
+  const { data: summary } = useInvoiceSummary();
 
   useEffect(() => {
     const handleDraftUpdate = () => setDrafts(readInvoiceDrafts());
@@ -70,6 +74,8 @@ export default function InvoicesPage() {
         </div>
       </div>
 
+      {summary?.data && <InvoiceStats summary={summary.data} />}
+
       {drafts.length > 0 ? (
         <div>
           <div className="flex items-center gap-2 mb-3">
@@ -90,12 +96,16 @@ export default function InvoicesPage() {
                     <p className="text-xs text-muted-foreground">Currency: {draft.data.currency || '—'}</p>
                   </div>
                   <div className="flex items-center gap-1">
-                    <button onClick={() => openDraftForm(draft.id, draft.data)} className="btn-icon h-7 w-7" title="Edit draft">
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button onClick={() => deleteDraft(draft.id)} className="btn-icon h-7 w-7 hover:text-destructive" title="Delete draft">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    <Tooltip label="Edit draft" align="end">
+                      <button onClick={() => openDraftForm(draft.id, draft.data)} className="btn-icon h-7 w-7" aria-label="Edit draft">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    </Tooltip>
+                    <Tooltip label="Delete draft" align="end">
+                      <button onClick={() => deleteDraft(draft.id)} className="btn-icon h-7 w-7 hover:text-destructive" aria-label="Delete draft">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </Tooltip>
                   </div>
                 </div>
 

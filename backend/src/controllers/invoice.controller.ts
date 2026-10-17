@@ -12,6 +12,11 @@ export const listInvoices = asyncHandler(async (req: Request, res: Response) => 
   res.json({ success: true, data: result.data, error: null, meta: result.meta });
 });
 
+export const getInvoiceSummary = asyncHandler(async (_req: Request, res: Response) => {
+  const summary = await invoiceService.summary();
+  res.json({ success: true, data: summary, error: null, meta: null });
+});
+
 export const getInvoice = asyncHandler(async (req: Request, res: Response) => {
   const id = String(req.params['id']);
   const invoice = await invoiceService.getByIdWithConversion(id);

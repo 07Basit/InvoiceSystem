@@ -15,6 +15,13 @@ export function useInvoices(query: Partial<ListInvoicesQuery> = {}) {
   });
 }
 
+export function useInvoiceSummary() {
+  return useQuery({
+    queryKey: [...invoiceKeys.all, 'summary'] as const,
+    queryFn: () => invoiceService.getSummary(),
+  });
+}
+
 export function useInvoice(id: string) {
   return useQuery({
     queryKey: invoiceKeys.detail(id),

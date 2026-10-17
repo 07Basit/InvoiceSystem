@@ -146,7 +146,9 @@ export default function InvoiceForm() {
   const isEditing = Boolean(editingId);
   const invoice = invoiceData?.data;
   const invoiceNumberLabel = invoice?.invoiceNumber || form.invoiceNumber;
-  const importers = importersData?.data ?? [];
+  const allImporters = importersData?.data ?? [];
+  // "Not needed" importers aren't offered for new invoices; an invoice being edited keeps its own importer selectable.
+  const importers = allImporters.filter((i) => i.isActive !== false || i.id === form.importerId);
   const selectedImporter = useMemo(() => importers.find((i) => i.id === form.importerId), [form.importerId, importers]);
 
   useEffect(() => {

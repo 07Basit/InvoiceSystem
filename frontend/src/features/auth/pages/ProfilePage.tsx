@@ -6,6 +6,7 @@ import { useAuthStore } from '../store/authStore';
 import { authService } from '../services/authService';
 import { userInitial } from '../components/UserMenu';
 import { useToast } from '@/components/ui/toast';
+import { useConfirm } from '@/components/ui/confirm';
 import { ApiClientError } from '@/services/api';
 
 const dateTime = (iso: string | null | undefined) =>
@@ -14,6 +15,7 @@ const dateTime = (iso: string | null | undefined) =>
 export default function ProfilePage() {
   const { user, rememberMe, expiresAt, setUser, applySession, logout } = useAuthStore();
   const { showToast } = useToast();
+  const confirm = useConfirm();
   const navigate = useNavigate();
 
   const [displayName, setDisplayName] = useState(user?.displayName ?? '');
@@ -87,7 +89,13 @@ export default function ProfilePage() {
   };
 
   const signOutEverywhere = async () => {
-    if (!confirm('Sign out of all devices, including this one?')) return;
+    const ok = await confirm({
+      title: 'Sign out of all devices?',
+      message: 'This signs you out everywhere, including this device.',
+      confirmLabel: 'Sign out everywhere',
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await authService.signOutEverywhere();
     } finally {

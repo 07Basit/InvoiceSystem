@@ -112,6 +112,28 @@ export const invoiceService = {
     return invoice;
   },
 
+  /** Headline numbers for the Invoices page: counts and the total value in the reporting currency. */
+  async summary() {
+    const invoices = await prisma.invoice.findMany({
+      where: { deletedAt: null },
+      select: { invoiceDate: true, total: true, currency: true, manualRate: true, manualRateBase: true },
+    });
+    const { baseCurrency, convert } = await currencyService.buildConverter(invoices);
+
+    const now = new Date();
+    let thisMonth = 0;
+    let totalValue = 0;
+    let notInRevenue = 0;
+    for (const inv of invoices) {
+      const d = new Date(inv.invoiceDate);
+      if (d.getUTCFullYear() === now.getUTCFullYear() && d.getUTCMonth() === now.getUTCMonth()) thisMonth += 1;
+      const value = convert(inv);
+      if (value === null) notInRevenue += 1;
+      else totalValue += value;
+    }
+    return { total: invoices.length, thisMonth, totalValue, baseCurrency, notInRevenue };
+  },
+
   /** Invoice plus how it is valued in the reporting currency (used by the detail page). */
   async getByIdWithConversion(id: string) {
     const invoice = await this.getById(id);
@@ -157,6 +179,10 @@ export const invoiceService = {
 
     if (!importer) {
       throw new AppError('Importer not found', 404, 'IMPORTER_NOT_FOUND');
+    }
+
+    if (!importer.isActive) {
+      throw new AppError('This importer is marked as not needed, so no new invoices can be created for it', 400, 'IMPORTER_INACTIVE');
     }
 
     const selectedLanding = dto.landingLocationId
@@ -238,6 +264,10 @@ export const invoiceService = {
 
     if (!importer) {
       throw new AppError('Importer not found', 404, 'IMPORTER_NOT_FOUND');
+    }
+
+    if (!importer.isActive && importerId !== current.importerId) {
+      throw new AppError('This importer is marked as not needed, so invoices cannot be moved to it', 400, 'IMPORTER_INACTIVE');
     }
 
     const selectedLanding = dto.landingLocationId

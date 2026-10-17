@@ -21,10 +21,12 @@ model Importer {
   id               String            @id @default(cuid())
   name             String
   address          String            @db.NVarChar(Max)
-  contact          String
+  contact          String?
   email            String?
-  buyerName        String
+  buyerName        String?
   currency         String
+  // false = "not needed": kept in the importers list (greyed out) but not offered when creating invoices
+  isActive         Boolean           @default(true)
   landingLocations LandingLocation[]
   loadingLocations LoadingLocation[]
   invoices         Invoice[]

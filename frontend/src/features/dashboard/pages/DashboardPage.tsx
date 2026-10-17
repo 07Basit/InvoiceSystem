@@ -35,7 +35,7 @@ interface DashboardStats {
   importers: Array<{
     id: string;
     name: string;
-    buyerName: string;
+    buyerName: string | null;
     currency: string;
     invoiceCount: number;
     revenue: number;
@@ -307,7 +307,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-semibold truncate">{imp.name}</p>
-                    <p className="text-xs text-muted-foreground truncate">{imp.buyerName} · {imp.invoiceCount} invoices</p>
+                    <p className="text-xs text-muted-foreground truncate">{imp.buyerName ? `${imp.buyerName} · ` : ''}{imp.invoiceCount} {imp.invoiceCount === 1 ? 'invoice' : 'invoices'}</p>
                   </div>
                 </div>
                 <span className="text-sm font-semibold shrink-0 ml-3">{formatCurrency(imp.revenue, currency)}</span>

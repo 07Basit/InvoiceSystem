@@ -1,12 +1,20 @@
 import { useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Pencil, Trash2, Save } from 'lucide-react';
-import type { CreateImporterDto } from 'shared';
+import { Plus, Trash2, Save } from 'lucide-react';
+import { createImporterSchema, type CreateImporterDto } from 'shared';
 import { useClients, useCreateClient, useDeleteClient, useUpdateClient } from '../hooks/useClients';
 import type { Importer } from '../services/clientService';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import ImporterCard from '../components/ImporterCard';
+import ImporterStats from '../components/ImporterStats';
+import ImporterFilters from '../components/ImporterFilters';
+import { filterImporters, type StatusFilter } from '../utils/filterImporters';
 import { useToast } from '@/components/ui/toast';
+import { useConfirm } from '@/components/ui/confirm';
 import { ApiClientError } from '@/services/api';
+import { getCurrencyOptions, toComboOption } from '@/lib/currencies';
+import { COMMON_AIRPORT_CODES, getCountryOptions, useAirportOptions } from '@/lib/places';
+import SearchCombobox, { type ComboOption } from '@/components/ui/SearchCombobox';
 
 const emptyImporter: CreateImporterDto = {
   name: '',
@@ -32,16 +40,16 @@ interface ImporterDraft {
   data: CreateImporterDto;
 }
 
-const contactRegex = /^[0-9+()\-\s]{7,20}$/;
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 export default function ClientsPage() {
   const { data, isLoading, isError, error, refetch } = useClients({ limit: 100, sort: 'name' });
   const createMutation = useCreateClient();
   const updateMutation = useUpdateClient();
   const deleteMutation = useDeleteClient();
   const { showToast } = useToast();
+  const confirm = useConfirm();
 
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editing, setEditing] = useState<Importer | null>(null);
   const [form, setForm] = useState<CreateImporterDto>(emptyImporter);
@@ -59,7 +67,20 @@ export default function ClientsPage() {
   });
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
 
-  const importers = data?.data ?? [];
+  // Active importers first, "not needed" ones after (each group keeps the name order from the server).
+  const importers = [...(data?.data ?? [])].sort((a, b) => Number(a.isActive === false) - Number(b.isActive === false));
+  const activeCount = importers.filter((i) => i.isActive !== false).length;
+  const inactiveCount = importers.length - activeCount;
+  const visibleImporters = filterImporters(importers, searchQuery, statusFilter);
+  // Drafts aren't importers yet, so they only show under "All" (and still respect the search text).
+  const visibleDrafts = statusFilter === 'all'
+    ? drafts.filter((d) => {
+        const terms = searchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+        const text = [d.data.name, d.data.buyerName, d.data.contact, d.data.email, d.data.currency].filter(Boolean).join(' ').toLowerCase();
+        return terms.every((t) => text.includes(t));
+      })
+    : [];
+  const isFiltering = searchQuery.trim() !== '' || statusFilter !== 'all';
 
   const openCreate = () => {
     setEditing(null);
@@ -78,9 +99,9 @@ export default function ClientsPage() {
     setForm({
       name: importer.name,
       address: importer.address,
-      contact: importer.contact,
+      contact: importer.contact ?? '',
       email: importer.email ?? '',
-      buyerName: importer.buyerName,
+      buyerName: importer.buyerName ?? '',
       currency: importer.currency,
       landingLocations: importer.landingLocations.map((item) => ({
         name: item.name,
@@ -131,43 +152,54 @@ export default function ClientsPage() {
     });
   };
 
-  const validateForm = (): FieldErrors => {
+  // Same schema the API uses, so the form and the server can never disagree.
+  const buildPayload = (): CreateImporterDto => ({
+    ...form,
+    name: form.name.trim(),
+    buyerName: (form.buyerName ?? '').trim(),
+    address: form.address.trim(),
+    contact: (form.contact ?? '').trim(),
+    currency: form.currency.trim().toUpperCase(),
+    email: form.email?.trim() ? form.email.trim() : undefined,
+    landingLocations: form.landingLocations.map((item) => ({
+      name: item.name.trim(),
+      portOfDischarge: item.portOfDischarge.trim(),
+      finalDestination: item.finalDestination.trim(),
+      countryOfDestination: item.countryOfDestination.trim(),
+    })),
+    loadingLocations: form.loadingLocations.map((item) => ({
+      name: item.name.trim(),
+      portOfLoading: item.portOfLoading.trim(),
+      countryOfOrigin: item.countryOfOrigin.trim(),
+    })),
+  });
+
+  const validateForm = (payload: CreateImporterDto): FieldErrors => {
+    const result = createImporterSchema.safeParse(payload);
+    if (result.success) return {};
     const nextErrors: FieldErrors = {};
-
-    if (!form.name.trim()) nextErrors['name'] = 'Importer name is required.';
-    if (!form.buyerName.trim()) nextErrors['buyerName'] = 'Buyer name is required.';
-    if (!form.address.trim()) nextErrors['address'] = 'Address is required.';
-
-    if (!form.contact.trim()) {
-      nextErrors['contact'] = 'Phone/contact is required.';
-    } else if (!contactRegex.test(form.contact.trim())) {
-      nextErrors['contact'] = 'Contact must contain only numbers or + ( ) - and spaces.';
+    for (const issue of result.error.issues) {
+      // "landingLocations.0.name" etc. match the keys the fields look up
+      const key = issue.path.join('.');
+      if (!nextErrors[key]) nextErrors[key] = issue.message;
     }
-
-    if (!form.currency.trim()) {
-      nextErrors['currency'] = 'Currency is required.';
-    } else if (form.currency.trim().length < 3) {
-      nextErrors['currency'] = 'Currency must be at least 3 letters (e.g. CAD).';
-    }
-
-    if (form.email?.trim() && !emailRegex.test(form.email.trim())) {
-      nextErrors['email'] = 'Enter a valid email address.';
-    }
-
-    form.landingLocations.forEach((loc, index) => {
-      if (!loc.name.trim()) nextErrors[`landingLocations.${index}.name`] = 'Landing location name is required.';
-      if (!loc.portOfDischarge.trim()) nextErrors[`landingLocations.${index}.portOfDischarge`] = 'Port of discharge is required.';
-      if (!loc.finalDestination.trim()) nextErrors[`landingLocations.${index}.finalDestination`] = 'Final destination is required.';
-      if (!loc.countryOfDestination.trim()) nextErrors[`landingLocations.${index}.countryOfDestination`] = 'Country of destination is required.';
-    });
-
-    form.loadingLocations.forEach((loc, index) => {
-      if (!loc.name.trim()) nextErrors[`loadingLocations.${index}.name`] = 'Loading location name is required.';
-      if (!loc.portOfLoading.trim()) nextErrors[`loadingLocations.${index}.portOfLoading`] = 'Port of loading is required.';
-      if (!loc.countryOfOrigin.trim()) nextErrors[`loadingLocations.${index}.countryOfOrigin`] = 'Country of origin is required.';
-    });
-
     return nextErrors;
+  };
+
+  const toggleActive = async (importer: Importer) => {
+    const makeInactive = importer.isActive !== false;
+    try {
+      await updateMutation.mutateAsync({ id: importer.id, dto: { isActive: !makeInactive } });
+      showToast(
+        makeInactive ? 'Marked as not needed' : 'Importer is active again',
+        makeInactive
+          ? `${importer.name} stays in this list but won't appear when creating invoices.`
+          : `${importer.name} can be selected when creating invoices again.`,
+        'success',
+      );
+    } catch (error) {
+      showToast('Unable to update importer', error instanceof Error ? error.message : 'Please try again.', 'error');
+    }
   };
 
   const saveDraft = () => {
@@ -191,33 +223,13 @@ export default function ClientsPage() {
   const saveImporter = async () => {
     setSubmitError(null);
 
-    const fieldErrors = validateForm();
+    const payload = buildPayload();
+    const fieldErrors = validateForm(payload);
     if (Object.keys(fieldErrors).length > 0) {
       setErrors(fieldErrors);
       showToast('Validation failed', 'Please fix the highlighted fields.', 'error');
       return;
     }
-
-    const payload: CreateImporterDto = {
-      ...form,
-      name: form.name.trim(),
-      buyerName: form.buyerName.trim(),
-      address: form.address.trim(),
-      contact: form.contact.trim(),
-      currency: form.currency.trim().toUpperCase(),
-      email: form.email?.trim() ? form.email : undefined,
-      landingLocations: form.landingLocations.map((item) => ({
-        name: item.name.trim(),
-        portOfDischarge: item.portOfDischarge.trim(),
-        finalDestination: item.finalDestination.trim(),
-        countryOfDestination: item.countryOfDestination.trim(),
-      })),
-      loadingLocations: form.loadingLocations.map((item) => ({
-        name: item.name.trim(),
-        portOfLoading: item.portOfLoading.trim(),
-        countryOfOrigin: item.countryOfOrigin.trim(),
-      })),
-    };
 
     try {
       if (editing) {
@@ -263,11 +275,29 @@ export default function ClientsPage() {
         </div>
         <button
           onClick={openCreate}
-          className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:opacity-90 self-start"
+          className="btn-brand self-start"
         >
           <Plus className="h-4 w-4" /> New Importer
         </button>
       </div>
+
+      {!isLoading && !isError && (
+        <ImporterStats
+          total={importers.length}
+          active={activeCount}
+          inactive={inactiveCount}
+        />
+      )}
+
+      {!isLoading && !isError && importers.length > 0 && (
+        <ImporterFilters
+          query={searchQuery}
+          onQueryChange={setSearchQuery}
+          status={statusFilter}
+          onStatusChange={setStatusFilter}
+          counts={{ all: importers.length, active: activeCount, inactive: inactiveCount }}
+        />
+      )}
 
       {isLoading && <div className="flex justify-center py-16"><LoadingSpinner /></div>}
 
@@ -285,82 +315,66 @@ export default function ClientsPage() {
         <div className="text-center py-16 text-muted-foreground">No importers found. Create one to start invoicing.</div>
       )}
 
+      {!isLoading && !isError && importers.length > 0 && isFiltering && visibleImporters.length === 0 && visibleDrafts.length === 0 && (
+        <div className="text-center py-12 text-muted-foreground">
+          <p>No importers match your search or filter.</p>
+          <button onClick={() => { setSearchQuery(''); setStatusFilter('all'); }} className="mt-2 text-sm font-semibold underline">Clear filters</button>
+        </div>
+      )}
+
       {!isError && <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {drafts.map((draft) => (
-          <div key={draft.id} className="border rounded-lg p-4 bg-card space-y-3 border-amber-300/70 bg-amber-50/30">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <div className="flex items-center gap-2">
-                  <p className="font-semibold">{draft.data.name || 'Untitled Draft Importer'}</p>
-                  <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-amber-200 text-amber-800 font-semibold">Draft</span>
-                </div>
-                <p className="text-sm text-muted-foreground">Buyer: {draft.data.buyerName || '-'}</p>
-                <p className="text-sm text-muted-foreground">Currency: {draft.data.currency || '-'}</p>
-              </div>
-              <div className="flex items-center gap-1">
-                <button onClick={() => openDraft(draft)} className="p-1.5 hover:bg-accent rounded-md" title="Edit draft">
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
-                <button onClick={() => deleteDraft(draft.id)} className="p-1.5 hover:bg-destructive/10 rounded-md" title="Delete draft">
-                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                </button>
-              </div>
-            </div>
-
-            <div className="text-sm space-y-1">
-              <p>{draft.data.address || 'No address yet'}</p>
-              <p className="text-muted-foreground">{draft.data.contact || '-'}{draft.data.email ? ` | ${draft.data.email}` : ''}</p>
-            </div>
-
-            <p className="text-xs text-muted-foreground">Saved on {new Date(draft.createdAt).toLocaleString()}</p>
-          </div>
+        {visibleDrafts.map((draft) => (
+          <ImporterCard
+            key={draft.id}
+            draft
+            name={draft.data.name}
+            buyerName={draft.data.buyerName}
+            currency={draft.data.currency}
+            address={draft.data.address}
+            contact={draft.data.contact}
+            email={draft.data.email}
+            landing={draft.data.landingLocations}
+            loading={draft.data.loadingLocations}
+            footnote={`Draft saved ${new Date(draft.createdAt).toLocaleString()}`}
+            editLabel="Edit draft"
+            deleteLabel="Delete draft"
+            onEdit={() => openDraft(draft)}
+            onDelete={() => deleteDraft(draft.id)}
+          />
         ))}
 
-        {importers.map((importer) => (
-          <div key={importer.id} className="border rounded-lg p-4 bg-card space-y-3">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="font-semibold">{importer.name}</p>
-                <p className="text-sm text-muted-foreground">Buyer: {importer.buyerName}</p>
-                <p className="text-sm text-muted-foreground">Currency: {importer.currency}</p>
-              </div>
-              <div className="flex items-center gap-1">
-                <button onClick={() => openEdit(importer)} className="p-1.5 hover:bg-accent rounded-md">
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  onClick={() => {
-                    if (confirm(`Delete importer ${importer.name}?`)) {
-                      deleteMutation.mutate(importer.id);
-                    }
-                  }}
-                  className="p-1.5 hover:bg-destructive/10 rounded-md"
-                >
-                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                </button>
-              </div>
-            </div>
-
-            <div className="text-sm space-y-1">
-              <p>{importer.address}</p>
-              <p className="text-muted-foreground">{importer.contact}{importer.email ? ` | ${importer.email}` : ''}</p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="border rounded-md p-2">
-                <p className="font-medium mb-1">Landing</p>
-                {importer.landingLocations.map((loc) => (
-                  <p key={loc.id} className="text-muted-foreground">{loc.name} ({loc.portOfDischarge})</p>
-                ))}
-              </div>
-              <div className="border rounded-md p-2">
-                <p className="font-medium mb-1">Loading</p>
-                {importer.loadingLocations.map((loc) => (
-                  <p key={loc.id} className="text-muted-foreground">{loc.name} ({loc.portOfLoading})</p>
-                ))}
-              </div>
-            </div>
-          </div>
+        {visibleImporters.map((importer) => (
+          <ImporterCard
+            key={importer.id}
+            name={importer.name}
+            inactive={importer.isActive === false}
+            onToggleActive={() => toggleActive(importer)}
+            buyerName={importer.buyerName}
+            currency={importer.currency}
+            address={importer.address}
+            contact={importer.contact}
+            email={importer.email}
+            landing={importer.landingLocations}
+            loading={importer.loadingLocations}
+            editLabel="Edit importer"
+            deleteLabel="Delete importer"
+            onEdit={() => openEdit(importer)}
+            onDelete={async () => {
+              const ok = await confirm({
+                title: `Delete ${importer.name}?`,
+                message: 'The importer moves to the Recycle Bin and no longer shows up when creating invoices. Invoices already created are not changed.',
+                confirmLabel: 'Delete',
+                destructive: true,
+              });
+              if (!ok) return;
+              try {
+                await deleteMutation.mutateAsync(importer.id);
+                showToast('Importer deleted', `${importer.name} was moved to the Recycle Bin.`, 'success');
+              } catch (error) {
+                showToast('Unable to delete importer', error instanceof Error ? error.message : 'Please try again.', 'error');
+              }
+            }}
+          />
         ))}
       </div>}
 
@@ -376,10 +390,10 @@ export default function ClientsPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Field label="Name" value={form.name} error={errors['name']} onChange={(value) => { clearFieldError('name'); setForm((prev) => ({ ...prev, name: value })); }} />
-              <Field label="Buyer Name" value={form.buyerName} error={errors['buyerName']} onChange={(value) => { clearFieldError('buyerName'); setForm((prev) => ({ ...prev, buyerName: value })); }} />
-              <Field label="Contact" value={form.contact} error={errors['contact']} onChange={(value) => { clearFieldError('contact'); setForm((prev) => ({ ...prev, contact: value })); }} />
+              <Field label="Buyer Name (optional)" value={form.buyerName ?? ''} error={errors['buyerName']} onChange={(value) => { clearFieldError('buyerName'); setForm((prev) => ({ ...prev, buyerName: value })); }} />
+              <Field label="Contact (optional)" value={form.contact ?? ''} error={errors['contact']} onChange={(value) => { clearFieldError('contact'); setForm((prev) => ({ ...prev, contact: value })); }} />
               <Field label="Email (optional)" value={form.email ?? ''} error={errors['email']} onChange={(value) => { clearFieldError('email'); setForm((prev) => ({ ...prev, email: value })); }} />
-              <Field label="Currency" value={form.currency} error={errors['currency']} onChange={(value) => { clearFieldError('currency'); setForm((prev) => ({ ...prev, currency: value.toUpperCase() })); }} placeholder="e.g. CAD" />
+              <CurrencySelect label="Currency" value={form.currency} error={errors['currency']} onChange={(value) => { clearFieldError('currency'); setForm((prev) => ({ ...prev, currency: value })); }} />
               <Field label="Address" value={form.address} error={errors['address']} onChange={(value) => { clearFieldError('address'); setForm((prev) => ({ ...prev, address: value })); }} />
             </div>
 
@@ -416,15 +430,15 @@ export default function ClientsPage() {
                     ...prev,
                     landingLocations: prev.landingLocations.map((item, i) => i === index ? { ...item, name: value } : item),
                   }))} error={errors[`landingLocations.${index}.name`]} />
-                  <Field label="Port of Discharge" value={loc.portOfDischarge} onChange={(value) => setForm((prev) => ({
+                  <AirportSelect label="Port of Discharge" value={loc.portOfDischarge} onChange={(value) => setForm((prev) => ({
                     ...prev,
                     landingLocations: prev.landingLocations.map((item, i) => i === index ? { ...item, portOfDischarge: value } : item),
                   }))} error={errors[`landingLocations.${index}.portOfDischarge`]} />
-                  <Field label="Final Destination" value={loc.finalDestination} onChange={(value) => setForm((prev) => ({
+                  <AirportSelect label="Final Destination" value={loc.finalDestination} onChange={(value) => setForm((prev) => ({
                     ...prev,
                     landingLocations: prev.landingLocations.map((item, i) => i === index ? { ...item, finalDestination: value } : item),
                   }))} error={errors[`landingLocations.${index}.finalDestination`]} />
-                  <Field label="Country of Destination" value={loc.countryOfDestination} onChange={(value) => setForm((prev) => ({
+                  <CountrySelect label="Country of Destination" value={loc.countryOfDestination} onChange={(value) => setForm((prev) => ({
                     ...prev,
                     landingLocations: prev.landingLocations.map((item, i) => i === index ? { ...item, countryOfDestination: value } : item),
                   }))} error={errors[`landingLocations.${index}.countryOfDestination`]} />
@@ -465,11 +479,11 @@ export default function ClientsPage() {
                     ...prev,
                     loadingLocations: prev.loadingLocations.map((item, i) => i === index ? { ...item, name: value } : item),
                   }))} error={errors[`loadingLocations.${index}.name`]} />
-                  <Field label="Port of Loading" value={loc.portOfLoading} onChange={(value) => setForm((prev) => ({
+                  <AirportSelect label="Port of Loading" value={loc.portOfLoading} onChange={(value) => setForm((prev) => ({
                     ...prev,
                     loadingLocations: prev.loadingLocations.map((item, i) => i === index ? { ...item, portOfLoading: value } : item),
                   }))} error={errors[`loadingLocations.${index}.portOfLoading`]} />
-                  <Field label="Country of Origin" value={loc.countryOfOrigin} onChange={(value) => setForm((prev) => ({
+                  <CountrySelect label="Country of Origin" value={loc.countryOfOrigin} onChange={(value) => setForm((prev) => ({
                     ...prev,
                     loadingLocations: prev.loadingLocations.map((item, i) => i === index ? { ...item, countryOfOrigin: value } : item),
                   }))} error={errors[`loadingLocations.${index}.countryOfOrigin`]} />
@@ -488,7 +502,7 @@ export default function ClientsPage() {
                 <button
                   onClick={saveImporter}
                   disabled={createMutation.isPending || updateMutation.isPending}
-                  className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:opacity-90 disabled:opacity-50 shrink-0"
+                  className="btn-brand disabled:opacity-50 shrink-0"
                 >
                   {editing ? 'Save Importer' : 'Create Importer'}
                 </button>
@@ -525,6 +539,95 @@ function Field({ label, value, onChange, placeholder, error }: FieldProps) {
   );
 }
 
+interface PickerFieldProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: ComboOption[];
+  common?: ComboOption[];
+  error?: string | undefined;
+  placeholder: string;
+  searchPlaceholder: string;
+  labelClassName?: string;
+  loading?: boolean;
+}
+
+/** A labelled, searchable dropdown that looks like the text fields around it. */
+function PickerField({ label, value, onChange, options, common, error, placeholder, searchPlaceholder, labelClassName, loading }: PickerFieldProps) {
+  // a value saved earlier that isn't in the list (e.g. an old free-text entry) still shows when editing
+  const withCurrent = value && !loading && !options.some((o) => o.value === value)
+    ? [{ value, label: value }, ...options]
+    : options;
+
+  return (
+    <div>
+      <label className="text-xs text-muted-foreground block mb-1">{label}</label>
+      <SearchCombobox
+        value={value}
+        onChange={onChange}
+        options={withCurrent}
+        {...(common ? { common } : {})}
+        ariaLabel={label}
+        placeholder={placeholder}
+        searchPlaceholder={searchPlaceholder}
+        {...(labelClassName ? { labelClassName } : {})}
+        loading={!!loading}
+        hasError={!!error}
+        className="w-full border rounded-md px-3 py-2 text-sm bg-background focus-visible:ring-2"
+      />
+      {error ? <p className="text-xs text-destructive mt-1">{error}</p> : null}
+    </div>
+  );
+}
+
+interface SimplePickerProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  error?: string | undefined;
+}
+
+function CurrencySelect(props: SimplePickerProps) {
+  const { common, all } = getCurrencyOptions();
+  return (
+    <PickerField
+      {...props}
+      options={all.map(toComboOption)}
+      common={common.map(toComboOption)}
+      placeholder="Select currency"
+      searchPlaceholder="Search code or name, e.g. INR"
+    />
+  );
+}
+
+function AirportSelect(props: SimplePickerProps) {
+  const airports = useAirportOptions();
+  const common = airports ? COMMON_AIRPORT_CODES.map((c) => airports.find((a) => a.value === c)).filter((a): a is ComboOption => !!a) : [];
+  return (
+    <PickerField
+      {...props}
+      options={airports ?? []}
+      common={common}
+      loading={!airports}
+      placeholder="Select airport code"
+      searchPlaceholder="Code, city or airport, e.g. BOM or Mumbai"
+      labelClassName="w-10"
+    />
+  );
+}
+
+function CountrySelect(props: SimplePickerProps) {
+  return (
+    <PickerField
+      {...props}
+      options={getCountryOptions()}
+      placeholder="Select country"
+      searchPlaceholder="Search country, e.g. India"
+      labelClassName="w-auto"
+    />
+  );
+}
+
 interface LocationSectionProps {
   title: string;
   onAdd: () => void;
@@ -536,7 +639,7 @@ function LocationSection({ title, onAdd, children }: LocationSectionProps) {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="font-medium">{title}</h3>
-        <button onClick={onAdd} className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-slate-900 to-slate-700 text-white hover:from-slate-800 hover:to-slate-600 shadow-sm transition-all text-xs font-semibold border border-slate-800/20">
+        <button onClick={onAdd} className="btn-brand !px-3 !py-1.5 text-xs">
           <Plus className="h-3.5 w-3.5" /> Add
         </button>
       </div>

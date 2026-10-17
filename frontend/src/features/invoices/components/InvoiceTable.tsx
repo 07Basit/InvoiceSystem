@@ -1,22 +1,12 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useInvoices } from '../hooks/useInvoices';
 import { useInvoiceStore } from '../store/invoiceStore';
 import { invoiceService } from '../services/invoiceService';
-import { formatDate } from '@/lib/utils';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
-import { FileDown, Download, Pencil, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { FileDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import InvoiceCard from './InvoiceCard';
 import { useDeleteInvoice } from '../hooks/useInvoices';
-
-function NotInRevenueTag({ currency }: { currency: string }) {
-  return (
-    <span
-      title={`No exchange rate available for ${currency}, so this invoice is not counted in dashboard revenue. Open it to enter a rate.`}
-      className="inline-block mt-0.5 text-[10px] font-semibold text-amber-700 bg-amber-100 border border-amber-200 rounded-full px-1.5"
-    >
-      Not in revenue
-    </span>
-  );
-}
+import { useConfirm } from '@/components/ui/confirm';
 
 export default function InvoiceTable() {
   const { search, page, setPage, openEditForm } = useInvoiceStore();
@@ -27,6 +17,16 @@ export default function InvoiceTable() {
   });
   const deleteMutation = useDeleteInvoice();
   const navigate = useNavigate();
+  const confirm = useConfirm();
+  const askDelete = async (id: string, invoiceNumber: string) => {
+    const ok = await confirm({
+      title: `Delete invoice ${invoiceNumber}?`,
+      message: 'The invoice moves to the Recycle Bin, where you can restore it.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (ok) deleteMutation.mutate(id);
+  };
   const openInvoice = (id: string) => navigate(`/invoices/${id}`);
 
   if (isLoading) return <div className="flex justify-center py-16"><LoadingSpinner /></div>;
@@ -49,143 +49,19 @@ export default function InvoiceTable() {
 
   return (
     <div className="space-y-4">
-      <div className="md:hidden space-y-2">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {invoices.map((invoice) => (
-          <div key={invoice.id} onClick={() => openInvoice(invoice.id)} className={`rounded-xl border p-4 space-y-3 cursor-pointer ${invoice.excludedFromRevenue ? 'bg-amber-50 border-amber-200' : 'bg-card'}`}>
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <Link to={`/invoices/${invoice.id}`} onClick={(e) => e.stopPropagation()} className="font-mono font-semibold text-sm hover:underline">{invoice.invoiceNumber}</Link>
-                <p className="text-xs text-muted-foreground mt-0.5">{formatDate(invoice.invoiceDate)}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-bold">{invoice.currency} {Number(invoice.total).toFixed(2)}</p>
-                {invoice.excludedFromRevenue && <NotInRevenueTag currency={invoice.currency} />}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2.5">
-              <div className="h-7 w-7 rounded-lg bg-[hsl(var(--primary))]/10 flex items-center justify-center text-[hsl(var(--primary))] text-[10px] font-bold shrink-0">
-                {invoice.importer.name.slice(0, 2).toUpperCase()}
-              </div>
-              <div>
-                <p className="text-sm font-semibold">{invoice.importer.name}</p>
-                <p className="text-xs text-muted-foreground">{invoice.currency}</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1 pt-1 border-t" onClick={(e) => e.stopPropagation()}>
-              <button
-                onClick={() => invoiceService.downloadPdf(invoice.id)}
-                className="btn-icon h-8 w-8"
-                title="Download PDF"
-              >
-                <FileDown className="h-3.5 w-3.5" />
-              </button>
-              <button
-                onClick={() => invoiceService.downloadExcel(invoice.id)}
-                className="btn-icon h-8 w-8"
-                title="Download Excel"
-              >
-                <Download className="h-3.5 w-3.5" />
-              </button>
-              <button
-                onClick={() => openEditForm(invoice.id)}
-                className="btn-icon h-8 w-8"
-                title="Edit"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </button>
-              <button
-                onClick={() => {
-                  if (confirm(`Delete invoice ${invoice.invoiceNumber}?`)) {
-                    deleteMutation.mutate(invoice.id);
-                  }
-                }}
-                className="btn-icon h-8 w-8 hover:text-destructive hover:bg-destructive/10"
-                title="Delete"
-                disabled={deleteMutation.isPending}
-              >
-                <Trash2 className="h-3.5 w-3.5 text-destructive" />
-              </button>
-            </div>
-          </div>
+          <InvoiceCard
+            key={invoice.id}
+            invoice={invoice}
+            deleting={deleteMutation.isPending}
+            onOpen={() => openInvoice(invoice.id)}
+            onPdf={() => invoiceService.downloadPdf(invoice.id)}
+            onExcel={() => invoiceService.downloadExcel(invoice.id)}
+            onEdit={() => openEditForm(invoice.id)}
+            onDelete={() => askDelete(invoice.id, invoice.invoiceNumber)}
+          />
         ))}
-      </div>
-
-      <div className="hidden md:block rounded-xl border overflow-x-auto">
-        <table className="table-enterprise">
-          <thead>
-            <tr>
-              <th>Invoice #</th>
-              <th>Importer</th>
-              <th>Invoice Date</th>
-              <th className="text-right">Total</th>
-              <th className="text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {invoices.map((invoice) => (
-              <tr key={invoice.id} onClick={() => openInvoice(invoice.id)} className={`cursor-pointer ${invoice.excludedFromRevenue ? 'bg-amber-50' : ''}`}>
-                <td className="font-mono font-semibold text-sm whitespace-nowrap">
-                  <Link to={`/invoices/${invoice.id}`} onClick={(e) => e.stopPropagation()} className="hover:underline">{invoice.invoiceNumber}</Link>
-                </td>
-                <td>
-                  <div className="flex items-center gap-2.5">
-                    <div className="h-7 w-7 rounded-lg bg-[hsl(var(--primary))]/10 flex items-center justify-center text-[hsl(var(--primary))] text-[10px] font-bold shrink-0">
-                      {invoice.importer.name.slice(0, 2).toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="font-semibold text-sm">{invoice.importer.name}</p>
-                      <p className="text-xs text-muted-foreground">{invoice.currency}</p>
-                    </div>
-                  </div>
-                </td>
-                <td className="text-muted-foreground text-sm">{formatDate(invoice.invoiceDate)}</td>
-                <td className="text-right font-semibold">
-                  {invoice.currency} {Number(invoice.total).toFixed(2)}
-                  {invoice.excludedFromRevenue && <div><NotInRevenueTag currency={invoice.currency} /></div>}
-                </td>
-                <td>
-                  <div className="flex items-center justify-end gap-0.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      onClick={() => invoiceService.downloadPdf(invoice.id)}
-                      className="btn-icon h-8 w-8"
-                      title="Download PDF"
-                    >
-                      <FileDown className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => invoiceService.downloadExcel(invoice.id)}
-                      className="btn-icon h-8 w-8"
-                      title="Download Excel"
-                    >
-                      <Download className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => openEditForm(invoice.id)}
-                      className="btn-icon h-8 w-8"
-                      title="Edit"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (confirm(`Delete invoice ${invoice.invoiceNumber}?`)) {
-                          deleteMutation.mutate(invoice.id);
-                        }
-                      }}
-                      className="btn-icon h-8 w-8 hover:text-destructive hover:bg-destructive/10"
-                      title="Delete"
-                      disabled={deleteMutation.isPending}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
 
       {/* Pagination */}

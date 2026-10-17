@@ -1,4 +1,6 @@
 import { ArrowRightLeft } from 'lucide-react';
+import SearchCombobox from '@/components/ui/SearchCombobox';
+import { toComboOption } from '@/lib/currencies';
 import { useCurrencySettings, useSaveCurrencySettings } from '../hooks/useCurrencySettings';
 
 interface BaseCurrencySelectProps {
@@ -9,24 +11,21 @@ interface BaseCurrencySelectProps {
 const BaseCurrencySelect: React.FC<BaseCurrencySelectProps> = ({ current }) => {
   const { data } = useCurrencySettings();
   const save = useSaveCurrencySettings();
-  const options = data?.currencies ?? [{ code: current, name: current }];
+  const options = (data?.currencies ?? [{ code: current, name: current }]).map(toComboOption);
 
   return (
-    <label className="flex items-center gap-1.5 pl-3 pr-1 py-1 rounded-lg border text-xs font-semibold hover:bg-muted transition-colors">
-      <ArrowRightLeft className="h-3.5 w-3.5 shrink-0" />
-      <span className="whitespace-nowrap">Reporting in</span>
-      <select
-        aria-label="Reporting currency"
-        value={current}
-        disabled={save.isPending}
-        onChange={(e) => save.mutate({ baseCurrency: e.target.value })}
-        className="bg-transparent text-xs font-semibold py-1 pr-1 focus:outline-none cursor-pointer disabled:opacity-50"
-      >
-        {options.map((c) => (
-          <option key={c.code} value={c.code}>{c.code} — {c.name}</option>
-        ))}
-      </select>
-    </label>
+    <SearchCombobox
+      value={current}
+      options={options}
+      ariaLabel="Reporting currency"
+      searchPlaceholder="Search code or name, e.g. INR"
+      disabled={save.isPending}
+      onChange={(code) => code !== current && save.mutate({ baseCurrency: code })}
+      display={current}
+      align="right"
+      className="px-3 py-2 rounded-lg border text-xs font-semibold hover:bg-muted transition-colors"
+      leading={<><ArrowRightLeft className="h-3.5 w-3.5 shrink-0" /><span className="whitespace-nowrap">Reporting in</span></>}
+    />
   );
 };
 

@@ -14,8 +14,8 @@ export interface DeletedInvoice {
 export interface DeletedImporter {
   id: string;
   name: string;
-  buyerName: string;
-  contact: string;
+  buyerName?: string | null;
+  contact?: string | null;
   email?: string | null;
   currency: string;
   deletedAt: string;

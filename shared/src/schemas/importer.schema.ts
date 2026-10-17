@@ -19,10 +19,21 @@ export const loadingLocationSchema = z.object({
 export const createImporterSchema = z.object({
   name: z.string().trim().min(1, 'Importer name is required').max(200),
   address: z.string().trim().min(1, 'Address is required').max(500),
-  contact: z.string().trim().min(1, 'Contact is required').max(120),
-  email: z.string().email('Invalid email address').toLowerCase().optional(),
-  buyerName: z.string().trim().min(1, 'Buyer name is required').max(200),
-  currency: z.string().trim().toUpperCase().min(3, 'Currency is required').max(6),
+  // Optional: an empty string means "not provided". When given, the phone number must look like one.
+  contact: z
+    .string()
+    .trim()
+    .refine((v) => v === '' || /^[0-9+()\-\s]{7,20}$/.test(v), 'Contact must be 7-20 characters: numbers, + ( ) - and spaces')
+    .optional(),
+  email: z.string().email('Enter a valid email address').toLowerCase().optional(),
+  buyerName: z.string().trim().max(200).optional(),
+  currency: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .min(1, 'Currency is required')
+    .regex(/^[A-Z]{3}$/, 'Select a valid 3-letter currency code'),
+  isActive: z.boolean().optional(),
   landingLocations: z.array(landingLocationSchema).min(1, 'At least one landing location is required'),
   loadingLocations: z.array(loadingLocationSchema).min(1, 'At least one loading location is required'),
 });

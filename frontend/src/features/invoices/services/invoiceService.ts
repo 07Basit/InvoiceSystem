@@ -18,6 +18,20 @@ export interface InvoiceImporter {
   id: string;
   name: string;
   currency: string;
+  /** present on the detail endpoint */
+  address?: string | null;
+  contact?: string | null;
+  email?: string | null;
+}
+
+export interface InvoiceSummary {
+  total: number;
+  thisMonth: number;
+  /** sum of all invoices converted into baseCurrency */
+  totalValue: number;
+  baseCurrency: string;
+  /** invoices with no exchange rate, so left out of totalValue */
+  notInRevenue: number;
 }
 
 export interface InvoiceConversion {
@@ -55,6 +69,8 @@ export interface Invoice {
   termsOfDelivery?: string | null;
   termsOfPayment?: string | null;
   currency: string;
+  landingLocation?: { name: string } | null;
+  loadingLocation?: { name: string } | null;
   /** No exchange rate available, so the invoice is left out of dashboard revenue */
   excludedFromRevenue?: boolean;
   /** Only on the detail endpoint: how the invoice is valued in the reporting currency */
@@ -81,6 +97,11 @@ export interface InvoiceListItem extends Omit<Invoice, 'lineItems'> {}
 export const invoiceService = {
   async getAll(query: Partial<ListInvoicesQuery> = {}) {
     const { data } = await apiClient.get<ApiResponse<InvoiceListItem[]>>('/invoices', { params: query });
+    return data;
+  },
+
+  async getSummary() {
+    const { data } = await apiClient.get<ApiResponse<InvoiceSummary>>('/invoices/summary');
     return data;
   },
 

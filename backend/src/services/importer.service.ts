@@ -87,9 +87,9 @@ export const importerService = {
       data: {
         name: dto.name,
         address: dto.address,
-        contact: dto.contact,
+        contact: dto.contact || null,
         email: dto.email ?? null,
-        buyerName: dto.buyerName,
+        buyerName: dto.buyerName || null,
         currency: dto.currency,
         landingLocations: { create: landingLocations },
         loadingLocations: { create: loadingLocations },
@@ -102,11 +102,15 @@ export const importerService = {
     await this.getById(id);
 
     return prisma.$transaction(async (tx) => {
+      // Invoices keep their own copy of every port/country value, so they never depend on these rows.
+      // Detach the links first: otherwise the database refuses to delete a location an invoice points at.
       if (dto.landingLocations) {
+        await tx.invoice.updateMany({ where: { importerId: id }, data: { landingLocationId: null } });
         await tx.landingLocation.deleteMany({ where: { importerId: id } });
       }
 
       if (dto.loadingLocations) {
+        await tx.invoice.updateMany({ where: { importerId: id }, data: { loadingLocationId: null } });
         await tx.loadingLocation.deleteMany({ where: { importerId: id } });
       }
 
@@ -115,10 +119,11 @@ export const importerService = {
         data: {
           ...(dto.name !== undefined ? { name: dto.name } : {}),
           ...(dto.address !== undefined ? { address: dto.address } : {}),
-          ...(dto.contact !== undefined ? { contact: dto.contact } : {}),
+          ...(dto.contact !== undefined ? { contact: dto.contact || null } : {}),
           ...(dto.email !== undefined ? { email: dto.email } : {}),
-          ...(dto.buyerName !== undefined ? { buyerName: dto.buyerName } : {}),
+          ...(dto.buyerName !== undefined ? { buyerName: dto.buyerName || null } : {}),
           ...(dto.currency !== undefined ? { currency: dto.currency } : {}),
+          ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
           ...(dto.landingLocations
             ? {
                 landingLocations: {

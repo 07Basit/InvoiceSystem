@@ -187,8 +187,8 @@ export default function RecycleBinPage() {
                     {importers.map((imp) => (
                       <tr key={imp.id}>
                         <td className="font-medium">{imp.name}</td>
-                        <td className="text-muted-foreground">{imp.buyerName}</td>
-                        <td className="text-muted-foreground text-sm">{imp.contact}</td>
+                        <td className="text-muted-foreground">{imp.buyerName || '—'}</td>
+                        <td className="text-muted-foreground text-sm">{imp.contact || '—'}</td>
                         <td>
                           <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
                             <Clock className="h-3 w-3" />

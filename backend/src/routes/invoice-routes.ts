@@ -3,6 +3,7 @@ import { validate } from '../middleware/validate';
 import {
   listInvoices,
   getInvoice,
+  getInvoiceSummary,
   createInvoice,
   updateInvoice,
   deleteInvoice,
@@ -24,6 +25,7 @@ const router = Router();
 
 router.get('/', validate(listInvoicesQuerySchema, 'query'), listInvoices);
 router.get('/export', exportInvoices);
+router.get('/summary', getInvoiceSummary);
 router.post('/import', importInvoices);
 router.get('/:id', getInvoice);
 router.get('/:id/download/pdf', downloadInvoicePdf);

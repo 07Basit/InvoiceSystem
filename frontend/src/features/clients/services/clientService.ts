@@ -20,10 +20,12 @@ export interface Importer {
   id: string;
   name: string;
   address: string;
-  contact: string;
+  contact?: string | null;
   email?: string | null;
-  buyerName: string;
+  buyerName?: string | null;
   currency: string;
+  /** false = marked "not needed": still listed, but not offered when creating invoices */
+  isActive: boolean;
   landingLocations: LandingLocation[];
   loadingLocations: LoadingLocation[];
   createdAt: string;

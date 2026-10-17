@@ -321,6 +321,7 @@ export const invoiceService = {
         exportersRef: dto.exportersRef ?? null,
         otherReferences: dto.otherReferences ?? null,
         awbNumber: dto.awbNumber ?? null,
+        buyersOrder: dto.buyersOrder ?? null,
         preCarriageBy: dto.preCarriageBy,
         placeOfReceiptByPreCarrier: dto.placeOfReceiptByPreCarrier,
         vesselFlightNo: dto.vesselFlightNo,
@@ -433,6 +434,7 @@ export const invoiceService = {
           ...(dto.exportersRef !== undefined ? { exportersRef: dto.exportersRef } : {}),
           ...(dto.otherReferences !== undefined ? { otherReferences: dto.otherReferences } : {}),
           ...(dto.awbNumber !== undefined ? { awbNumber: dto.awbNumber } : {}),
+          ...(dto.buyersOrder !== undefined ? { buyersOrder: dto.buyersOrder } : {}),
           ...(dto.preCarriageBy !== undefined ? { preCarriageBy: dto.preCarriageBy } : {}),
           ...(dto.placeOfReceiptByPreCarrier !== undefined
             ? { placeOfReceiptByPreCarrier: dto.placeOfReceiptByPreCarrier }

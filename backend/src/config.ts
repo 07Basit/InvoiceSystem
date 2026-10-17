@@ -15,6 +15,9 @@ const envSchema = z.object({
   // Requests allowed per client per 15 minutes across the whole API. Defaults: 1000 in production, 5000 in development.
   RATE_LIMIT_MAX: z.coerce.number().int().positive().optional(),
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
+  // Lets the invoice "Share" buttons open Mail / WhatsApp on the computer running this server, with the file attached.
+  // auto = on for development on macOS only; on = force it (macOS only); off = never. Never enabled in production by "auto".
+  NATIVE_SHARE: z.enum(['auto', 'on', 'off']).default('auto'),
 });
 
 const parsed = envSchema.safeParse(process.env);

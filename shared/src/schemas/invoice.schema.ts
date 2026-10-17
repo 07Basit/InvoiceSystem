@@ -35,6 +35,7 @@ export const createInvoiceSchema = z.object({
   exportersRef: z.string().trim().max(200).optional(),
   otherReferences: z.string().trim().max(200).optional(),
   awbNumber: z.string().trim().max(120).optional(),
+  buyersOrder: z.string().trim().max(200).optional(),
   preCarriageBy: z.string().trim().max(120).default('TRUCK BY ROAD'),
   placeOfReceiptByPreCarrier: z.string().trim().max(120).default('N/A'),
   vesselFlightNo: z.string().trim().max(120).default('By Air'),

@@ -132,6 +132,7 @@ model Invoice {
   exportersRef               String?
   otherReferences            String?
   awbNumber                  String?
+  buyersOrder                String?
   preCarriageBy              String?
   placeOfReceiptByPreCarrier String?
   vesselFlightNo             String?

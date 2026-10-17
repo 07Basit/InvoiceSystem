@@ -3,9 +3,13 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { logger } from '../utils/logger';
 import { invoiceService } from '../services/invoice.service';
 import { actorOf, events } from '../services/notification.events';
-import { DEFAULT_DECLARATION, type CreateInvoiceDto, type ListInvoicesQuery, type ManualRateDto, type UpdateInvoiceDto } from 'shared';
+import { type CreateInvoiceDto, type ListInvoicesQuery, type ManualRateDto, type ShareNativeDto, type UpdateInvoiceDto } from 'shared';
 import * as XLSX from 'xlsx';
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { buildInvoiceDocument } from '../services/invoice-document';
+import { renderInvoicePdf } from '../services/invoice-pdf';
+import { renderInvoiceExcel } from '../services/invoice-excel';
+import { nativeShare } from '../services/native-share.service';
+import { AppError } from '../utils/AppError';
 
 export const listInvoices = asyncHandler(async (req: Request, res: Response) => {
   const query = req.query as unknown as ListInvoicesQuery;
@@ -67,149 +71,68 @@ export const deleteInvoice = asyncHandler(async (req: Request, res: Response) =>
   res.json({ success: true, data: null, error: null, meta: null });
 });
 
+/** attachment = save the file; inline = show/print it in the browser. */
+const dispositionOf = (req: Request) => (req.query['disposition'] === 'inline' ? 'inline' : 'attachment');
+
 export const downloadInvoicePdf = asyncHandler(async (req: Request, res: Response) => {
-  const id = String(req.params['id']);
-  const invoice = await invoiceService.getById(id);
-
-  const pdfDoc = await PDFDocument.create();
-  let page = pdfDoc.addPage([595, 842]);
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const { height } = page.getSize();
-
-  page.drawText('INVOICE', { x: 50, y: height - 60, font: boldFont, size: 26, color: rgb(0.08, 0.08, 0.65) });
-  page.drawText(`Invoice No: ${invoice.invoiceNumber}`, { x: 50, y: height - 90, font, size: 11 });
-  page.drawText(`Invoice Date: ${new Date(invoice.invoiceDate).toLocaleDateString()}`, { x: 50, y: height - 106, font, size: 11 });
-
-  page.drawText(`Exporter: ${invoice.exporterName ?? '-'}`, { x: 50, y: height - 140, font: boldFont, size: 11 });
-  page.drawText(`Importer: ${invoice.importerName ?? invoice.importer.name}`, { x: 50, y: height - 158, font: boldFont, size: 11 });
-  page.drawText(`Buyer: ${invoice.buyerName ?? '-'}`, { x: 50, y: height - 176, font, size: 10 });
-
-  let y = height - 220;
-  page.drawText('Description', { x: 50, y, font: boldFont, size: 10 });
-  page.drawText('Kgs/Box', { x: 250, y, font: boldFont, size: 10 });
-  page.drawText('Boxes', { x: 315, y, font: boldFont, size: 10 });
-  page.drawText('Rate/Kg', { x: 365, y, font: boldFont, size: 10 });
-  page.drawText('Amount', { x: 455, y, font: boldFont, size: 10 });
-  y -= 18;
-
-  for (const item of invoice.lineItems) {
-    page.drawText(item.descriptionOfGoods.slice(0, 28), { x: 50, y, font, size: 9 });
-    page.drawText(Number(item.netWeightPerPackage).toFixed(2), { x: 250, y, font, size: 9 });
-    page.drawText(String(item.numberOfBoxes), { x: 315, y, font, size: 9 });
-    page.drawText(`${invoice.currency} ${Number(item.ratePerKg).toFixed(2)}`, { x: 365, y, font, size: 9 });
-    page.drawText(`${invoice.currency} ${Number(item.amount).toFixed(2)}`, { x: 455, y, font, size: 9 });
-    y -= 16;
-
-    if (y < 120) {
-      break;
-    }
-  }
-
-  y -= 14;
-  page.drawText(`Total Net Weight: ${Number(invoice.totalNetWeight).toFixed(2)} KGS`, { x: 50, y, font: boldFont, size: 10 });
-  y -= 16;
-  page.drawText(`Sub Total: ${invoice.currency} ${Number(invoice.subTotal).toFixed(2)}`, { x: 330, y, font, size: 10 });
-  y -= 14;
-  page.drawText(`Total: ${invoice.currency} ${Number(invoice.total).toFixed(2)}`, { x: 330, y, font: boldFont, size: 12 });
-  if (invoice.bankName || invoice.bankAccountNumber) {
-    y -= 24;
-    page.drawText(`Bank: ${invoice.bankName ?? '-'}  A/C: ${invoice.bankAccountNumber ?? '-'}`, { x: 50, y, font, size: 10 });
-    const codes = [invoice.bankIfscCode && `IFSC: ${invoice.bankIfscCode}`, invoice.bankSwiftCode && `SWIFT: ${invoice.bankSwiftCode}`].filter(Boolean).join('  ');
-    if (codes) { y -= 14; page.drawText(codes, { x: 50, y, font, size: 10 }); }
-  }
-
-  const declaration = invoice.declaration || DEFAULT_DECLARATION;
-  y -= 28;
-  page.drawText('Declaration', { x: 50, y, font: boldFont, size: 10 });
-  declaration.split(/\r?\n/).flatMap((line) => line.match(/.{1,95}(\s|$)/g) ?? ['']).forEach((line) => {
-    y -= 13;
-    page.drawText(line.trim(), { x: 50, y, font, size: 9 });
-  });
-
-  // The invoice's own seal & sign (a PNG/JPEG data URL); a bad image must never block the PDF
-  if (invoice.signImage) {
-    try {
-      const match = /^data:image\/(png|jpeg);base64,(.+)$/.exec(invoice.signImage);
-      if (match) {
-        const bytes = Buffer.from(match[2]!, 'base64');
-        const embedded = match[1] === 'png' ? await pdfDoc.embedPng(bytes) : await pdfDoc.embedJpg(bytes);
-        const scale = Math.min(160 / embedded.width, 70 / embedded.height, 1);
-        const drawHeight = embedded.height * scale;
-        if (y - 12 - drawHeight < 40) { page = pdfDoc.addPage([595, 842]); y = 800; } // never run off the bottom
-        y -= 12 + drawHeight;
-        page.drawImage(embedded, { x: 50, y, width: embedded.width * scale, height: embedded.height * scale });
-      }
-    } catch (err) {
-      logger.warn('Could not embed seal & sign in PDF', { invoiceId: invoice.id, error: err instanceof Error ? err.message : String(err), action: 'pdf_sign' });
-    }
-  }
-
-  const pdfBytes = await pdfDoc.save();
-  logger.info('Invoice PDF downloaded', { invoiceId: invoice.id, action: 'download_invoice_pdf' });
+  const invoice = await invoiceService.getById(String(req.params['id']));
+  const doc = buildInvoiceDocument(invoice);
+  const bytes = await renderInvoicePdf(doc);
+  logger.info('Invoice PDF generated', { invoiceId: invoice.id, disposition: dispositionOf(req), action: 'download_invoice_pdf' });
 
   res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="invoice-${invoice.invoiceNumber}.pdf"`);
-  res.send(Buffer.from(pdfBytes));
+  res.setHeader('Content-Disposition', `${dispositionOf(req)}; filename="invoice-${doc.fileName}.pdf"`);
+  res.setHeader('Cache-Control', 'no-store');
+  res.send(Buffer.from(bytes));
 });
 
 export const downloadInvoiceExcel = asyncHandler(async (req: Request, res: Response) => {
-  const id = String(req.params['id']);
-  const invoice = await invoiceService.getById(id);
-
-  const wb = XLSX.utils.book_new();
-  const wsData = [
-    ['Invoice Number', invoice.invoiceNumber],
-    ['Invoice Date', new Date(invoice.invoiceDate).toISOString().split('T')[0]],
-    ['Exporter', invoice.exporterName ?? ''],
-    ['Importer', invoice.importerName ?? invoice.importer.name],
-    ['Buyer', invoice.buyerName ?? ''],
-    ['Currency', invoice.currency],
-    [],
-    [
-      'Marks & Nos',
-      'Container No',
-      'Description of Goods',
-      'Net Wt Per Package',
-      'No Of Boxes',
-      'Total Net Wt Kgs',
-      'Rate Per Kgs',
-      'Total Per Box',
-      `Amount (${invoice.currency})`,
-    ],
-    ...invoice.lineItems.map((item) => [
-      item.marksAndNos ?? '',
-      item.containerNo ?? '',
-      item.descriptionOfGoods,
-      Number(item.netWeightPerPackage),
-      item.numberOfBoxes,
-      Number(item.totalNetWeight),
-      Number(item.ratePerKg),
-      Number(item.totalPerBox),
-      Number(item.amount),
-    ]),
-    [],
-    ['Bank', invoice.bankName ?? ''],
-    ['Account Number', invoice.bankAccountNumber ?? ''],
-    ['IFSC Code', invoice.bankIfscCode ?? ''],
-    ['SWIFT Code', invoice.bankSwiftCode ?? ''],
-    ['Declaration', invoice.declaration || DEFAULT_DECLARATION],
-    ['Total Net Weight', Number(invoice.totalNetWeight)],
-    ['Total Gross Weight', invoice.totalGrossWeight ? Number(invoice.totalGrossWeight) : ''],
-    ['Sub Total', Number(invoice.subTotal)],
-    ['Total', Number(invoice.total)],
-    ['Amount In Words', invoice.amountInWords ?? ''],
-  ];
-
-  const ws = XLSX.utils.aoa_to_sheet(wsData);
-  XLSX.utils.book_append_sheet(wb, ws, 'Invoice');
-
-  const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
-  logger.info('Invoice Excel downloaded', { invoiceId: invoice.id, action: 'download_invoice_excel' });
+  const invoice = await invoiceService.getById(String(req.params['id']));
+  const doc = buildInvoiceDocument(invoice);
+  const buffer = await renderInvoiceExcel(doc);
+  logger.info('Invoice Excel generated', { invoiceId: invoice.id, action: 'download_invoice_excel' });
 
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  res.setHeader('Content-Disposition', `attachment; filename="invoice-${invoice.invoiceNumber}.xlsx"`);
+  res.setHeader('Content-Disposition', `attachment; filename="invoice-${doc.fileName}.xlsx"`);
+  res.setHeader('Cache-Control', 'no-store');
   res.send(buffer);
+});
+
+/** Whether the Mail / WhatsApp buttons can attach the file on this computer. */
+export const nativeShareStatus = asyncHandler(async (req: Request, res: Response) => {
+  const local = nativeShare.isLocalRequest(req.socket.remoteAddress, req.headers['x-forwarded-for']);
+  res.json({ success: true, data: { available: nativeShare.isAvailable() && local, copyFile: nativeShare.supportsFileClipboard() && local }, error: null, meta: null });
+});
+
+/** Opens Mail (file attached) or WhatsApp (file on the clipboard) on the computer running the server. */
+export const shareInvoiceNative = asyncHandler(async (req: Request, res: Response) => {
+  const target = (req.body as ShareNativeDto).target;
+  const supported = target === 'clipboard' ? nativeShare.supportsFileClipboard() : nativeShare.isAvailable();
+  if (!supported) throw new AppError('Opening desktop apps is not available here.', 501, 'NATIVE_SHARE_UNAVAILABLE');
+  if (!nativeShare.isLocalRequest(req.socket.remoteAddress, req.headers['x-forwarded-for'])) throw new AppError('Only available from the computer running the server.', 403, 'NATIVE_SHARE_LOCAL_ONLY');
+
+  const { kind, text } = req.body as ShareNativeDto;
+  const invoice = await invoiceService.getById(String(req.params['id']));
+  const doc = buildInvoiceDocument(invoice);
+  const bytes = kind === 'pdf' ? await renderInvoicePdf(doc) : await renderInvoiceExcel(doc);
+  const filename = `invoice-${doc.fileName}.${kind === 'pdf' ? 'pdf' : 'xlsx'}`;
+  const path = await nativeShare.writeTempFile(filename, bytes);
+
+  const subject = `Invoice ${doc.invoiceNumber}`;
+  const body = `Hello,\n\nPlease find attached invoice ${doc.invoiceNumber} dated ${doc.invoiceDate}.\n\nThank you.`;
+
+  let opened: 'mail' | 'app' | 'none' | 'clipboard';
+  if (target === 'clipboard') {
+    await nativeShare.copyFile(path, text);
+    opened = 'clipboard';
+  } else if (target === 'mail') {
+    await nativeShare.mail(path, subject, body);
+    opened = 'mail';
+  } else {
+    opened = await nativeShare.whatsapp(path, `${subject}\n\n${body}`);
+  }
+  logger.info('Invoice shared natively', { invoiceId: invoice.id, target, kind, opened, action: 'share_invoice_native' });
+  res.json({ success: true, data: { target, filename, opened }, error: null, meta: null });
 });
 
 export const exportInvoices = asyncHandler(async (_req: Request, res: Response) => {

@@ -146,6 +146,7 @@ export default function InvoiceForm() {
 
   const isEditing = Boolean(editingId);
   const invoice = invoiceData?.data;
+  const invoiceNumberLabel = invoice?.invoiceNumber || form.invoiceNumber;
   const importers = importersData?.data ?? [];
   const selectedImporter = useMemo(() => importers.find((i) => i.id === form.importerId), [form.importerId, importers]);
 
@@ -335,10 +336,17 @@ export default function InvoiceForm() {
   );
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-background w-full max-w-7xl max-h-[94vh] rounded-lg shadow-xl flex flex-col overflow-hidden">
-        <div className="flex items-center justify-center p-3 border-b shrink-0">
-          <h2 className="text-base font-semibold">{isEditing ? `Edit Invoice — ${invoice?.invoiceNumber ?? ''}` : draftId ? 'Edit Draft Invoice' : 'New Invoice'}</h2>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-2 sm:p-4">
+      <div className="bg-background w-full max-w-7xl max-h-[96dvh] sm:max-h-[94dvh] rounded-lg shadow-xl flex flex-col overflow-hidden">
+        <div className="flex items-center justify-center p-3 border-b shrink-0 min-w-0">
+          <h2 className="text-base font-semibold text-center min-w-0 break-words">
+            {isEditing ? (
+              <>
+                Edit Invoice
+                {invoiceNumberLabel ? <span className="block sm:inline sm:before:content-['_—_'] text-primary">{invoiceNumberLabel}</span> : null}
+              </>
+            ) : draftId ? 'Edit Draft Invoice' : 'New Invoice'}
+          </h2>
         </div>
 
         <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4">

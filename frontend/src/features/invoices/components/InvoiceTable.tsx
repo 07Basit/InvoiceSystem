@@ -95,7 +95,7 @@ export default function InvoiceTable() {
         ))}
       </div>
 
-      <div className="hidden md:block rounded-xl border overflow-hidden">
+      <div className="hidden md:block rounded-xl border overflow-x-auto">
         <table className="table-enterprise">
           <thead>
             <tr>
@@ -109,7 +109,7 @@ export default function InvoiceTable() {
           <tbody>
             {invoices.map((invoice) => (
               <tr key={invoice.id}>
-                <td className="font-mono font-semibold text-sm">{invoice.invoiceNumber}</td>
+                <td className="font-mono font-semibold text-sm whitespace-nowrap">{invoice.invoiceNumber}</td>
                 <td>
                   <div className="flex items-center gap-2.5">
                     <div className="h-7 w-7 rounded-lg bg-[hsl(var(--primary))]/10 flex items-center justify-center text-[hsl(var(--primary))] text-[10px] font-bold shrink-0">
@@ -124,7 +124,7 @@ export default function InvoiceTable() {
                 <td className="text-muted-foreground text-sm">{formatDate(invoice.invoiceDate)}</td>
                 <td className="text-right font-semibold">{invoice.currency} {Number(invoice.total).toFixed(2)}</td>
                 <td>
-                  <div className="flex items-center justify-end gap-0.5">
+                  <div className="flex items-center justify-end gap-0.5 whitespace-nowrap">
                     <button
                       onClick={() => invoiceService.downloadPdf(invoice.id)}
                       className="btn-icon h-8 w-8"

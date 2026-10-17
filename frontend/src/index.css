@@ -206,3 +206,104 @@
            hover:bg-accent hover:text-accent-foreground transition-colors duration-150;
   }
 }
+
+/* =====================================================
+   Login screen background — layered, not solid:
+   deep-teal gradient + glowing orbs + faint grid + translucent invoice sheets
+   ===================================================== */
+.login-bg {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(1200px 700px at 85% -10%, hsl(22 100% 51% / 0.28), transparent 60%),
+    radial-gradient(900px 700px at -10% 110%, hsl(180 70% 32% / 0.55), transparent 60%),
+    linear-gradient(135deg, hsl(180 73% 12%) 0%, hsl(190 70% 8%) 55%, hsl(200 60% 6%) 100%);
+}
+
+/* faint grid that fades out toward the edges */
+.login-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    linear-gradient(hsl(0 0% 100% / 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(0 0% 100% / 0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+  -webkit-mask-image: radial-gradient(ellipse at center, #000 30%, transparent 78%);
+  mask-image: radial-gradient(ellipse at center, #000 30%, transparent 78%);
+}
+
+.login-orb {
+  position: absolute;
+  z-index: -1;
+  border-radius: 9999px;
+  filter: blur(70px);
+  opacity: 0.55;
+  animation: login-float 18s ease-in-out infinite;
+}
+.login-orb-1 { width: 340px; height: 340px; top: 8%; left: 12%; background: hsl(22 100% 55% / 0.55); }
+.login-orb-2 { width: 420px; height: 420px; bottom: -8%; right: 8%; background: hsl(175 80% 38% / 0.5); animation-delay: -6s; }
+.login-orb-3 { width: 240px; height: 240px; top: 52%; left: 42%; background: hsl(210 90% 55% / 0.3); animation-delay: -11s; }
+
+.login-sheet {
+  position: absolute;
+  z-index: -1;
+  color: hsl(0 0% 100%);
+  opacity: 0.07;
+  animation: login-drift 26s ease-in-out infinite;
+}
+
+@keyframes login-float {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(30px, -26px, 0) scale(1.08); }
+}
+@keyframes login-drift {
+  0%, 100% { transform: rotate(var(--r, -8deg)) translateY(0); }
+  50% { transform: rotate(calc(var(--r, -8deg) + 3deg)) translateY(-18px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-orb, .login-sheet { animation: none; }
+}
+
+/* Illustration animations (SVG groups) */
+.login-bob {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: login-bob 9s ease-in-out infinite;
+  animation-delay: var(--d, 0s);
+}
+.login-twinkle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: login-twinkle 5s ease-in-out infinite;
+  animation-delay: var(--d, 0s);
+}
+.login-dash {
+  stroke-dasharray: 3 11;
+  animation: login-dash 40s linear infinite;
+}
+.login-dash-slow { animation-duration: 64s; animation-direction: reverse; }
+.login-wave-1 { animation: login-wave 24s ease-in-out infinite alternate; }
+.login-wave-2 { animation: login-wave 30s ease-in-out infinite alternate-reverse; }
+.login-wave-3 { animation: login-wave 36s ease-in-out infinite alternate; }
+
+@keyframes login-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+@keyframes login-twinkle {
+  0%, 100% { opacity: 0.25; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+@keyframes login-dash { to { stroke-dashoffset: -560; } }
+@keyframes login-wave {
+  from { transform: translateX(-34px); }
+  to { transform: translateX(34px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-bob, .login-twinkle, .login-dash, .login-wave-1, .login-wave-2, .login-wave-3 { animation: none; }
+}

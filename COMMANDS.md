@@ -96,6 +96,7 @@ pnpm test:coverage
 pnpm db:generate   # Regenerate Prisma client after schema changes
 pnpm db:migrate    # Apply pending migrations (creates DB tables)
 pnpm db:seed       # Seed the database with sample data
+pnpm db:create-user -- <username> <password> "Display Name"   # Create a login, or reset its password
 pnpm db:studio     # Open Prisma Studio (browser UI) at http://localhost:5555
 ```
 

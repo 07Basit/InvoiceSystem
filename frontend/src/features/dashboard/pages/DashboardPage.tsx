@@ -105,11 +105,11 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map(({ label, value, icon: Icon, iconBg, trend, trendUp }) => (
           <div key={label} className="stat-card group">
-            <div className="flex items-start justify-between mb-4">
+            <div className="flex items-start justify-between gap-2 mb-4">
               <div className={`p-2.5 rounded-xl ${iconBg}`}>
                 <Icon className="h-4 w-4" />
               </div>
-              <span className={`flex items-center gap-0.5 text-[10px] font-semibold px-2 py-0.5 rounded-full
+              <span className={`flex items-center gap-0.5 text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap shrink-0
                 ${trendUp ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
                 {trendUp && <ArrowUpRight className="h-2.5 w-2.5" />}
                 {trend}

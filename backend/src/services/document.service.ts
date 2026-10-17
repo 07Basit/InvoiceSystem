@@ -17,7 +17,7 @@ export const documentService = {
       deletedAt: null,
       ...(type && { type }),
       ...(search && {
-        OR: [{ title: { contains: search, mode: 'insensitive' } }],
+        OR: [{ title: { contains: search } }],
       }),
     };
 

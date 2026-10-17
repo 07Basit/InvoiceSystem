@@ -51,6 +51,8 @@ export const recycleService = {
       if (!record) throw new AppError('Deleted importer not found', 404, 'NOT_FOUND');
       return prisma.importer.update({ where: { id }, data: { deletedAt: null } });
     }
+
+    throw new AppError('Unknown record type', 400, 'INVALID_TYPE');
   },
 
   async permanentDelete(type: RecordType, id: string) {

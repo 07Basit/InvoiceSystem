@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus, Pencil, Trash2, Save } from 'lucide-react';
 import type { CreateImporterDto } from 'shared';
 import { useClients, useCreateClient, useDeleteClient, useUpdateClient } from '../hooks/useClients';
@@ -363,13 +364,14 @@ export default function ClientsPage() {
         ))}
       </div>}
 
-      {isFormOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-background rounded-lg w-full max-w-5xl max-h-[92vh] overflow-y-auto p-4 sm:p-6 space-y-5">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">{editing ? 'Edit Importer' : editingDraftId ? 'Edit Draft Importer' : 'New Importer'}</h2>
+      {isFormOpen && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-2 sm:p-4">
+          <div className="bg-background w-full max-w-5xl max-h-[96dvh] sm:max-h-[94dvh] rounded-lg shadow-xl flex flex-col overflow-hidden">
+            <div className="flex items-center justify-center p-3 border-b shrink-0">
+              <h2 className="text-base font-semibold text-center">{editing ? 'Edit Importer' : editingDraftId ? 'Edit Draft Importer' : 'New Importer'}</h2>
             </div>
 
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-5">
             {submitError && <div className="text-sm text-destructive bg-destructive/5 border border-destructive/30 rounded-md px-3 py-2">{submitError}</div>}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -475,11 +477,13 @@ export default function ClientsPage() {
               ))}
             </LocationSection>
 
-            <div className="sticky bottom-0 bg-background/95 backdrop-blur-sm border-t pt-2 -mx-4 sm:-mx-6 -mb-4 sm:-mb-6 px-4 sm:px-6 pb-4 sm:pb-6">
-              <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+            </div>
+
+            <div className="border-t bg-background/95 backdrop-blur-sm p-3 shrink-0">
+              <div className="flex items-center justify-end gap-2 flex-wrap">
                 <button onClick={closeForm} className="px-3 py-1.5 text-sm border rounded-md hover:bg-accent shrink-0">Cancel</button>
                 <button onClick={saveDraft} className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm border rounded-md hover:bg-accent shrink-0">
-                <Save className="h-3.5 w-3.5" /> Save Draft
+                  <Save className="h-3.5 w-3.5" /> Save Draft
                 </button>
                 <button
                   onClick={saveImporter}
@@ -491,7 +495,8 @@ export default function ClientsPage() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

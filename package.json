@@ -12,7 +12,8 @@
     "db:migrate": "pnpm --filter backend prisma:migrate",
     "db:studio": "pnpm --filter backend prisma:studio",
     "db:seed": "pnpm --filter backend prisma:seed",
-    "db:generate": "pnpm --filter backend prisma:generate"
+    "db:generate": "pnpm --filter backend prisma:generate",
+    "db:create-user": "pnpm --filter backend prisma:create-user"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

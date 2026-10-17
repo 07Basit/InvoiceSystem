@@ -92,14 +92,35 @@ export const invoiceService = {
   },
 
   downloadPdf(id: string) {
-    window.open(`/api/v1/invoices/${id}/download/pdf`, '_blank');
+    return downloadFile(`/invoices/${id}/download/pdf`, `invoice-${id}.pdf`);
   },
 
   downloadExcel(id: string) {
-    window.open(`/api/v1/invoices/${id}/download/excel`, '_blank');
+    return downloadFile(`/invoices/${id}/download/excel`, `invoice-${id}.xlsx`);
   },
 
   exportAll() {
-    window.open('/api/v1/invoices/export', '_blank');
+    return downloadFile('/invoices/export', 'invoices-export.xlsx');
   },
 };
+
+// Plain links can't send the Authorization header, so fetch the file as a blob and save it.
+async function downloadFile(path: string, fallbackName: string): Promise<void> {
+  try {
+    const response = await apiClient.get<Blob>(path, { responseType: 'blob' });
+    const disposition = String(response.headers['content-disposition'] ?? '');
+    const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
+    const filename = match?.[1] ? decodeURIComponent(match[1]) : fallbackName;
+
+    const url = URL.createObjectURL(response.data);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  } catch (error) {
+    window.alert(error instanceof Error ? `Download failed: ${error.message}` : 'Download failed.');
+  }
+}

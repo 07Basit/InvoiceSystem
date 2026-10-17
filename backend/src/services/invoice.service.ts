@@ -56,9 +56,9 @@ export const invoiceService = {
       ...(search
         ? {
             OR: [
-              { invoiceNumber: { contains: search, mode: 'insensitive' } },
-              { importer: { name: { contains: search, mode: 'insensitive' } } },
-              { buyerName: { contains: search, mode: 'insensitive' } },
+              { invoiceNumber: { contains: search } },
+              { importer: { name: { contains: search } } },
+              { buyerName: { contains: search } },
             ],
           }
         : {}),

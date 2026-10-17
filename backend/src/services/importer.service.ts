@@ -22,9 +22,9 @@ export const importerService = {
       ...(search
         ? {
             OR: [
-              { name: { contains: search, mode: 'insensitive' } },
-              { buyerName: { contains: search, mode: 'insensitive' } },
-              { contact: { contains: search, mode: 'insensitive' } },
+              { name: { contains: search } },
+              { buyerName: { contains: search } },
+              { contact: { contains: search } },
             ],
           }
         : {}),

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bell, Menu, Search } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
+import UserMenu from '@/features/auth/components/UserMenu';
 
 interface TopBarProps {
   onOpenMobileSidebar: () => void;
@@ -56,7 +57,7 @@ export default function TopBar({ onOpenMobileSidebar }: TopBarProps) {
       <div className="flex items-center gap-3 min-w-0">
         <button
           onClick={onOpenMobileSidebar}
-          className="btn-icon md:hidden"
+          className="btn-icon lg:hidden"
           aria-label="Open sidebar"
         >
           <Menu className="h-4 w-4" />
@@ -115,9 +116,7 @@ export default function TopBar({ onOpenMobileSidebar }: TopBarProps) {
             </div>
           ) : null}
         </div>
-        <div className="h-8 w-8 rounded-full bg-[hsl(var(--primary))] flex items-center justify-center text-white text-xs font-bold ring-2 ring-[hsl(var(--primary))]/20">
-          U
-        </div>
+        <UserMenu />
       </div>
     </header>
   );

@@ -19,7 +19,7 @@ export default function Sidebar({ isMobileOpen, onCloseMobile }: SidebarProps) {
     <>
       {isMobileOpen ? (
         <button
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
           onClick={onCloseMobile}
           aria-label="Close sidebar backdrop"
         />
@@ -28,8 +28,8 @@ export default function Sidebar({ isMobileOpen, onCloseMobile }: SidebarProps) {
       <aside
         className={cn(
           'w-64 flex flex-col shrink-0',
-          'fixed inset-y-0 left-0 z-50 transition-transform duration-200 md:relative md:translate-x-0',
-          isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 transition-transform duration-200 lg:relative lg:translate-x-0',
+          isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
           'bg-[hsl(var(--sidebar-bg))]',
         )}
       >

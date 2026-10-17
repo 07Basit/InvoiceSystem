@@ -62,8 +62,8 @@ export default function RecycleBinPage() {
   const total = invoices.length + importers.length;
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl mx-auto">
-      <div className="section-header">
+    <div className="space-y-6 max-w-5xl mx-auto">
+      <div className="section-header !px-0">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-red-100 flex items-center justify-center">
             <Trash2 className="h-5 w-5 text-red-600" />

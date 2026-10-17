@@ -9,6 +9,7 @@ import type { ApiResponse } from 'shared';
 import { apiClient } from '@/services/api';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { fitFontSize } from '@/lib/fitText';
 import BaseCurrencySelect from '../components/BaseCurrencySelect';
 import ConversionInfoDialog from '../components/ConversionInfoDialog';
 
@@ -191,8 +192,14 @@ export default function DashboardPage() {
             <div className={`p-2.5 rounded-xl w-fit sm:mb-4 ${iconBg}`}>
               <Icon className="h-4 w-4" />
             </div>
-            <div>
-              <p className="text-2xl font-bold tracking-tight">{value}</p>
+            {/* a size container, so the figure can scale to the card's width instead of sticking out of it */}
+            <div className="min-w-0 flex-1 [container-type:inline-size]">
+              <p
+                className="whitespace-nowrap text-2xl font-bold tracking-tight"
+                style={{ fontSize: fitFontSize(String(value)) }}
+              >
+                {value}
+              </p>
               <p className="text-xs text-muted-foreground mt-1 font-medium">{label}</p>
             </div>
           </div>

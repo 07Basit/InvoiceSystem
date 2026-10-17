@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { CalendarDays, Download, Eye, FileDown, Package, Pencil, PlaneLanding, PlaneTakeoff, Trash2 } from 'lucide-react';
+import { CalendarDays, Download, Eye, FileDown, Package, Pencil, PlaneLanding, PlaneTakeoff, Printer, Share2, Trash2 } from 'lucide-react';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import Tooltip from '@/components/ui/Tooltip';
 import { formatCountry, formatPortCode } from '@/lib/format';
@@ -10,6 +10,10 @@ interface InvoiceCardProps {
   onOpen: () => void;
   onPdf: () => void;
   onExcel: () => void;
+  onPrint: () => void;
+  onShare: () => void;
+  /** A document action is already running */
+  documentsBusy?: boolean;
   onEdit: () => void;
   onDelete: () => void;
   deleting?: boolean;
@@ -31,7 +35,7 @@ function ActionButton({ label, onClick, children, danger, disabled }: { label: s
   );
 }
 
-export default function InvoiceCard({ invoice, onOpen, onPdf, onExcel, onEdit, onDelete, deleting }: InvoiceCardProps) {
+export default function InvoiceCard({ invoice, onOpen, onPdf, onExcel, onPrint, onShare, documentsBusy, onEdit, onDelete, deleting }: InvoiceCardProps) {
   const importerName = invoice.importerName ?? invoice.importer.name; // the invoice's own copy
   const { portOfLoading, portOfDischarge, finalDestination, countryOfOrigin, countryOfDestination } = invoice;
   const hasRoute = !!(portOfLoading || portOfDischarge || finalDestination);
@@ -104,8 +108,10 @@ export default function InvoiceCard({ invoice, onOpen, onPdf, onExcel, onEdit, o
         </p>
         <div className="flex items-center">
           <ActionButton label="View details" onClick={onOpen}><Eye className="h-3.5 w-3.5" /></ActionButton>
-          <ActionButton label="Download PDF" onClick={onPdf}><FileDown className="h-3.5 w-3.5" /></ActionButton>
-          <ActionButton label="Download Excel" onClick={onExcel}><Download className="h-3.5 w-3.5" /></ActionButton>
+          <ActionButton label="Print invoice" onClick={onPrint} disabled={!!documentsBusy}><Printer className="h-3.5 w-3.5" /></ActionButton>
+          <ActionButton label="Download PDF" onClick={onPdf} disabled={!!documentsBusy}><FileDown className="h-3.5 w-3.5" /></ActionButton>
+          <ActionButton label="Download Excel" onClick={onExcel} disabled={!!documentsBusy}><Download className="h-3.5 w-3.5" /></ActionButton>
+          <ActionButton label="Share invoice" onClick={onShare}><Share2 className="h-3.5 w-3.5" /></ActionButton>
           <ActionButton label="Edit invoice" onClick={onEdit}><Pencil className="h-3.5 w-3.5" /></ActionButton>
           <ActionButton label="Delete invoice" onClick={onDelete} danger disabled={!!deleting}><Trash2 className="h-3.5 w-3.5 text-destructive" /></ActionButton>
         </div>

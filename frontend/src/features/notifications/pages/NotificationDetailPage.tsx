@@ -63,7 +63,7 @@ export default function NotificationDetailPage() {
             {n.details.map((d) => (
               <div key={d.label}>
                 <dt className="text-xs font-medium text-muted-foreground">{d.label}</dt>
-                <dd className="mt-0.5 break-words text-sm font-medium">{d.value || '—'}</dd>
+                <dd className="mt-0.5 break-words text-sm font-medium">{d.value}</dd>
               </div>
             ))}
           </dl>

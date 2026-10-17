@@ -121,7 +121,7 @@ export default function ImporterCard({
             {landing.length === 0 && <span className="text-xs text-muted-foreground">None added</span>}
             {landing.map((l, i) => (
               <Chip key={`${l.portOfDischarge}-${i}`} title={`Discharge ${l.portOfDischarge} · Final destination ${l.finalDestination} · ${l.countryOfDestination}`}>
-                <span className="font-semibold">{formatPortCode(l.portOfDischarge) || '—'}</span>
+                <span className="font-semibold">{formatPortCode(l.portOfDischarge)}</span>
                 {l.finalDestination && formatPortCode(l.finalDestination) !== formatPortCode(l.portOfDischarge) && <span className="text-muted-foreground">→ {formatPortCode(l.finalDestination)}</span>}
                 {l.countryOfDestination && <span className="text-muted-foreground">· {formatCountry(l.countryOfDestination)}</span>}
               </Chip>
@@ -137,7 +137,7 @@ export default function ImporterCard({
             {loading.length === 0 && <span className="text-xs text-muted-foreground">None added</span>}
             {loading.map((l, i) => (
               <Chip key={`${l.portOfLoading}-${i}`} title={`${l.portOfLoading} · ${l.countryOfOrigin}`}>
-                <span className="font-semibold">{formatPortCode(l.portOfLoading) || '—'}</span>
+                <span className="font-semibold">{formatPortCode(l.portOfLoading)}</span>
                 {l.countryOfOrigin && <span className="text-muted-foreground">· {formatCountry(l.countryOfOrigin)}</span>}
               </Chip>
             ))}

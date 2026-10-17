@@ -1,4 +1,5 @@
 import { apiClient } from '@/services/api';
+import { saveBlob } from '@/lib/share';
 import type { ApiResponse, CreateInvoiceDto, ListInvoicesQuery, UpdateInvoiceDto } from 'shared';
 
 export interface InvoiceLineItem {
@@ -60,6 +61,7 @@ export interface Invoice {
   exportersRef?: string | null;
   otherReferences?: string | null;
   awbNumber?: string | null;
+  buyersOrder?: string | null;
   preCarriageBy?: string | null;
   placeOfReceiptByPreCarrier?: string | null;
   vesselFlightNo?: string | null;
@@ -160,28 +162,87 @@ export const invoiceService = {
     return downloadFile(`/invoices/${id}/download/excel`, `invoice-${id}.xlsx`);
   },
 
+  /** The invoice as a file in memory (for sharing), without saving it. */
+  getDocument(id: string, kind: 'pdf' | 'excel') {
+    return fetchFile(`/invoices/${id}/download/${kind}`, `invoice-${id}.${kind === 'pdf' ? 'pdf' : 'xlsx'}`);
+  },
+
+  /** What the server can do on this computer when it is the one running the app (a Mac or Windows PC, local only). */
+  async nativeShareStatus(): Promise<{ available: boolean; copyFile: boolean }> {
+    try {
+      const { data } = await apiClient.get<ApiResponse<{ available: boolean; copyFile?: boolean }>>('/invoices/share/native');
+      return { available: !!data.data?.available, copyFile: !!data.data?.copyFile };
+    } catch {
+      return { available: false, copyFile: false };
+    }
+  },
+
+  /** Opens Mail with the file attached, or puts the file on the clipboard, on the computer running the server. */
+  async shareNative(id: string, kind: 'pdf' | 'excel', target: 'mail' | 'whatsapp' | 'clipboard', text?: string) {
+    const { data } = await apiClient.post<ApiResponse<{ target: string; filename: string; opened: 'mail' | 'app' | 'none' | 'clipboard' }>>(`/invoices/${id}/share/native`, { kind, target, ...(text ? { text } : {}) });
+    return data.data!;
+  },
+
+  /** Opens the browser's print dialog for the invoice PDF (the same document as the download). */
+  async printPdf(id: string) {
+    const file = await fetchFile(`/invoices/${id}/download/pdf?disposition=inline`, `invoice-${id}.pdf`);
+    await printBlob(file.blob);
+  },
+
   exportAll() {
     return downloadFile('/invoices/export', 'invoices-export.xlsx');
   },
 };
 
-// Plain links can't send the Authorization header, so fetch the file as a blob and save it.
-async function downloadFile(path: string, fallbackName: string): Promise<void> {
-  try {
-    const response = await apiClient.get<Blob>(path, { responseType: 'blob' });
-    const disposition = String(response.headers['content-disposition'] ?? '');
-    const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
-    const filename = match?.[1] ? decodeURIComponent(match[1]) : fallbackName;
+export interface FetchedFile {
+  blob: Blob;
+  filename: string;
+}
 
-    const url = URL.createObjectURL(response.data);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 10_000);
-  } catch (error) {
-    window.alert(error instanceof Error ? `Download failed: ${error.message}` : 'Download failed.');
-  }
+// Plain links can't send the Authorization header, so files are fetched as a blob through the API client.
+async function fetchFile(path: string, fallbackName: string): Promise<FetchedFile> {
+  const response = await apiClient.get<Blob>(path, { responseType: 'blob' });
+  const disposition = String(response.headers['content-disposition'] ?? '');
+  const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
+  return { blob: response.data, filename: match?.[1] ? decodeURIComponent(match[1]) : fallbackName };
+}
+
+/** Saves the file; rejects (so the caller can tell the user) when the server or network fails. */
+async function downloadFile(path: string, fallbackName: string): Promise<void> {
+  const { blob, filename } = await fetchFile(path, fallbackName);
+  saveBlob(blob, filename);
+}
+
+/**
+ * Prints a PDF blob through a hidden frame so the app page itself is never printed.
+ * Falls back to opening the PDF in a new tab (print from its viewer) if the frame cannot print.
+ */
+export function printBlob(blob: Blob): Promise<void> {
+  const url = URL.createObjectURL(blob);
+  return new Promise<void>((resolve, reject) => {
+    const frame = document.createElement('iframe');
+    frame.setAttribute('aria-hidden', 'true');
+    frame.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none';
+    const cleanup = () => {
+      setTimeout(() => { frame.remove(); URL.revokeObjectURL(url); }, 60_000);
+    };
+    frame.onload = () => {
+      // give the built-in PDF viewer a moment to lay the document out before printing it
+      setTimeout(() => {
+        try {
+          frame.contentWindow?.focus();
+          frame.contentWindow?.print();
+          cleanup();
+          resolve();
+        } catch {
+          const opened = window.open(url, '_blank');
+          cleanup();
+          if (opened) resolve();
+          else reject(new Error('Your browser blocked the print window. Allow pop-ups for this site and try again.'));
+        }
+      }, 400);
+    };
+    frame.src = url;
+    document.body.appendChild(frame);
+  });
 }

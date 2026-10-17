@@ -106,7 +106,7 @@ export default function InvoicesPage() {
                   <div>
                     <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full bg-amber-200 text-amber-800 font-bold">Draft</span>
                     <p className="font-semibold mt-2 text-sm">{draft.data.invoiceNumber || 'Untitled Draft Invoice'}</p>
-                    <p className="text-xs text-muted-foreground">Currency: {draft.data.currency || '—'}</p>
+                    <p className="text-xs text-muted-foreground">Currency: {draft.data.currency}</p>
                   </div>
                   <div className="flex items-center gap-1">
                     <Tooltip label="Edit draft" align="end">
@@ -123,8 +123,8 @@ export default function InvoicesPage() {
                 </div>
 
                 <div className="text-xs space-y-1 text-muted-foreground">
-                  <p>Importer ID: {draft.data.importerId || '—'}</p>
-                  <p>Date: {draft.data.invoiceDate ? new Date(draft.data.invoiceDate).toLocaleDateString() : '—'}</p>
+                  <p>Importer ID: {draft.data.importerId}</p>
+                  <p>Date: {draft.data.invoiceDate ? new Date(draft.data.invoiceDate).toLocaleDateString() : ''}</p>
                 </div>
 
                 <p className="text-[10px] text-muted-foreground border-t border-amber-200/60 pt-2">

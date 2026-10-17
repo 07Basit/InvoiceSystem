@@ -12,7 +12,7 @@ const invoice = {
 } as unknown as InvoiceListItem;
 
 const setup = (over: Partial<InvoiceListItem> = {}) => {
-  const handlers = { onOpen: vi.fn(), onPdf: vi.fn(), onExcel: vi.fn(), onEdit: vi.fn(), onDelete: vi.fn() };
+  const handlers = { onOpen: vi.fn(), onPdf: vi.fn(), onExcel: vi.fn(), onPrint: vi.fn(), onShare: vi.fn(), onEdit: vi.fn(), onDelete: vi.fn() };
   render(<InvoiceCard invoice={{ ...invoice, ...over }} {...handlers} />);
   return { handlers, user: userEvent.setup() };
 };
@@ -33,7 +33,7 @@ describe('InvoiceCard', () => {
   it('labels every action with a hover tooltip', () => {
     setup();
     const tips = screen.getAllByRole('tooltip').map((t) => t.textContent);
-    expect(tips).toEqual(['View details', 'Download PDF', 'Download Excel', 'Edit invoice', 'Delete invoice']);
+    expect(tips).toEqual(['View details', 'Print invoice', 'Download PDF', 'Download Excel', 'Share invoice', 'Edit invoice', 'Delete invoice']);
   });
 
   it('opens on card click, but each action only runs its own handler', async () => {
@@ -46,6 +46,10 @@ describe('InvoiceCard', () => {
     await user.click(screen.getByRole('button', { name: 'Edit invoice' }));
     await user.click(screen.getByRole('button', { name: 'Delete invoice' }));
     expect(handlers.onPdf).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('button', { name: 'Print invoice' }));
+    expect(handlers.onPrint).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('button', { name: 'Share invoice' }));
+    expect(handlers.onShare).toHaveBeenCalledTimes(1);
     expect(handlers.onExcel).toHaveBeenCalledTimes(1);
     expect(handlers.onEdit).toHaveBeenCalledTimes(1);
     expect(handlers.onDelete).toHaveBeenCalledTimes(1);

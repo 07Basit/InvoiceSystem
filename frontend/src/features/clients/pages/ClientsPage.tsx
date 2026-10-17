@@ -444,7 +444,7 @@ export default function ClientsPage() {
                 </div>
                 <div className="shrink-0 text-right leading-tight">
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Currency</p>
-                  <p className="text-lg font-bold text-[hsl(var(--brand-accent))]">{form.currency || '—'}</p>
+                  <p className="text-lg font-bold text-[hsl(var(--brand-accent))]">{form.currency}</p>
                 </div>
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">

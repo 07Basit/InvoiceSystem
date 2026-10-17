@@ -1,13 +1,14 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useInvoices } from '../hooks/useInvoices';
 import { useInvoiceStore } from '../store/invoiceStore';
-import { invoiceService } from '../services/invoiceService';
+import { useInvoiceDocuments } from '../hooks/useInvoiceDocuments';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { FileDown } from 'lucide-react';
 import Pagination from '@/components/ui/Pagination';
 import { INVOICES_TWO_COLUMNS_FROM, scrollMainToTop, usePageSize } from '@/lib/pagination';
 import InvoiceCard from './InvoiceCard';
+import ShareInvoiceDialog, { toShareable, type ShareableInvoice } from './ShareInvoiceDialog';
 import { useDeleteInvoice } from '../hooks/useInvoices';
 import { useConfirm } from '@/components/ui/confirm';
 
@@ -46,6 +47,8 @@ export default function InvoiceTable() {
   const isFiltering = search !== '' || Object.values(filters).some((v) => v !== '');
   const deleteMutation = useDeleteInvoice();
   const navigate = useNavigate();
+  const documents = useInvoiceDocuments();
+  const [sharing, setSharing] = useState<ShareableInvoice | null>(null);
   const confirm = useConfirm();
   const askDelete = async (id: string, invoiceNumber: string) => {
     const ok = await confirm({
@@ -86,8 +89,11 @@ export default function InvoiceTable() {
             invoice={invoice}
             deleting={deleteMutation.isPending}
             onOpen={() => openInvoice(invoice.id)}
-            onPdf={() => invoiceService.downloadPdf(invoice.id)}
-            onExcel={() => invoiceService.downloadExcel(invoice.id)}
+            documentsBusy={documents.isBusy}
+            onPrint={() => documents.print(invoice.id)}
+            onShare={() => setSharing(toShareable(invoice))}
+            onPdf={() => documents.downloadPdf(invoice.id)}
+            onExcel={() => documents.downloadExcel(invoice.id)}
             onEdit={() => openEditForm(invoice.id)}
             onDelete={() => askDelete(invoice.id, invoice.invoiceNumber)}
           />
@@ -97,6 +103,7 @@ export default function InvoiceTable() {
       {meta && (
         <Pagination page={meta.page} totalPages={meta.totalPages} total={meta.total} pageSize={meta.limit} onPageChange={changePage} noun="invoices" />
       )}
+      {sharing && <ShareInvoiceDialog invoice={sharing} onClose={() => setSharing(null)} />}
     </div>
   );
 }

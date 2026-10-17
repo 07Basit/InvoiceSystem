@@ -39,6 +39,7 @@ const initialInvoice: CreateInvoiceDto = {
   exportersRef: '',
   otherReferences: '',
   awbNumber: '',
+  buyersOrder: '',
   preCarriageBy: 'TRUCK BY ROAD',
   placeOfReceiptByPreCarrier: 'N/A',
   vesselFlightNo: 'By Air',
@@ -154,7 +155,6 @@ export default function InvoiceForm() {
   const [exporterProfileId, setExporterProfileId] = useState('');
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [buyerOrderNoAndDate, setBuyerOrderNoAndDate] = useState('');
   const [bankProfileId, setBankProfileId] = useState('');
   const [signProfileId, setSignProfileId] = useState('');
 
@@ -169,7 +169,7 @@ export default function InvoiceForm() {
     if (!invoice || !isEditing) return;
     setForm({
       importerId: invoice.importerId, invoiceNumber: invoice.invoiceNumber, invoiceDate: invoice.invoiceDate,
-      exportersRef: invoice.exportersRef ?? '', otherReferences: invoice.otherReferences ?? '', awbNumber: invoice.awbNumber ?? '',
+      exportersRef: invoice.exportersRef ?? '', otherReferences: invoice.otherReferences ?? '', awbNumber: invoice.awbNumber ?? '', buyersOrder: invoice.buyersOrder ?? '',
       preCarriageBy: invoice.preCarriageBy ?? 'TRUCK BY ROAD', placeOfReceiptByPreCarrier: invoice.placeOfReceiptByPreCarrier ?? 'N/A',
       vesselFlightNo: invoice.vesselFlightNo ?? 'By Air', loadingLocationId: invoice.loadingLocationId ?? undefined,
       landingLocationId: invoice.landingLocationId ?? undefined, portOfLoading: invoice.portOfLoading ?? '',
@@ -191,11 +191,10 @@ export default function InvoiceForm() {
       totalGrossWeight: invoice.totalGrossWeight ?? undefined, roundOff: 0,
       amountInWords: invoice.amountInWords ?? '', notes: invoice.notes ?? '', declaration: invoice.declaration ?? DEFAULT_DECLARATION, signName: invoice.signName ?? '', signImage: invoice.signImage ?? '',
     });
-    setBuyerOrderNoAndDate('');
   }, [invoice, isEditing]);
 
   useEffect(() => {
-    if (!isFormOpen) { setForm(initialInvoice); setErrors({}); setSubmitError(null); setBuyerOrderNoAndDate(''); setExporterProfileId(''); setBankProfileId(''); setSignProfileId(''); return; }
+    if (!isFormOpen) { setForm(initialInvoice); setErrors({}); setSubmitError(null); setExporterProfileId(''); setBankProfileId(''); setSignProfileId(''); return; }
     if (!isEditing && draftData) { setForm(draftData); setErrors({}); setSubmitError(null); }
   }, [isFormOpen, isEditing, draftData]);
 
@@ -490,7 +489,7 @@ export default function InvoiceForm() {
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <Field label="Exporter's Ref." value={form.exportersRef ?? ''} error={errors.exportersRef} onChange={(v) => { clearFieldError('exportersRef'); setForm((p) => ({ ...p, exportersRef: v })); }} />
-                <Field label="Buyer's Order No. & Date" value={buyerOrderNoAndDate} onChange={setBuyerOrderNoAndDate} />
+                <Field label="Buyer's Order No. & Date" value={form.buyersOrder ?? ''} onChange={(v) => setForm((p) => ({ ...p, buyersOrder: v }))} />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <Field label="Other Reference(s)" value={form.otherReferences ?? ''} error={errors.otherReferences} onChange={(v) => { clearFieldError('otherReferences'); setForm((p) => ({ ...p, otherReferences: v })); }} />

@@ -13,7 +13,7 @@ import BankProfilesSection from '../components/BankProfilesSection';
 import SignProfilesSection from '../components/SignProfilesSection';
 
 const dateTime = (iso: string | null | undefined) =>
-  iso ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso)) : '—';
+  iso ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso)) : '';
 
 export default function ProfilePage() {
   const { user, rememberMe, expiresAt, setUser, applySession, logout } = useAuthStore();

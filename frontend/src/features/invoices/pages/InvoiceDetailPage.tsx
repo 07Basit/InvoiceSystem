@@ -1,11 +1,13 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
-  ArrowLeft, Building2, CalendarDays, Download, FileDown, FileText, Package, Pencil, Printer, Receipt, Ship, StickyNote, Truck, User,
+  ArrowLeft, Building2, CalendarDays, Download, FileDown, FileText, Package, Pencil, Printer, Share2, Receipt, Ship, StickyNote, Truck, User,
 } from 'lucide-react';
 import { useInvoice } from '../hooks/useInvoices';
 import { useInvoiceStore } from '../store/invoiceStore';
-import { invoiceService, type Invoice } from '../services/invoiceService';
+import type { Invoice } from '../services/invoiceService';
+import { useInvoiceDocuments } from '../hooks/useInvoiceDocuments';
+import ShareInvoiceDialog, { toShareable } from '../components/ShareInvoiceDialog';
 import InvoiceForm from '../components/InvoiceForm';
 import ExchangeRatePanel from '../components/ExchangeRatePanel';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -24,13 +26,13 @@ function Section({ title, icon: Icon, children }: { title: string; icon: typeof 
   );
 }
 
-/** One labelled value; an empty value shows a dash so every field is visible, filled or not. */
+/** One labelled value; an empty value is simply left blank so every field stays visible. */
 function Item({ label, value, wide }: { label: string; value?: ReactNode; wide?: boolean }) {
   const empty = value === undefined || value === null || value === '';
   return (
     <div className={wide ? 'sm:col-span-2 lg:col-span-3' : undefined}>
       <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
-      <dd className={empty ? 'mt-0.5 text-sm text-muted-foreground' : 'mt-0.5 text-sm font-medium break-words'}>{empty ? '—' : value}</dd>
+      <dd className="mt-0.5 min-h-5 text-sm font-medium break-words">{empty ? null : value}</dd>
     </div>
   );
 }
@@ -39,15 +41,16 @@ const Grid = ({ children }: { children: ReactNode }) => (
   <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">{children}</dl>
 );
 
-function HeaderAction({ label, text, onClick, icon: Icon, primary }: { label: string; text: string; onClick: () => void; icon: typeof Printer; primary?: boolean }) {
+function HeaderAction({ label, text, onClick, icon: Icon, primary, disabled }: { label: string; text: string; onClick: () => void; icon: typeof Printer; primary?: boolean; disabled?: boolean }) {
   return (
     <Tooltip label={label} align="end">
       <button
         onClick={onClick}
+        disabled={disabled}
         aria-label={label}
         className={primary
-          ? 'flex items-center gap-2 px-3 py-2 text-sm bg-[hsl(var(--brand-accent))] text-white rounded-md hover:opacity-90'
-          : 'flex items-center gap-2 px-3 py-2 text-sm border rounded-md hover:bg-accent'}
+          ? 'flex items-center gap-2 px-3 py-2 text-sm bg-[hsl(var(--brand-accent))] text-white rounded-md hover:opacity-90 disabled:opacity-50'
+          : 'flex items-center gap-2 px-3 py-2 text-sm border rounded-md hover:bg-accent disabled:opacity-50'}
       >
         <Icon className="h-4 w-4" /> <span className="hidden sm:inline">{text}</span>
       </button>
@@ -72,6 +75,8 @@ export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data, isLoading, isError } = useInvoice(id ?? '');
   const { openEditForm } = useInvoiceStore();
+  const documents = useInvoiceDocuments();
+  const [shareOpen, setShareOpen] = useState(false);
 
   if (isLoading) return <div className="flex justify-center py-16"><LoadingSpinner /></div>;
   if (isError || !data?.data) return <div className="text-center py-16 text-destructive">Invoice not found.</div>;
@@ -89,8 +94,8 @@ export default function InvoiceDetailPage() {
 
       {/* Fixed panel: invoice number down to the invoice amount stays visible while the rest scrolls */}
       <div className="sticky -top-4 z-20 -mx-4 bg-background px-4 pb-2 pt-4 sm:-top-6 sm:-mx-6 sm:px-6 sm:pt-6 print:static">
-        <div className="rounded-xl border bg-card shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-3 px-4 pt-3 sm:px-5">
+        <div className="overflow-hidden rounded-xl border bg-card bg-gradient-to-r from-[hsl(var(--primary)/0.08)] to-[hsl(var(--brand-accent)/0.14)] shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3 px-4 pb-3 pt-3 sm:px-5 [background-image:radial-gradient(hsl(var(--primary)/0.12)_0.7px,transparent_1px)] [background-size:16px_16px]">
             <div className="min-w-0">
               <h1 className="text-xl font-bold font-mono break-all sm:text-2xl">{invoice.invoiceNumber}</h1>
               <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs text-muted-foreground sm:text-sm">
@@ -100,14 +105,15 @@ export default function InvoiceDetailPage() {
               </p>
             </div>
             <div className="flex items-center gap-2 print:hidden">
-              <HeaderAction label="Print invoice" text="Print" icon={Printer} onClick={() => window.print()} />
-              <HeaderAction label="Download PDF" text="PDF" icon={FileDown} onClick={() => invoiceService.downloadPdf(invoice.id)} />
-              <HeaderAction label="Download Excel" text="Excel" icon={Download} onClick={() => invoiceService.downloadExcel(invoice.id)} />
+              <HeaderAction label="Print invoice" text="Print" icon={Printer} onClick={() => documents.print(invoice.id)} disabled={documents.isBusy} />
+              <HeaderAction label="Download PDF" text="PDF" icon={FileDown} onClick={() => documents.downloadPdf(invoice.id)} disabled={documents.isBusy} />
+              <HeaderAction label="Download Excel" text="Excel" icon={Download} onClick={() => documents.downloadExcel(invoice.id)} disabled={documents.isBusy} />
+              <HeaderAction label="Share invoice" text="Share" icon={Share2} onClick={() => setShareOpen(true)} />
               <HeaderAction label="Edit invoice" text="Edit" icon={Pencil} primary onClick={() => openEditForm(invoice.id)} />
             </div>
           </div>
 
-          <div className="mt-3 flex items-center justify-between gap-3 border-t px-4 py-3 sm:px-5">
+          <div className="flex items-center justify-between gap-3 border-t border-[#a9bcbc] px-4 py-3 sm:px-5 [background-image:radial-gradient(hsl(var(--brand-accent)/0.18)_1px,transparent_1.4px)] [background-size:22px_22px]">
             <div className="min-w-0">
               <p className="text-xs font-medium text-muted-foreground">Invoice Total</p>
               <p className="text-2xl font-bold tracking-tight sm:text-3xl">{money(invoice.total, cur)}</p>
@@ -159,6 +165,7 @@ export default function InvoiceDetailPage() {
           <Item label="Exporter's Ref." value={invoice.exportersRef} />
           <Item label="Other Reference(s)" value={invoice.otherReferences} />
           <Item label="AWB No" value={invoice.awbNumber} />
+          <Item label="Buyer's Order No. & Date" value={invoice.buyersOrder} />
           <Item label="Currency" value={cur} />
         </Grid>
       </Section>
@@ -235,7 +242,7 @@ export default function InvoiceDetailPage() {
             <tbody className="divide-y">
               {invoice.lineItems.map((item) => (
                 <tr key={item.id}>
-                  <td className="px-4 py-3 whitespace-nowrap">{item.marksAndNos || item.containerNo || <span className="text-muted-foreground">—</span>}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{item.marksAndNos || item.containerNo}</td>
                   <td className="px-4 py-3">{item.descriptionOfGoods}</td>
                   <td className="px-4 py-3 text-right whitespace-nowrap">{formatNumber(Number(item.netWeightPerPackage))}</td>
                   <td className="px-4 py-3 text-right">{item.numberOfBoxes}</td>
@@ -274,6 +281,7 @@ export default function InvoiceDetailPage() {
       <p className="text-xs text-muted-foreground print:hidden">Importer: {invoice.importerName ?? importer.name} · Invoice ID {invoice.id}</p>
 
       <InvoiceForm />
+      {shareOpen && <ShareInvoiceDialog invoice={toShareable(invoice)} onClose={() => setShareOpen(false)} />}
     </div>
   );
 }

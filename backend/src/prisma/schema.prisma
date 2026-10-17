@@ -70,13 +70,17 @@ model LoadingLocation {
   @@index([importerId])
 }
 
+// A saved exporter (your company details). There can be several; each invoice copies the one it uses.
 model ExporterProfile {
   id        String   @id @default(cuid())
   name      String
   address   String
   contact   String
   email     String?
-  isLocked  Boolean  @default(false)
+  // The profile preselected when a new invoice is started (at most one)
+  isDefault Boolean  @default(false)
+  // false = marked "not needed": kept here, but not offered when creating invoices
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -135,6 +139,12 @@ model Invoice {
   portOfDischarge            String?
   finalDestination           String?
   buyerName                  String?
+  // The importer's details as they were when the invoice was made (copied, like the ports and countries):
+  // editing or deleting the importer later never changes the invoice.
+  importerName               String?
+  importerAddress            String?
+  importerContact            String?
+  importerEmail              String?
   countryOfOrigin            String?
   countryOfDestination       String?
   descriptionOfGoods         String?           @db.NVarChar(Max)
@@ -146,6 +156,12 @@ model Invoice {
   exporterAddress            String?
   exporterContact            String?
   exporterEmail              String?
+  bankName                   String?
+  bankAccountNumber          String?
+  bankIfscCode               String?
+  bankSwiftCode              String?
+  signName                   String?
+  signImage                  String?           @db.NVarChar(Max)
   lineItems                  LineItem[]
   totalBoxes                 Int              @default(0)
   totalNetWeight             Decimal          @default(0) @db.Decimal(12, 2)
@@ -155,6 +171,7 @@ model Invoice {
   total                      Decimal          @default(0) @db.Decimal(12, 2)
   amountInWords              String?           @db.NVarChar(Max)
   notes                      String?           @db.NVarChar(Max)
+  declaration                String?           @db.NVarChar(2000)
   // Exchange rate typed in by the user when no automatic rate exists: units of `manualRateBase` per 1 `currency`.
   manualRate                 Decimal?          @db.Decimal(18, 8)
   manualRateBase             String?
@@ -259,4 +276,37 @@ model Notification {
   @@map("notifications")
   @@index([userId, createdAt])
   @@index([userId, readAt])
+}
+
+// A saved bank account printed on invoices. There can be several; each invoice copies the one it uses.
+model BankProfile {
+  id            String   @id @default(cuid())
+  bankName      String
+  accountNumber String
+  ifscCode      String?
+  swiftCode     String?
+  // The account preselected when a new invoice is started (at most one)
+  isDefault     Boolean  @default(false)
+  // false = marked "not needed": kept here, but not offered when creating invoices
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("bank_profiles")
+}
+
+// A saved seal & signature image printed on invoices. There can be several; each invoice copies the one it uses.
+model SignProfile {
+  id        String   @id @default(cuid())
+  name      String
+  // PNG or JPEG as a data URL (resized in the browser before upload)
+  image     String   @db.NVarChar(Max)
+  // The sign preselected when a new invoice is started (at most one)
+  isDefault Boolean  @default(false)
+  // false = marked "not needed": kept here, but not offered when creating invoices
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("sign_profiles")
 }

@@ -22,13 +22,14 @@ interface InvoiceFacts {
 async function invoiceFacts(id: string): Promise<InvoiceFacts | null> {
   const inv = await prisma.invoice.findUnique({ where: { id }, include: { importer: { select: { name: true } } } });
   if (!inv) return null;
+  const importerName = inv.importerName ?? inv.importer.name; // the invoice's own copy
   return {
     number: inv.invoiceNumber,
-    importer: inv.importer.name,
-    summary: `${inv.invoiceNumber} for ${inv.importer.name}, ${money(inv.total, inv.currency)}`,
+    importer: importerName,
+    summary: `${inv.invoiceNumber} for ${importerName}, ${money(inv.total, inv.currency)}`,
     details: [
       { label: 'Invoice No', value: inv.invoiceNumber },
-      { label: 'Importer', value: inv.importer.name },
+      { label: 'Importer', value: importerName },
       { label: 'Invoice Date', value: day(inv.invoiceDate) },
       { label: 'Total', value: money(inv.total, inv.currency) },
       { label: 'Boxes', value: String(inv.totalBoxes) },

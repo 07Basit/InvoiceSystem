@@ -12,7 +12,7 @@ beforeEach(() => {
 });
 
 describe('search filters (SQL Server compatible)', () => {
-  it('invoices: searches number, importer name and buyer without a `mode` option', async () => {
+  it('invoices: searches number, importer name (live and the invoice own copy) and buyer without a `mode` option', async () => {
     await invoiceService.list({ search: 'abc', page: 1, limit: 20 } as never);
     const { where } = prismaMock.invoice.findMany.mock.calls[0]![0]!;
     expect(where).toEqual({
@@ -20,6 +20,7 @@ describe('search filters (SQL Server compatible)', () => {
       OR: [
         { invoiceNumber: { contains: 'abc' } },
         { importer: { name: { contains: 'abc' } } },
+        { importerName: { contains: 'abc' } },
         { buyerName: { contains: 'abc' } },
       ],
     });

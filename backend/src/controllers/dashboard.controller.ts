@@ -27,6 +27,7 @@ export const getDashboardStats = asyncHandler(async (_req: Request, res: Respons
       take: 8,
       select: {
         id: true, invoiceNumber: true, invoiceDate: true, total: true, currency: true, createdAt: true, manualRate: true, manualRateBase: true,
+        importerName: true,
         importer: { select: { name: true } },
       },
     }),

@@ -3,7 +3,7 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { logger } from '../utils/logger';
 import { invoiceService } from '../services/invoice.service';
 import { actorOf, events } from '../services/notification.events';
-import type { CreateInvoiceDto, ListInvoicesQuery, ManualRateDto, UpdateInvoiceDto } from 'shared';
+import { DEFAULT_DECLARATION, type CreateInvoiceDto, type ListInvoicesQuery, type ManualRateDto, type UpdateInvoiceDto } from 'shared';
 import * as XLSX from 'xlsx';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
@@ -72,7 +72,7 @@ export const downloadInvoicePdf = asyncHandler(async (req: Request, res: Respons
   const invoice = await invoiceService.getById(id);
 
   const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([595, 842]);
+  let page = pdfDoc.addPage([595, 842]);
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const { height } = page.getSize();
@@ -82,7 +82,7 @@ export const downloadInvoicePdf = asyncHandler(async (req: Request, res: Respons
   page.drawText(`Invoice Date: ${new Date(invoice.invoiceDate).toLocaleDateString()}`, { x: 50, y: height - 106, font, size: 11 });
 
   page.drawText(`Exporter: ${invoice.exporterName ?? '-'}`, { x: 50, y: height - 140, font: boldFont, size: 11 });
-  page.drawText(`Importer: ${invoice.importer.name}`, { x: 50, y: height - 158, font: boldFont, size: 11 });
+  page.drawText(`Importer: ${invoice.importerName ?? invoice.importer.name}`, { x: 50, y: height - 158, font: boldFont, size: 11 });
   page.drawText(`Buyer: ${invoice.buyerName ?? '-'}`, { x: 50, y: height - 176, font, size: 10 });
 
   let y = height - 220;
@@ -111,9 +111,39 @@ export const downloadInvoicePdf = asyncHandler(async (req: Request, res: Respons
   y -= 16;
   page.drawText(`Sub Total: ${invoice.currency} ${Number(invoice.subTotal).toFixed(2)}`, { x: 330, y, font, size: 10 });
   y -= 14;
-  page.drawText(`Round Off: ${invoice.currency} ${Number(invoice.roundOff).toFixed(2)}`, { x: 330, y, font, size: 10 });
-  y -= 14;
   page.drawText(`Total: ${invoice.currency} ${Number(invoice.total).toFixed(2)}`, { x: 330, y, font: boldFont, size: 12 });
+  if (invoice.bankName || invoice.bankAccountNumber) {
+    y -= 24;
+    page.drawText(`Bank: ${invoice.bankName ?? '-'}  A/C: ${invoice.bankAccountNumber ?? '-'}`, { x: 50, y, font, size: 10 });
+    const codes = [invoice.bankIfscCode && `IFSC: ${invoice.bankIfscCode}`, invoice.bankSwiftCode && `SWIFT: ${invoice.bankSwiftCode}`].filter(Boolean).join('  ');
+    if (codes) { y -= 14; page.drawText(codes, { x: 50, y, font, size: 10 }); }
+  }
+
+  const declaration = invoice.declaration || DEFAULT_DECLARATION;
+  y -= 28;
+  page.drawText('Declaration', { x: 50, y, font: boldFont, size: 10 });
+  declaration.split(/\r?\n/).flatMap((line) => line.match(/.{1,95}(\s|$)/g) ?? ['']).forEach((line) => {
+    y -= 13;
+    page.drawText(line.trim(), { x: 50, y, font, size: 9 });
+  });
+
+  // The invoice's own seal & sign (a PNG/JPEG data URL); a bad image must never block the PDF
+  if (invoice.signImage) {
+    try {
+      const match = /^data:image\/(png|jpeg);base64,(.+)$/.exec(invoice.signImage);
+      if (match) {
+        const bytes = Buffer.from(match[2]!, 'base64');
+        const embedded = match[1] === 'png' ? await pdfDoc.embedPng(bytes) : await pdfDoc.embedJpg(bytes);
+        const scale = Math.min(160 / embedded.width, 70 / embedded.height, 1);
+        const drawHeight = embedded.height * scale;
+        if (y - 12 - drawHeight < 40) { page = pdfDoc.addPage([595, 842]); y = 800; } // never run off the bottom
+        y -= 12 + drawHeight;
+        page.drawImage(embedded, { x: 50, y, width: embedded.width * scale, height: embedded.height * scale });
+      }
+    } catch (err) {
+      logger.warn('Could not embed seal & sign in PDF', { invoiceId: invoice.id, error: err instanceof Error ? err.message : String(err), action: 'pdf_sign' });
+    }
+  }
 
   const pdfBytes = await pdfDoc.save();
   logger.info('Invoice PDF downloaded', { invoiceId: invoice.id, action: 'download_invoice_pdf' });
@@ -132,7 +162,7 @@ export const downloadInvoiceExcel = asyncHandler(async (req: Request, res: Respo
     ['Invoice Number', invoice.invoiceNumber],
     ['Invoice Date', new Date(invoice.invoiceDate).toISOString().split('T')[0]],
     ['Exporter', invoice.exporterName ?? ''],
-    ['Importer', invoice.importer.name],
+    ['Importer', invoice.importerName ?? invoice.importer.name],
     ['Buyer', invoice.buyerName ?? ''],
     ['Currency', invoice.currency],
     [],
@@ -159,10 +189,14 @@ export const downloadInvoiceExcel = asyncHandler(async (req: Request, res: Respo
       Number(item.amount),
     ]),
     [],
+    ['Bank', invoice.bankName ?? ''],
+    ['Account Number', invoice.bankAccountNumber ?? ''],
+    ['IFSC Code', invoice.bankIfscCode ?? ''],
+    ['SWIFT Code', invoice.bankSwiftCode ?? ''],
+    ['Declaration', invoice.declaration || DEFAULT_DECLARATION],
     ['Total Net Weight', Number(invoice.totalNetWeight)],
     ['Total Gross Weight', invoice.totalGrossWeight ? Number(invoice.totalGrossWeight) : ''],
     ['Sub Total', Number(invoice.subTotal)],
-    ['Round Off', Number(invoice.roundOff)],
     ['Total', Number(invoice.total)],
     ['Amount In Words', invoice.amountInWords ?? ''],
   ];
@@ -186,6 +220,7 @@ export const exportInvoices = asyncHandler(async (_req: Request, res: Response) 
     total: number;
     invoiceDate: string;
     importer: { name: string };
+    importerName: string | null;
   }>;
 
   const wb = XLSX.utils.book_new();
@@ -194,7 +229,7 @@ export const exportInvoices = asyncHandler(async (_req: Request, res: Response) 
     ...invoices.map((item) => [
       item.invoiceNumber,
       new Date(item.invoiceDate).toISOString().split('T')[0],
-      item.importer.name,
+      item.importerName ?? item.importer.name,
       item.currency,
       Number(item.total),
     ]),

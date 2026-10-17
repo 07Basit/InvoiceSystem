@@ -20,7 +20,7 @@ async function main() {
       address: 'Plot 19, Navi Mumbai, Maharashtra, India',
       contact: '+91 90000 10000',
       email: 'exports@greenharvest.co.in',
-      isLocked: true,
+      isDefault: true,
     },
   });
 

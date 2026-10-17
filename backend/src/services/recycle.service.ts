@@ -15,6 +15,7 @@ export const recycleService = {
           currency: true,
           deletedAt: true,
           createdAt: true,
+          importerName: true,
           importer: { select: { name: true } },
         },
         orderBy: { deletedAt: 'desc' },

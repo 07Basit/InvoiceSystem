@@ -28,20 +28,20 @@ class Writer {
   y = 0;
   private supported!: Set<number>;
 
-  constructor(doc: PDFDocument) {
+  constructor(doc: PDFDocument, readonly pageH: number = PAGE_H) {
     this.doc = doc;
   }
 
-  async init() {
+  async init(withPage = true) {
     this.regular = await this.doc.embedFont(StandardFonts.Helvetica);
     this.bold = await this.doc.embedFont(StandardFonts.HelveticaBold);
     this.supported = new Set(this.regular.getCharacterSet());
-    this.newPage();
+    if (withPage) this.newPage();
   }
 
   newPage() {
-    this.page = this.doc.addPage([PAGE_W, PAGE_H]);
-    this.y = PAGE_H - MARGIN;
+    this.page = this.doc.addPage([PAGE_W, this.pageH]);
+    this.y = this.pageH - MARGIN;
   }
 
   /** Text the font can draw: unknown characters get a fallback or a "?". */
@@ -271,17 +271,26 @@ async function signature(w: Writer, doc: InvoiceDocument) {
 
 /** Footer on the pages of one invoice (`from` up to but not including `to`): its number, exporter and "Page x of y" within that invoice. */
 function footers(w: Writer, doc: InvoiceDocument, from: number, to: number) {
-  const pages = w.doc.getPages().slice(from, to);
+  const all = w.doc.getPages();
+  const pages = all.slice(from, to);
   pages.forEach((page, i) => {
     page.drawLine({ start: { x: MARGIN, y: 38 }, end: { x: PAGE_W - MARGIN, y: 38 }, thickness: 0.5, color: LINE });
     const left = w.safe(`Invoice ${doc.invoiceNumber}  |  ${doc.exporter.name}`);
     page.drawText(left, { x: MARGIN, y: 26, size: 7.5, font: w.regular, color: MUTED });
-    const right = `Page ${i + 1} of ${pages.length}`;
+    const right = `Page ${from + i + 1} of ${all.length}`;
     page.drawText(right, { x: PAGE_W - MARGIN - w.regular.widthOfTextAtSize(right, 7.5), y: 26, size: 7.5, font: w.regular, color: MUTED });
   });
 }
 
-/** Renders the structured invoice as an A4 PDF: sections in a fixed order, tables that flow onto further pages. Several documents (a BOTH invoice) follow one another in one PDF. */
+/** Height of the tall scratch page an invoice is first drawn on, so it never has to break onto a second page while being measured. */
+const MEASURE_H = 20_000;
+
+/**
+ * Renders the structured invoice as an A4 PDF: sections in a fixed order, and every invoice on exactly ONE page.
+ * Each invoice is drawn once on a tall scratch page to find out how tall it is, then placed on an A4 page, scaled down
+ * when it is taller than the page (a long product table), so it never runs on to a second page.
+ * Several documents (a BOTH invoice) follow one another in one PDF, one page each.
+ */
 export async function renderInvoicePdf(input: InvoiceDocument | InvoiceDocument[]): Promise<Uint8Array> {
   const docs = Array.isArray(input) ? input : [input];
   const first = docs[0]!;
@@ -289,28 +298,46 @@ export async function renderInvoicePdf(input: InvoiceDocument | InvoiceDocument[
   pdf.setTitle(`Invoice ${first.invoiceNumber}`);
   pdf.setSubject(`Invoice from ${first.exporter.name} to ${first.importer.name}`);
   pdf.setCreator('Invoice Manager');
-  const w = new Writer(pdf);
-  await w.init();
+  // fonts for the footers (the invoice itself is drawn on scratch pages)
+  const footerWriter = new Writer(pdf);
+  await footerWriter.init(false);
 
-  for (let i = 0; i < docs.length; i++) {
-    if (i > 0) w.newPage();
-    const from = pdf.getPageCount() - 1;
-    await drawDocument(w, docs[i]!);
-    footers(w, docs[i]!, from, pdf.getPageCount());
+  const placed: { doc: InvoiceDocument; index: number }[] = [];
+  for (const doc of docs) {
+    const scratch = await PDFDocument.create();
+    const w = new Writer(scratch, MEASURE_H);
+    await w.init();
+    await drawDocument(w, doc);
+    const bottom = w.y - 6;
+    const contentH = w.pageH - bottom;
+
+    const embedded = await pdf.embedPage(scratch.getPage(0), { left: 0, bottom, right: PAGE_W, top: w.pageH });
+    const scale = Math.min(1, (PAGE_H - BOTTOM) / contentH);
+    const page = pdf.addPage([PAGE_W, PAGE_H]);
+    // a scaled-down invoice is narrower than the page, so the title band is extended to the page edges behind it
+    if (scale < 1) {
+      page.drawRectangle({ x: 0, y: PAGE_H - 72 * scale, width: PAGE_W, height: 72 * scale, color: TEAL });
+      page.drawRectangle({ x: 0, y: PAGE_H - 76 * scale, width: PAGE_W, height: 4 * scale, color: ORANGE });
+    }
+    // top-aligned and centred; at scale 1 this is the invoice exactly as drawn
+    page.drawPage(embedded, { x: (PAGE_W - PAGE_W * scale) / 2, y: PAGE_H - contentH * scale, xScale: scale, yScale: scale });
+    placed.push({ doc, index: pdf.getPageCount() - 1 });
   }
+  // footers last, so "Page x of y" knows the final page count
+  for (const { doc, index } of placed) footers(footerWriter, doc, index, index + 1);
   return pdf.save();
 }
 
 async function drawDocument(w: Writer, doc: InvoiceDocument) {
   // title band
-  w.page.drawRectangle({ x: 0, y: PAGE_H - 72, width: PAGE_W, height: 72, color: TEAL });
-  w.page.drawRectangle({ x: 0, y: PAGE_H - 76, width: PAGE_W, height: 4, color: ORANGE });
-  w.text('INVOICE', MARGIN, PAGE_H - 24, 26, { font: w.bold, color: WHITE });
-  w.text(doc.kindLabel ? `COMMERCIAL INVOICE  |  ${doc.kindLabel}` : 'COMMERCIAL INVOICE', MARGIN, PAGE_H - 54, 7.5, { color: rgb(0.7, 0.85, 0.85) });
-  w.text(`No. ${doc.invoiceNumber}`, PAGE_W - MARGIN - 220, PAGE_H - 22, 12, { font: w.bold, color: WHITE, align: 'right', boxWidth: 220 });
-  w.text(`Date ${doc.invoiceDate}`, PAGE_W - MARGIN - 220, PAGE_H - 40, 9.5, { color: WHITE, align: 'right', boxWidth: 220 });
-  w.text(`Currency ${doc.currency}`, PAGE_W - MARGIN - 220, PAGE_H - 55, 9.5, { color: WHITE, align: 'right', boxWidth: 220 });
-  w.y = PAGE_H - 88;
+  w.page.drawRectangle({ x: 0, y: w.pageH - 72, width: PAGE_W, height: 72, color: TEAL });
+  w.page.drawRectangle({ x: 0, y: w.pageH - 76, width: PAGE_W, height: 4, color: ORANGE });
+  w.text('INVOICE', MARGIN, w.pageH - 24, 26, { font: w.bold, color: WHITE });
+  w.text(doc.kindLabel ? `COMMERCIAL INVOICE  |  ${doc.kindLabel}` : 'COMMERCIAL INVOICE', MARGIN, w.pageH - 54, 7.5, { color: rgb(0.7, 0.85, 0.85) });
+  w.text(`No. ${doc.invoiceNumber}`, PAGE_W - MARGIN - 220, w.pageH - 22, 12, { font: w.bold, color: WHITE, align: 'right', boxWidth: 220 });
+  w.text(`Date ${doc.invoiceDate}`, PAGE_W - MARGIN - 220, w.pageH - 40, 9.5, { color: WHITE, align: 'right', boxWidth: 220 });
+  w.text(`Currency ${doc.currency}`, PAGE_W - MARGIN - 220, w.pageH - 55, 9.5, { color: WHITE, align: 'right', boxWidth: 220 });
+  w.y = w.pageH - 88;
 
   parties(w, doc);
   sectionTitle(w, 'Invoice references');

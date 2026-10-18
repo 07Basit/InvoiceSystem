@@ -95,9 +95,24 @@ describe('renderInvoicePdf', () => {
     expect(Math.round(height)).toBe(842);
   });
 
-  it('flows long invoices onto more pages instead of cutting rows off', async () => {
-    const pdf = await PDFDocument.load(await renderInvoicePdf(buildInvoiceDocument(invoice({}, 60))));
-    expect(pdf.getPageCount()).toBeGreaterThan(2);
+  it('keeps every invoice on exactly one A4 page, however many products it has', async () => {
+    for (const lines of [1, 15, 60, 150]) {
+      const pdf = await PDFDocument.load(await renderInvoicePdf(buildInvoiceDocument(invoice({}, lines))));
+      expect(pdf.getPageCount()).toBe(1);
+      const { width, height } = pdf.getPage(0).getSize();
+      expect([Math.round(width), Math.round(height)]).toEqual([595, 842]);
+    }
+  });
+
+  it('keeps a Both invoice to one page per page of the invoice', async () => {
+    const pdf = await PDFDocument.load(await renderInvoicePdf([buildInvoiceDocument(invoice({}, 80)), buildInvoiceDocument(invoice({ invoiceKind: 'CUSTOM' }, 80))]));
+    expect(pdf.getPageCount()).toBe(2);
+  });
+
+  it('puts the same content on the page whether or not it had to be scaled', async () => {
+    const small = await renderInvoicePdf(buildInvoiceDocument(invoice({}, 2)));
+    const big = await renderInvoicePdf(buildInvoiceDocument(invoice({}, 120)));
+    expect(big.byteLength).toBeGreaterThan(small.byteLength);
   });
 
   it('never fails on characters the built-in font cannot draw', async () => {

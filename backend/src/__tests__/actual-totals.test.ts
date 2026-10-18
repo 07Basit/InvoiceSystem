@@ -28,6 +28,6 @@ describe('actual invoices are left out of totals (nothing counted twice)', () =>
     const totals = calls.find((c) => c.take === undefined)!;
     const recent = calls.find((c) => c.take === 8)!;
     expect(totals.where).toEqual({ deletedAt: null, actualOfId: null, counterpartOfId: null });
-    expect(recent.where).toEqual({ deletedAt: null });
+    expect(recent.where).toEqual({ deletedAt: null, isCompanion: false });
   });
 });

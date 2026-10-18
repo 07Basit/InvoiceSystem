@@ -7,7 +7,7 @@ import { useCreateActualInvoice, useCreateCounterpartInvoice, useInvoice } from 
 import { useConfirm } from '@/components/ui/confirm';
 import { useToast } from '@/components/ui/toast';
 import { useInvoiceStore } from '../store/invoiceStore';
-import { actualInvoiceState, canHaveActual, counterpartState, printedNumberOf, type Invoice } from '../services/invoiceService';
+import { actualInvoiceState, canHaveActual, counterpartState, kindTag, printedNumberOf, type Invoice } from '../services/invoiceService';
 import { useInvoiceDocuments } from '../hooks/useInvoiceDocuments';
 import ShareInvoiceDialog, { toShareable } from '../components/ShareInvoiceDialog';
 import InvoiceForm from '../components/InvoiceForm';
@@ -107,6 +107,14 @@ export default function InvoiceDetailPage() {
     }
   };
   const partnerState = counterpartState(invoice);
+  // Both invoices: the party page is the invoice itself, the custom page is a hidden companion invoice shown as a second view.
+  // Documents, sharing and editing always go through the party page.
+  const isBoth = invoice.invoiceKind === 'BOTH';
+  const isCompanion = !!invoice.isCompanion;
+  const mainRef = isCompanion ? invoice.counterpartOf ?? null : null;
+  const companionLink = isBoth ? invoice.counterparts?.[0] ?? null : isCompanion ? { id: invoice.id } : null;
+  const docId = isCompanion ? mainRef?.id ?? invoice.id : invoice.id;
+  const tag = isCompanion ? { label: 'Custom page', className: 'border-sky-200 bg-sky-50 text-sky-700' } : kindTag(invoice.invoiceKind);
   const partner = invoice.counterpartOf ?? invoice.counterparts?.[0] ?? null;
   const askCreateCounterpart = async () => {
     const target = partnerState.target.toLowerCase();
@@ -129,7 +137,17 @@ export default function InvoiceDetailPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-5">
-      <Breadcrumbs items={[{ label: 'Invoices', to: '/invoices' }, { label: invoice.invoiceNumber }]} />
+      <Breadcrumbs items={[{ label: 'Invoices', to: '/invoices' }, { label: mainRef ? mainRef.invoiceNumber : invoice.invoiceNumber, ...(mainRef ? { to: `/invoices/${mainRef.id}` } : {}) }, ...(mainRef ? [{ label: 'Custom page' }] : [])]} />
+
+      {/* A Both invoice has two pages; each is its own view, and they share the same documents */}
+      {(isBoth || isCompanion) && (
+        <div role="tablist" aria-label="Invoice pages" className="flex gap-2 print:hidden">
+          <Link to={`/invoices/${docId}`} role="tab" aria-selected={!isCompanion} className={cn('rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors', !isCompanion ? 'border-[hsl(var(--brand-accent))] bg-[hsl(var(--brand-accent))] text-white' : 'hover:bg-accent')}>Party page</Link>
+          {companionLink ? (
+            <Link to={`/invoices/${companionLink.id}`} role="tab" aria-selected={isCompanion} className={cn('rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors', isCompanion ? 'border-[hsl(var(--brand-accent))] bg-[hsl(var(--brand-accent))] text-white' : 'hover:bg-accent')}>Custom page</Link>
+          ) : null}
+        </div>
+      )}
 
       {/* Fixed panel: invoice number down to the invoice amount stays visible while the rest scrolls */}
       <div className="sticky -top-4 z-20 -mx-4 bg-background px-4 pb-2 pt-4 sm:-top-6 sm:-mx-6 sm:px-6 sm:pt-6 print:static">
@@ -137,28 +155,26 @@ export default function InvoiceDetailPage() {
           <div className="flex flex-wrap items-start justify-between gap-3 px-4 pb-3 pt-3 sm:px-5 [background-image:radial-gradient(hsl(var(--primary)/0.12)_0.7px,transparent_1px)] [background-size:16px_16px]">
             <div className="min-w-0">
               <h1 className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xl font-bold font-mono break-all sm:text-2xl">
-                {invoice.invoiceNumber}
-                {(invoice.invoiceKind === 'PARTY' || invoice.invoiceKind === 'CUSTOM') && (
-                  <span className={cn('rounded-full border px-2.5 py-0.5 font-sans text-xs font-semibold uppercase tracking-wide', invoice.invoiceKind === 'CUSTOM' ? 'border-sky-200 bg-sky-50 text-sky-700' : 'bg-background/70 text-muted-foreground')}>{invoice.invoiceKind === 'CUSTOM' ? 'Custom' : 'Party'}</span>
-                )}
+                {isCompanion ? printedNumberOf(invoice) : invoice.invoiceNumber}
+                {tag && <span className={cn('rounded-full border px-2.5 py-0.5 font-sans text-xs font-semibold uppercase tracking-wide', tag.className)}>{tag.label}</span>}
               </h1>
               <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs text-muted-foreground sm:text-sm">
                 <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> Invoice Date {formatDate(invoice.invoiceDate)}</span>
                 <span className="hidden sm:inline">Created {formatDate(invoice.createdAt)}</span>
                 <span className="hidden sm:inline">Updated {formatDate(invoice.updatedAt)}</span>
                 {originalOfThis ? <Link to={`/invoices/${originalOfThis.id}`} className="font-semibold text-[hsl(var(--brand-accent))] hover:underline">Actual of {originalOfThis.invoiceNumber}</Link> : null}
-                {partner ? <Link to={`/invoices/${partner.id}`} className="font-semibold text-[hsl(var(--brand-accent))] hover:underline">{partner.invoiceKind === 'CUSTOM' ? 'Custom' : 'Party'} invoice: {partner.invoiceNumber}</Link> : null}
+                {partner && !isBoth && !isCompanion ? <Link to={`/invoices/${partner.id}`} className="font-semibold text-[hsl(var(--brand-accent))] hover:underline">{partner.invoiceKind === 'CUSTOM' ? 'Custom' : 'Party'} invoice: {partner.invoiceNumber}</Link> : null}
                 {actualOfThis ? <Link to={`/invoices/${actualOfThis.id}`} className="font-semibold text-[hsl(var(--brand-accent))] hover:underline">Actual invoice: {actualOfThis.invoiceNumber}</Link> : null}
               </p>
             </div>
             <div className="flex items-center gap-2 print:hidden">
-              <HeaderAction label="Print invoice" text="Print" icon={Printer} onClick={() => documents.print(invoice.id)} disabled={documents.isBusy} />
-              <HeaderAction label="Download PDF" text="PDF" icon={FileDown} onClick={() => documents.downloadPdf(invoice.id)} disabled={documents.isBusy} />
-              <HeaderAction label="Download Excel" text="Excel" icon={Download} onClick={() => documents.downloadExcel(invoice.id)} disabled={documents.isBusy} />
+              <HeaderAction label="Print invoice" text="Print" icon={Printer} onClick={() => documents.print(docId)} disabled={documents.isBusy} />
+              <HeaderAction label="Download PDF" text="PDF" icon={FileDown} onClick={() => documents.downloadPdf(docId)} disabled={documents.isBusy} />
+              <HeaderAction label="Download Excel" text="Excel" icon={Download} onClick={() => documents.downloadExcel(docId)} disabled={documents.isBusy} />
               <HeaderAction label="Share invoice" text="Share" icon={Share2} onClick={() => setShareOpen(true)} />
-              {canHaveActual(invoice) && <HeaderAction label={actual.label} text="Actual" icon={FileCheck2} onClick={askCreateActual} disabled={!actual.canCreate || createActualMutation.isPending} greyed={!actual.canCreate} />}
-              {partnerState.available && <HeaderAction label={partnerState.label} text={partnerState.target} icon={ArrowLeftRight} onClick={askCreateCounterpart} disabled={!partnerState.canCreate || createCounterpartMutation.isPending} greyed={!partnerState.canCreate} />}
-              <HeaderAction label="Edit invoice" text="Edit" icon={Pencil} primary onClick={() => openEditForm(invoice.id)} />
+              {!isCompanion && canHaveActual(invoice) && <HeaderAction label={actual.label} text="Actual" icon={FileCheck2} onClick={askCreateActual} disabled={!actual.canCreate || createActualMutation.isPending} greyed={!actual.canCreate} />}
+              {partnerState.available && !isCompanion && <HeaderAction label={partnerState.label} text={partnerState.target} icon={ArrowLeftRight} onClick={askCreateCounterpart} disabled={!partnerState.canCreate || createCounterpartMutation.isPending} greyed={!partnerState.canCreate} />}
+              <HeaderAction label="Edit invoice" text="Edit" icon={Pencil} primary onClick={() => openEditForm(docId)} />
             </div>
           </div>
 
@@ -323,7 +339,7 @@ export default function InvoiceDetailPage() {
       <p className="text-xs text-muted-foreground print:hidden">Importer: {invoice.importerName ?? importer.name} · Invoice ID {invoice.id}</p>
 
       <InvoiceForm />
-      {shareOpen && <ShareInvoiceDialog invoice={toShareable(invoice)} onClose={() => setShareOpen(false)} />}
+      {shareOpen && <ShareInvoiceDialog invoice={toShareable({ ...invoice, id: docId })} onClose={() => setShareOpen(false)} />}
     </div>
   );
 }

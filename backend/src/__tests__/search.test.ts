@@ -17,6 +17,7 @@ describe('search filters (SQL Server compatible)', () => {
     const { where } = prismaMock.invoice.findMany.mock.calls[0]![0]!;
     expect(where).toEqual({
       deletedAt: null,
+      isCompanion: false,
       OR: [
         { invoiceNumber: { contains: 'abc' } },
         { importer: { name: { contains: 'abc' } } },
@@ -48,7 +49,7 @@ describe('search filters (SQL Server compatible)', () => {
 
   it('adds no search clause when the search box is empty', async () => {
     await invoiceService.list({ page: 1, limit: 20 } as never);
-    expect(prismaMock.invoice.findMany.mock.calls[0]![0]!.where).toEqual({ deletedAt: null });
+    expect(prismaMock.invoice.findMany.mock.calls[0]![0]!.where).toEqual({ deletedAt: null, isCompanion: false });
   });
 
   it('reports pagination metadata from the count', async () => {

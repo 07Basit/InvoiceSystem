@@ -2,7 +2,7 @@ import type { ListInvoicesInput } from 'shared';
 
 export type InvoiceType = 'all' | 'regular' | 'actual';
 /** Normal, party or custom invoices (all of them when 'all') */
-export type InvoiceKindFilter = 'all' | 'normal' | 'party' | 'custom';
+export type InvoiceKindFilter = 'all' | 'normal' | 'party' | 'custom' | 'both';
 
 /** Everything the invoice list can be narrowed by. Lists mean "any of these". */
 export interface InvoiceFilterValues {
@@ -132,7 +132,7 @@ export function filterChips(filters: InvoiceFilterValues, importerName: (id: str
   filters.products.forEach((p) => chips.push({ key: 'products', value: p, label: p }));
   filters.exporters.forEach((e) => chips.push({ key: 'exporters', value: e, label: e }));
   if (filters.type !== 'all') chips.push({ key: 'type', label: filters.type === 'actual' ? 'Actual only' : 'Regular only' });
-  if (filters.kind !== 'all') chips.push({ key: 'kind', label: filters.kind === 'custom' ? 'Custom invoices' : filters.kind === 'party' ? 'Party invoices' : 'Normal invoices' });
+  if (filters.kind !== 'all') chips.push({ key: 'kind', label: filters.kind === 'custom' ? 'Custom invoices' : filters.kind === 'party' ? 'Party invoices' : filters.kind === 'both' ? 'Party + custom invoices' : 'Normal invoices' });
   return chips;
 }
 

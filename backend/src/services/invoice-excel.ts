@@ -109,14 +109,22 @@ function partyBlock(ws: ExcelJS.Worksheet, row: number, fromCol: string, toCol: 
   return rows;
 }
 
-/** Builds the invoice workbook: one A4-ready sheet laid out in the same sections as the PDF. */
-export async function renderInvoiceExcel(doc: InvoiceDocument): Promise<Buffer> {
+/** Excel does not allow these characters in a sheet name, and caps it at 31 characters. */
+const sheetName = (name: string) => name.replace(/[\\/?*[\]:]/g, ' ').trim().slice(0, 31) || 'Invoice';
+
+/** Builds the invoice workbook: one A4-ready sheet per document, laid out in the same sections as the PDF. A BOTH invoice gets a "Party" and a "Custom" sheet. */
+export async function renderInvoiceExcel(input: InvoiceDocument | InvoiceDocument[]): Promise<Buffer> {
+  const docs = Array.isArray(input) ? input : [input];
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Invoice Manager';
-  wb.title = `Invoice ${doc.invoiceNumber}`;
+  wb.title = `Invoice ${docs[0]!.invoiceNumber}`;
   wb.created = new Date();
+  docs.forEach((doc, index) => addInvoiceSheet(wb, doc, docs.length > 1 ? sheetName(`${doc.kindLabel === 'CUSTOM' ? 'Custom' : 'Party'} ${doc.invoiceNumber}`) : 'Invoice', index));
+  return Buffer.from(await wb.xlsx.writeBuffer());
+}
 
-  const ws = wb.addWorksheet('Invoice', {
+function addInvoiceSheet(wb: ExcelJS.Workbook, doc: InvoiceDocument, name: string, _index: number) {
+  const ws = wb.addWorksheet(name, {
     pageSetup: { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.6, header: 0.3, footer: 0.3 } },
     headerFooter: { oddFooter: `&L&8Invoice ${doc.invoiceNumber.replace(/&/g, '&&')}&R&8Page &P of &N` },
     views: [{ showGridLines: false }],
@@ -289,5 +297,4 @@ export async function renderInvoiceExcel(doc: InvoiceDocument): Promise<Buffer> 
   ws.pageSetup.printArea = `A1:${LAST_COL}${row}`;
   ws.pageSetup.printTitlesRow = `${tableHeaderRow}:${tableHeaderRow}`;
 
-  return Buffer.from(await wb.xlsx.writeBuffer());
 }

@@ -67,7 +67,7 @@ export default function InvoiceTable() {
       showToast("Couldn't create the actual invoice", error instanceof Error ? error.message : 'Please try again.', 'error');
     }
   };
-  const askCreateCounterpart = async (id: string, invoiceNumber: string, kind: 'NORMAL' | 'PARTY' | 'CUSTOM' | undefined) => {
+  const askCreateCounterpart = async (id: string, invoiceNumber: string, kind: 'NORMAL' | 'PARTY' | 'CUSTOM' | 'BOTH' | undefined) => {
     const target = kind === 'CUSTOM' ? 'party' : 'custom';
     const ok = await confirm({
       title: `Create the ${target} invoice for ${invoiceNumber}?`,

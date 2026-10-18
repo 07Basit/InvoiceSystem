@@ -181,6 +181,8 @@ async function whereFor(query: ListInvoicesQuery): Promise<Prisma.InvoiceWhereIn
 
   return {
     deletedAt: null,
+    // the hidden custom page of a BOTH invoice is never listed on its own
+    isCompanion: false,
     ...(importerIds.length ? { importerId: oneOrIn(importerIds) } : {}),
     ...(currencies.length ? { currency: oneOrIn(currencies) } : {}),
     ...(invoiceDate ? { invoiceDate } : {}),
@@ -291,6 +293,9 @@ export const invoiceService = {
         actualOfId: original.id,
         // an actual invoice is not a party / custom partner of anything, and prints the number it was made from
         counterpartOfId: null,
+        isCompanion: false,
+        // an actual made from a BOTH invoice is built from its party page and is a plain invoice
+        ...(original.invoiceKind === 'BOTH' ? { invoiceKind: 'NORMAL' } : {}),
         printedNumber: original.printedNumber ?? original.invoiceNumber,
         lineItems: { create: lineItems.map(({ id: _lineId, invoiceId: _invoiceId, ...line }) => line) },
       },
@@ -416,7 +421,36 @@ export const invoiceService = {
     return this.getByIdWithConversion(id);
   },
 
+  /**
+   * Creates an invoice. A BOTH invoice is saved as two rows: the party invoice (kind BOTH, the one everyone sees) and its custom page,
+   * a hidden companion row (kind CUSTOM) that carries the content of the custom page and points back at it.
+   */
   async create(dto: CreateInvoiceDto) {
+    if (dto.invoiceKind !== 'BOTH') return this.createRow(dto);
+
+    const { customVersion, ...partyDto } = dto;
+    if (!customVersion) throw new AppError('A party and custom invoice needs the content of its custom page', 400, 'CUSTOM_VERSION_REQUIRED');
+    const companionNumber = counterpartNumber(dto.invoiceNumber, 'CUSTOM');
+    if (await prisma.invoice.findUnique({ where: { invoiceNumber: companionNumber }, select: { id: true } })) {
+      throw new AppError(`An invoice named ${companionNumber} already exists (it may be in the Recycle Bin)`, 409, 'COUNTERPART_NUMBER_TAKEN');
+    }
+
+    const main = await this.createRow(partyDto);
+    try {
+      await this.createRow(
+        { ...customVersion, importerId: dto.importerId, invoiceNumber: companionNumber, invoiceKind: 'CUSTOM' },
+        { counterpartOfId: main.id, isCompanion: true, printedNumber: dto.invoiceNumber },
+      );
+    } catch (error) {
+      // never leave a half-made pair behind
+      await prisma.$transaction([prisma.lineItem.deleteMany({ where: { invoiceId: main.id } }), prisma.invoice.delete({ where: { id: main.id } })]);
+      throw error;
+    }
+    return main;
+  },
+
+  /** One invoice row; `extra` is for the hidden custom page of a BOTH invoice. */
+  async createRow(dto: Omit<CreateInvoiceDto, 'customVersion'>, extra: { counterpartOfId?: string; isCompanion?: boolean; printedNumber?: string } = {}) {
     const importer = await prisma.importer.findFirst({
       where: { id: dto.importerId, deletedAt: null },
       include: { landingLocations: true, loadingLocations: true },
@@ -468,6 +502,9 @@ export const invoiceService = {
       data: {
         invoiceNumber: dto.invoiceNumber,
         invoiceKind: dto.invoiceKind ?? 'NORMAL',
+        ...(extra.counterpartOfId ? { counterpartOfId: extra.counterpartOfId } : {}),
+        ...(extra.isCompanion ? { isCompanion: true } : {}),
+        ...(extra.printedNumber ? { printedNumber: extra.printedNumber } : {}),
         invoiceDate: new Date(dto.invoiceDate),
         importerId: dto.importerId,
         landingLocationId: dto.landingLocationId ?? null,
@@ -523,7 +560,25 @@ export const invoiceService = {
     });
   },
 
+  /** Updates an invoice. For a BOTH invoice the custom page (customVersion) is saved on its hidden companion row, in step with the party page. */
   async update(id: string, dto: UpdateInvoiceDto) {
+    const { customVersion, ...partyDto } = dto;
+    const updated = await this.updateRow(id, partyDto);
+
+    const companion = await prisma.invoice.findFirst({ where: { counterpartOfId: id, isCompanion: true, deletedAt: null }, select: { id: true } });
+    if (companion) {
+      // the number and importer are shared with the party page
+      if (partyDto.invoiceNumber !== undefined) {
+        await prisma.invoice.update({ where: { id: companion.id }, data: { invoiceNumber: counterpartNumber(partyDto.invoiceNumber, 'CUSTOM'), printedNumber: partyDto.invoiceNumber } });
+      }
+      if (customVersion || partyDto.importerId) {
+        await this.updateRow(companion.id, { ...(customVersion ?? {}), ...(partyDto.importerId ? { importerId: partyDto.importerId } : {}) });
+      }
+    }
+    return updated;
+  },
+
+  async updateRow(id: string, dto: Omit<UpdateInvoiceDto, 'customVersion'>) {
     const current = await this.getById(id);
 
     const importerId = dto.importerId ?? current.importerId;
@@ -661,7 +716,7 @@ export const invoiceService = {
 
   /** The values the filter panel can offer: only things that actually appear on some invoice. */
   async filterOptions() {
-    const live = { deletedAt: null };
+    const live = { deletedAt: null, isCompanion: false };
     const [dates, currencies, loading, discharge, finals, countries, exporters, products] = await Promise.all([
       prisma.invoice.findMany({ where: live, select: { invoiceDate: true } }),
       prisma.invoice.findMany({ where: live, select: { currency: true }, distinct: ['currency'] }),
@@ -698,8 +753,19 @@ export const invoiceService = {
     return { ids: rows.slice(0, cap).map((r) => r.id), truncated: rows.length > cap };
   },
 
+  /** An invoice and, for a BOTH invoice, its hidden custom page: what the PDF, Excel, ZIP and share documents are built from. */
+  async getWithCompanion(id: string) {
+    const invoice = await this.getById(id);
+    const companionId = invoice.invoiceKind === 'BOTH' ? invoice.counterparts?.[0]?.id : undefined;
+    const companion = companionId ? await this.getById(companionId) : null;
+    return { invoice, companion };
+  },
+
   async softDelete(id: string) {
     await this.getById(id);
-    return prisma.invoice.update({ where: { id }, data: { deletedAt: new Date() } });
+    const now = new Date();
+    // a BOTH invoice takes its hidden custom page with it
+    await prisma.invoice.updateMany({ where: { counterpartOfId: id, isCompanion: true, deletedAt: null }, data: { deletedAt: now } });
+    return prisma.invoice.update({ where: { id }, data: { deletedAt: now } });
   },
 };

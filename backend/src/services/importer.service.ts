@@ -6,7 +6,7 @@ import type { CreateImporterDto, ListImportersQuery, PaginationMeta, UpdateImpor
 const importerInclude = {
   landingLocations: true,
   loadingLocations: true,
-  _count: { select: { invoices: { where: { deletedAt: null } } } },
+  _count: { select: { invoices: { where: { deletedAt: null, isCompanion: false } } } },
 } as const;
 
 export const importerService = {
@@ -79,7 +79,7 @@ export const importerService = {
       include: {
         ...importerInclude,
         invoices: {
-          where: { deletedAt: null },
+          where: { deletedAt: null, isCompanion: false },
           orderBy: { createdAt: 'desc' },
           take: 10,
           select: { id: true, invoiceNumber: true, total: true, createdAt: true },

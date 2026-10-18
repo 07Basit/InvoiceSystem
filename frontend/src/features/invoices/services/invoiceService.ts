@@ -100,8 +100,10 @@ export interface Invoice {
   actualOf?: { id: string; invoiceNumber: string } | null;
   /** The actual invoice made from this one, if there is one (at most one) */
   actuals?: { id: string; invoiceNumber: string }[];
-  /** NORMAL (the default), PARTY or CUSTOM. Only party and custom invoices have a partner. */
-  invoiceKind?: 'NORMAL' | 'PARTY' | 'CUSTOM';
+  /** NORMAL (the default), PARTY, CUSTOM or BOTH (a party page and a custom page in one invoice). Only party and custom invoices have a partner. */
+  invoiceKind?: 'NORMAL' | 'PARTY' | 'CUSTOM' | 'BOTH';
+  /** The hidden custom page of a BOTH invoice; it never shows on its own */
+  isCompanion?: boolean;
   /** Set on a party / custom partner: the invoice it was copied from; and the partner made from this invoice, if any (at most one) */
   counterpartOfId?: string | null;
   counterpartOf?: { id: string; invoiceNumber: string; invoiceKind: 'PARTY' | 'CUSTOM' } | null;
@@ -136,6 +138,16 @@ export function actualInvoiceState(invoice: Pick<Invoice, 'actualOfId' | 'actual
 /** The number to show for an invoice inside its documents and forms: copies carry the number of the invoice they were made from. */
 export const printedNumberOf = (invoice: Pick<Invoice, 'invoiceNumber' | 'printedNumber' | 'actualOf'>) =>
   invoice.printedNumber || invoice.actualOf?.invoiceNumber || invoice.invoiceNumber;
+
+/** The tag shown for an invoice type; a normal invoice has none. */
+export function kindTag(kind: Invoice['invoiceKind']): { label: string; className: string } | null {
+  switch (kind) {
+    case 'PARTY': return { label: 'Party', className: 'bg-muted text-muted-foreground' };
+    case 'CUSTOM': return { label: 'Custom', className: 'border-sky-200 bg-sky-50 text-sky-700' };
+    case 'BOTH': return { label: 'Party + Custom', className: 'border-violet-200 bg-violet-50 text-violet-700' };
+    default: return null;
+  }
+}
 
 /** A custom invoice never has an actual invoice. */
 export const canHaveActual = (invoice: Pick<Invoice, 'invoiceKind'>) => invoice.invoiceKind !== 'CUSTOM';

@@ -76,6 +76,8 @@ describe('party / custom filter', () => {
     expect(filterChips(f({ kind: 'party' }), (id) => id)[0]!.label).toBe('Party invoices');
     expect(filterChips(f({ kind: 'normal' }), (id) => id)[0]!.label).toBe('Normal invoices');
     expect(filtersToQuery(f({ kind: 'normal' }))).toEqual({ kind: 'normal' });
+    expect(filterChips(f({ kind: 'both' }), (id) => id)[0]!.label).toBe('Party + custom invoices');
+    expect(filtersToQuery(f({ kind: 'both' }))).toEqual({ kind: 'both' });
     expect(filtersToQuery(f({ kind: 'all' }))).toEqual({});
   });
 });

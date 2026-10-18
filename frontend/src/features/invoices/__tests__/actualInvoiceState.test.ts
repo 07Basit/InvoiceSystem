@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { actualInvoiceState, canHaveActual, counterpartState, printedNumberOf } from '../services/invoiceService';
+import { actualInvoiceState, canHaveActual, counterpartState, kindTag, printedNumberOf } from '../services/invoiceService';
 
 describe('actualInvoiceState', () => {
   it('can be created for a plain invoice', () => {
@@ -50,5 +50,22 @@ describe('printedNumberOf', () => {
     expect(printedNumberOf({ invoiceNumber: 'SMP-1 (Custom)', printedNumber: 'SMP-1' })).toBe('SMP-1');
     expect(printedNumberOf({ invoiceNumber: 'ACTUAL SMP-2', actualOf: { id: 'a', invoiceNumber: 'SMP-2' } })).toBe('SMP-2');
     expect(printedNumberOf({ invoiceNumber: 'SMP-3' })).toBe('SMP-3');
+  });
+});
+
+describe('kindTag', () => {
+  it('tags party, custom and both invoices, and leaves a normal invoice untagged', () => {
+    expect(kindTag('PARTY')?.label).toBe('Party');
+    expect(kindTag('CUSTOM')?.label).toBe('Custom');
+    expect(kindTag('BOTH')?.label).toBe('Party + Custom');
+    expect(kindTag('NORMAL')).toBeNull();
+    expect(kindTag(undefined)).toBeNull();
+  });
+});
+
+describe('a Both invoice', () => {
+  it('has no party / custom button (it already holds both) but can have an actual invoice', () => {
+    expect(counterpartState({ invoiceKind: 'BOTH' })).toMatchObject({ available: false });
+    expect(canHaveActual({ invoiceKind: 'BOTH' })).toBe(true);
   });
 });

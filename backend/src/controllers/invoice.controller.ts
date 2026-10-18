@@ -115,7 +115,7 @@ export const downloadInvoicesZip = asyncHandler(async (req: Request, res: Respon
   const { ids, formats } = req.body as ZipInvoicesDto;
   const wanted = [...new Set(ids)];
   const invoices = [];
-  for (const id of wanted) invoices.push(await invoiceService.getById(id));
+  for (const id of wanted) invoices.push(await invoiceService.getWithCompanion(id));
   const buffer = await zipInvoices(invoices, formats);
   logger.info('Invoice ZIP generated', { count: invoices.length, formats, action: 'download_invoices_zip' });
 
@@ -131,7 +131,7 @@ export const copyInvoicesZip = asyncHandler(async (req: Request, res: Response) 
   if (!nativeShare.isLocalRequest(req.socket.remoteAddress, req.headers['x-forwarded-for'])) throw new AppError('Only available from the computer running the server.', 403, 'NATIVE_SHARE_LOCAL_ONLY');
   const { ids, formats, text } = req.body as CopyZipDto;
   const invoices = [];
-  for (const id of new Set(ids)) invoices.push(await invoiceService.getById(id));
+  for (const id of new Set(ids)) invoices.push(await invoiceService.getWithCompanion(id));
   const filename = `invoices-${invoices.length}.zip`;
   const path = await nativeShare.writeTempFile(filename, await zipInvoices(invoices, formats));
   await nativeShare.copyFile(path, text);
@@ -149,9 +149,10 @@ export const listInvoiceIds = asyncHandler(async (req: Request, res: Response) =
 const dispositionOf = (req: Request) => (req.query['disposition'] === 'inline' ? 'inline' : 'attachment');
 
 export const downloadInvoicePdf = asyncHandler(async (req: Request, res: Response) => {
-  const invoice = await invoiceService.getById(String(req.params['id']));
+  const { invoice, companion } = await invoiceService.getWithCompanion(String(req.params['id']));
   const doc = buildInvoiceDocument(invoice);
-  const bytes = await renderInvoicePdf(doc);
+  // a BOTH invoice is one PDF with its party page first and its custom page second
+  const bytes = await renderInvoicePdf(companion ? [doc, buildInvoiceDocument(companion)] : doc);
   logger.info('Invoice PDF generated', { invoiceId: invoice.id, disposition: dispositionOf(req), action: 'download_invoice_pdf' });
 
   res.setHeader('Content-Type', 'application/pdf');
@@ -161,9 +162,10 @@ export const downloadInvoicePdf = asyncHandler(async (req: Request, res: Respons
 });
 
 export const downloadInvoiceExcel = asyncHandler(async (req: Request, res: Response) => {
-  const invoice = await invoiceService.getById(String(req.params['id']));
+  const { invoice, companion } = await invoiceService.getWithCompanion(String(req.params['id']));
   const doc = buildInvoiceDocument(invoice);
-  const buffer = await renderInvoiceExcel(doc);
+  // a BOTH invoice is one workbook with a Party sheet and a Custom sheet
+  const buffer = await renderInvoiceExcel(companion ? [doc, buildInvoiceDocument(companion)] : doc);
   logger.info('Invoice Excel generated', { invoiceId: invoice.id, action: 'download_invoice_excel' });
 
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -186,9 +188,10 @@ export const shareInvoiceNative = asyncHandler(async (req: Request, res: Respons
   if (!nativeShare.isLocalRequest(req.socket.remoteAddress, req.headers['x-forwarded-for'])) throw new AppError('Only available from the computer running the server.', 403, 'NATIVE_SHARE_LOCAL_ONLY');
 
   const { kind, text } = req.body as ShareNativeDto;
-  const invoice = await invoiceService.getById(String(req.params['id']));
+  const { invoice, companion } = await invoiceService.getWithCompanion(String(req.params['id']));
   const doc = buildInvoiceDocument(invoice);
-  const bytes = kind === 'pdf' ? await renderInvoicePdf(doc) : await renderInvoiceExcel(doc);
+  const docs = companion ? [doc, buildInvoiceDocument(companion)] : doc;
+  const bytes = kind === 'pdf' ? await renderInvoicePdf(docs) : await renderInvoiceExcel(docs);
   const filename = `invoice-${doc.fileName}.${kind === 'pdf' ? 'pdf' : 'xlsx'}`;
   const path = await nativeShare.writeTempFile(filename, bytes);
 

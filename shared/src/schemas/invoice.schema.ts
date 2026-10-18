@@ -28,11 +28,14 @@ export type LineItemDto = z.infer<typeof lineItemSchema>;
 // ---------------------------------------------------------------------------
 // Create Invoice
 // ---------------------------------------------------------------------------
-/** Normal (the default), party or custom. A party invoice and a custom invoice can each make the other (see "Create custom / party invoice"). */
-export const INVOICE_KINDS = ['NORMAL', 'PARTY', 'CUSTOM'] as const;
+/**
+ * Normal (the default), party, custom, or both. A party invoice and a custom invoice can each make the other (see "Create custom / party invoice").
+ * A BOTH invoice holds a party page and a custom page in one invoice (two pages in the PDF, two sheets in the Excel).
+ */
+export const INVOICE_KINDS = ['NORMAL', 'PARTY', 'CUSTOM', 'BOTH'] as const;
 export type InvoiceKind = (typeof INVOICE_KINDS)[number];
 
-export const createInvoiceSchema = z.object({
+const invoiceFieldsSchema = z.object({
   importerId: z.string().cuid('Invalid importer ID'),
   invoiceNumber: z.string().trim().min(1, 'Invoice number is required').max(120),
   // fixed when the invoice is created; a new invoice is a normal invoice unless it says otherwise
@@ -87,6 +90,14 @@ export const createInvoiceSchema = z.object({
   declaration: z.string().trim().max(2000).optional(),
 });
 
+/** The custom page of a BOTH invoice: every field of an invoice except the ones it shares with the party page (number, importer, type). */
+export const customVersionSchema = invoiceFieldsSchema.omit({ invoiceNumber: true, importerId: true, invoiceKind: true });
+export type CustomVersionDto = z.infer<typeof customVersionSchema>;
+
+export const createInvoiceSchema = invoiceFieldsSchema.extend({
+  // only for a BOTH invoice: the content of its custom page
+  customVersion: customVersionSchema.optional(),
+});
 export type CreateInvoiceDto = z.infer<typeof createInvoiceSchema>;
 
 // ---------------------------------------------------------------------------
@@ -123,7 +134,7 @@ export const listInvoicesQuerySchema = paginationQuerySchema.extend({
   // regular invoices, actual copies, or both
   type: z.enum(['all', 'regular', 'actual']).optional(),
   // normal, party or custom invoices (all of them when empty)
-  kind: z.enum(['normal', 'party', 'custom']).optional(),
+  kind: z.enum(['normal', 'party', 'custom', 'both']).optional(),
   sort: z.enum(['createdAt', 'invoiceDate', 'total', 'invoiceNumber']).default('createdAt'),
 });
 

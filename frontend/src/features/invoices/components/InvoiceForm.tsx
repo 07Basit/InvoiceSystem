@@ -4,6 +4,7 @@ import { Building2, ExternalLink, FileText, Landmark, PenLine, Package, Plus, Sc
 import { DEFAULT_DECLARATION, type CreateInvoiceDto } from 'shared';
 import { useClients } from '@/features/clients/hooks/useClients';
 import { useCreateInvoice, useInvoice, useUpdateInvoice } from '../hooks/useInvoices';
+import type { Invoice } from '../services/invoiceService';
 import { useExporterProfiles } from '../hooks/useExporterProfiles';
 import { useBankProfiles } from '../hooks/useBankProfiles';
 import { useDeclarationProfiles } from '../hooks/useDeclarationProfiles';
@@ -131,6 +132,34 @@ const bankFields = (p: BankProfile) => ({ bankName: p.bankName, bankAccountNumbe
 
 const exporterFields = (p: ExporterProfile) => ({ exporterName: p.name, exporterAddress: p.address, exporterContact: p.contact, exporterEmail: p.email ?? '' });
 
+/** The form values of a saved invoice: its own copy of every detail, not the importer's current ones. */
+const formFromInvoice = (invoice: Invoice): CreateInvoiceDto => (
+{
+      importerId: invoice.importerId, invoiceNumber: invoice.invoiceNumber, invoiceKind: invoice.invoiceKind ?? 'NORMAL', invoiceDate: invoice.invoiceDate,
+      exportersRef: invoice.exportersRef ?? '', otherReferences: invoice.otherReferences ?? '', awbNumber: invoice.awbNumber ?? '', buyersOrder: invoice.buyersOrder ?? '',
+      preCarriageBy: invoice.preCarriageBy ?? 'TRUCK BY ROAD', placeOfReceiptByPreCarrier: invoice.placeOfReceiptByPreCarrier ?? 'N/A',
+      vesselFlightNo: invoice.vesselFlightNo ?? 'By Air', loadingLocationId: invoice.loadingLocationId ?? undefined,
+      landingLocationId: invoice.landingLocationId ?? undefined, portOfLoading: invoice.portOfLoading ?? '',
+      portOfDischarge: invoice.portOfDischarge ?? '', finalDestination: invoice.finalDestination ?? '',
+      buyerName: invoice.buyerName ?? '',
+      // the invoice's own copy of the importer's details, not the importer's current ones
+      importerName: invoice.importerName ?? invoice.importer.name, importerAddress: invoice.importerAddress ?? '',
+      importerContact: invoice.importerContact ?? '', importerEmail: invoice.importerEmail ?? '',
+      countryOfOrigin: invoice.countryOfOrigin ?? '', countryOfDestination: invoice.countryOfDestination ?? '',
+      descriptionOfGoods: invoice.descriptionOfGoods ?? 'FRUITS & VEGETABLES', hsCode: invoice.hsCode ?? '709',
+      termsOfDelivery: invoice.termsOfDelivery ?? cnfTerms(invoice.finalDestination), termsOfPayment: invoice.termsOfPayment ?? 'ADVANCE',
+      currency: invoice.currency, exporterName: invoice.exporterName ?? '', exporterAddress: invoice.exporterAddress ?? '',
+      exporterContact: invoice.exporterContact ?? '', exporterEmail: invoice.exporterEmail ?? '',
+      bankName: invoice.bankName ?? '', bankAccountNumber: invoice.bankAccountNumber ?? '', bankIfscCode: invoice.bankIfscCode ?? '', bankSwiftCode: invoice.bankSwiftCode ?? '',
+      lineItems: invoice.lineItems.map((item) => {
+        const combined = item.marksAndNos || item.containerNo || '';
+        return { marksAndNos: combined, containerNo: combined, descriptionOfGoods: item.descriptionOfGoods, netWeightPerPackage: Number(item.netWeightPerPackage), numberOfBoxes: item.numberOfBoxes, ratePerKg: Number(item.ratePerKg) };
+      }),
+      totalGrossWeight: invoice.totalGrossWeight ?? undefined, roundOff: 0,
+      amountInWords: invoice.amountInWords ?? '', notes: invoice.notes ?? '', declaration: invoice.declaration ?? DEFAULT_DECLARATION, signName: invoice.signName ?? '', signImage: invoice.signImage ?? '',
+    }
+);
+
 export default function InvoiceForm() {
   const { isFormOpen, editingId, draftId, draftData, closeForm } = useInvoiceStore();
   const { data: invoiceData } = useInvoice(editingId ?? '');
@@ -165,9 +194,17 @@ export default function InvoiceForm() {
   const [signProfileId, setSignProfileId] = useState('');
   const [declarationProfileId, setDeclarationProfileId] = useState('');
   const [productListId, setProductListId] = useState(GENERAL_LIST);
+  // A "Both" invoice has two pages to fill: the party page and the custom page. `form` is the page on screen and `otherForm` the one
+  // that is not (it is made from the party page the first time the custom page is opened).
+  const [page, setPage] = useState<'party' | 'custom'>('party');
+  const [otherForm, setOtherForm] = useState<CreateInvoiceDto | null>(null);
 
   const isEditing = Boolean(editingId);
   const invoice = invoiceData?.data;
+  const bothMode = page === 'custom' || form.invoiceKind === 'BOTH';
+  // editing a Both invoice: its custom page is a second, hidden invoice
+  const companionId = isEditing && invoice?.invoiceKind === 'BOTH' ? invoice.counterparts?.[0]?.id : undefined;
+  const { data: companionData } = useInvoice(companionId ?? '');
   const allImporters = importersData?.data ?? [];
   // "Not needed" importers aren't offered for new invoices; an invoice being edited keeps its own importer selectable.
   const importers = allImporters.filter((i) => i.isActive !== false || i.id === form.importerId);
@@ -175,35 +212,28 @@ export default function InvoiceForm() {
 
   useEffect(() => {
     if (!invoice || !isEditing) return;
-    setForm({
-      importerId: invoice.importerId, invoiceNumber: invoice.invoiceNumber, invoiceKind: invoice.invoiceKind ?? 'NORMAL', invoiceDate: invoice.invoiceDate,
-      exportersRef: invoice.exportersRef ?? '', otherReferences: invoice.otherReferences ?? '', awbNumber: invoice.awbNumber ?? '', buyersOrder: invoice.buyersOrder ?? '',
-      preCarriageBy: invoice.preCarriageBy ?? 'TRUCK BY ROAD', placeOfReceiptByPreCarrier: invoice.placeOfReceiptByPreCarrier ?? 'N/A',
-      vesselFlightNo: invoice.vesselFlightNo ?? 'By Air', loadingLocationId: invoice.loadingLocationId ?? undefined,
-      landingLocationId: invoice.landingLocationId ?? undefined, portOfLoading: invoice.portOfLoading ?? '',
-      portOfDischarge: invoice.portOfDischarge ?? '', finalDestination: invoice.finalDestination ?? '',
-      buyerName: invoice.buyerName ?? '',
-      // the invoice's own copy of the importer's details, not the importer's current ones
-      importerName: invoice.importerName ?? invoice.importer.name, importerAddress: invoice.importerAddress ?? '',
-      importerContact: invoice.importerContact ?? '', importerEmail: invoice.importerEmail ?? '',
-      countryOfOrigin: invoice.countryOfOrigin ?? '', countryOfDestination: invoice.countryOfDestination ?? '',
-      descriptionOfGoods: invoice.descriptionOfGoods ?? 'FRUITS & VEGETABLES', hsCode: invoice.hsCode ?? '709',
-      termsOfDelivery: invoice.termsOfDelivery ?? cnfTerms(invoice.finalDestination), termsOfPayment: invoice.termsOfPayment ?? 'ADVANCE',
-      currency: invoice.currency, exporterName: invoice.exporterName ?? '', exporterAddress: invoice.exporterAddress ?? '',
-      exporterContact: invoice.exporterContact ?? '', exporterEmail: invoice.exporterEmail ?? '',
-      bankName: invoice.bankName ?? '', bankAccountNumber: invoice.bankAccountNumber ?? '', bankIfscCode: invoice.bankIfscCode ?? '', bankSwiftCode: invoice.bankSwiftCode ?? '',
-      lineItems: invoice.lineItems.map((item) => {
-        const combined = item.marksAndNos || item.containerNo || '';
-        return { marksAndNos: combined, containerNo: combined, descriptionOfGoods: item.descriptionOfGoods, netWeightPerPackage: Number(item.netWeightPerPackage), numberOfBoxes: item.numberOfBoxes, ratePerKg: Number(item.ratePerKg) };
-      }),
-      totalGrossWeight: invoice.totalGrossWeight ?? undefined, roundOff: 0,
-      amountInWords: invoice.amountInWords ?? '', notes: invoice.notes ?? '', declaration: invoice.declaration ?? DEFAULT_DECLARATION, signName: invoice.signName ?? '', signImage: invoice.signImage ?? '',
-    });
+    setForm(formFromInvoice(invoice));
+    setPage('party');
+    setOtherForm(null);
   }, [invoice, isEditing]);
 
   useEffect(() => {
-    if (!isFormOpen) { setForm(initialInvoice); setErrors({}); setSubmitError(null); setExporterProfileId(''); setBankProfileId(''); setSignProfileId(''); setDeclarationProfileId(''); return; }
-    if (!isEditing && draftData) { setForm(draftData); setErrors({}); setSubmitError(null); }
+    const companion = companionData?.data;
+    if (!invoice || !isEditing || !companion) return;
+    // the custom page shares the number and importer of the party page
+    setOtherForm({ ...formFromInvoice(companion), invoiceKind: 'CUSTOM', importerId: invoice.importerId, invoiceNumber: invoice.invoiceNumber });
+  }, [companionData, invoice, isEditing]);
+
+  useEffect(() => {
+    if (!isFormOpen) { setForm(initialInvoice); setPage('party'); setOtherForm(null); setErrors({}); setSubmitError(null); setExporterProfileId(''); setBankProfileId(''); setSignProfileId(''); setDeclarationProfileId(''); return; }
+    if (!isEditing && draftData) {
+      // a Both draft keeps its custom page inside `customVersion`
+      const { customVersion, ...partyPart } = draftData;
+      setForm(partyPart);
+      setPage('party');
+      setOtherForm(customVersion ? { ...partyPart, ...customVersion, invoiceKind: 'CUSTOM' } : null);
+      setErrors({}); setSubmitError(null);
+    }
   }, [isFormOpen, isEditing, draftData]);
 
   // A NEW invoice starts from the default exporter profile (or the only one). Editing never does this:
@@ -376,7 +406,13 @@ export default function InvoiceForm() {
       await saveDraftMutation.mutateAsync({
         id: draftId,
         // the (large) seal & sign image is not kept in the draft; the default is filled in again when it is reopened
-        data: { ...form, signName: '', signImage: '', currency: (resolvedCurrency || form.currency || '').toUpperCase() },
+        data: (() => {
+          const party = page === 'party' ? form : (otherForm ?? form);
+          const custom = page === 'custom' ? form : otherForm;
+          const slim = (f: CreateInvoiceDto): CreateInvoiceDto => ({ ...f, signName: '', signImage: '', currency: (f.currency || '').toUpperCase() });
+          const { invoiceNumber: _n, importerId: _i, invoiceKind: _k, customVersion: _c, ...customPart } = slim(custom ?? party);
+          return { ...slim(party), ...(party.invoiceKind === 'BOTH' && custom ? { customVersion: customPart } : {}) };
+        })(),
       });
       showToast('Draft saved', 'Invoice draft saved to your account.', 'success');
       closeForm();
@@ -385,32 +421,33 @@ export default function InvoiceForm() {
     }
   };
 
-  const validateForm = (): FieldErrors => {
+  const validateForm = (f: CreateInvoiceDto): FieldErrors => {
     const e: FieldErrors = {};
-    if (!form.importerId) e.importerId = 'Importer is required.';
-    if ((form.importerEmail ?? '').trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((form.importerEmail ?? '').trim())) e.importerEmail = 'Enter a valid email address.';
-    if (!form.invoiceNumber.trim()) e.invoiceNumber = 'Invoice number is required.';
-    if (!form.invoiceDate) e.invoiceDate = 'Invoice date is required.';
+    const netWeight = f.lineItems.reduce((sum, item) => sum + Number(item.netWeightPerPackage) * Number(item.numberOfBoxes), 0);
+    if (!f.importerId) e.importerId = 'Importer is required.';
+    if ((f.importerEmail ?? '').trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((f.importerEmail ?? '').trim())) e.importerEmail = 'Enter a valid email address.';
+    if (!f.invoiceNumber.trim()) e.invoiceNumber = 'Invoice number is required.';
+    if (!f.invoiceDate) e.invoiceDate = 'Invoice date is required.';
     if (!isEditing) {
-      if (!(form.exporterName ?? '').trim()) e.exporterName = 'Exporter name is required.';
-      if (!(form.exporterAddress ?? '').trim()) e.exporterAddress = 'Exporter address is required.';
-      if (!(form.exporterContact ?? '').trim()) e.exporterContact = 'Exporter contact is required.';
+      if (!(f.exporterName ?? '').trim()) e.exporterName = 'Exporter name is required.';
+      if (!(f.exporterAddress ?? '').trim()) e.exporterAddress = 'Exporter address is required.';
+      if (!(f.exporterContact ?? '').trim()) e.exporterContact = 'Exporter contact is required.';
     }
-    if ((form.exporterEmail ?? '').trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((form.exporterEmail ?? '').trim())) e.exporterEmail = 'Enter a valid email address.';
-    if (!(form.preCarriageBy ?? '').trim()) e.preCarriageBy = 'Pre-Carriage by is required.';
-    if (!(form.placeOfReceiptByPreCarrier ?? '').trim()) e.placeOfReceiptByPreCarrier = 'Place of Receipt is required.';
-    if (!(form.vesselFlightNo ?? '').trim()) e.vesselFlightNo = 'Vessel Flight No. is required.';
-    if (!(form.portOfLoading ?? '').trim()) e.portOfLoading = 'Port of Loading is required.';
-    if (!(form.portOfDischarge ?? '').trim()) e.portOfDischarge = 'Port of Discharge is required.';
-    if (!(form.finalDestination ?? '').trim()) e.finalDestination = 'Final Destination is required.';
-    if (!(form.countryOfOrigin ?? '').trim()) e.countryOfOrigin = 'Country of Origin is required.';
-    if (!(form.countryOfDestination ?? '').trim()) e.countryOfDestination = 'Country of Destination is required.';
-    if (!(form.descriptionOfGoods ?? '').trim()) e.descriptionOfGoods = 'Description of Goods is required.';
-    if (!(form.hsCode ?? '').trim()) e.hsCode = 'HS Code is required.';
-    if (!(form.termsOfPayment ?? '').trim()) e.termsOfPayment = 'Terms of Payment is required.';
-    if (!(resolvedCurrency || form.currency).trim()) e.currency = 'Currency is required.';
-    if (form.totalGrossWeight !== undefined && form.totalGrossWeight < totalNetWeight) e.totalGrossWeight = `Gross weight can't be less than the total nett weight (${formatNumber(totalNetWeight)} KGS).`;
-    form.lineItems.forEach((item, index) => {
+    if ((f.exporterEmail ?? '').trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((f.exporterEmail ?? '').trim())) e.exporterEmail = 'Enter a valid email address.';
+    if (!(f.preCarriageBy ?? '').trim()) e.preCarriageBy = 'Pre-Carriage by is required.';
+    if (!(f.placeOfReceiptByPreCarrier ?? '').trim()) e.placeOfReceiptByPreCarrier = 'Place of Receipt is required.';
+    if (!(f.vesselFlightNo ?? '').trim()) e.vesselFlightNo = 'Vessel Flight No. is required.';
+    if (!(f.portOfLoading ?? '').trim()) e.portOfLoading = 'Port of Loading is required.';
+    if (!(f.portOfDischarge ?? '').trim()) e.portOfDischarge = 'Port of Discharge is required.';
+    if (!(f.finalDestination ?? '').trim()) e.finalDestination = 'Final Destination is required.';
+    if (!(f.countryOfOrigin ?? '').trim()) e.countryOfOrigin = 'Country of Origin is required.';
+    if (!(f.countryOfDestination ?? '').trim()) e.countryOfDestination = 'Country of Destination is required.';
+    if (!(f.descriptionOfGoods ?? '').trim()) e.descriptionOfGoods = 'Description of Goods is required.';
+    if (!(f.hsCode ?? '').trim()) e.hsCode = 'HS Code is required.';
+    if (!(f.termsOfPayment ?? '').trim()) e.termsOfPayment = 'Terms of Payment is required.';
+    if (!f.currency.trim()) e.currency = 'Currency is required.';
+    if (f.totalGrossWeight !== undefined && f.totalGrossWeight < netWeight) e.totalGrossWeight = `Gross weight can't be less than the total nett weight (${formatNumber(netWeight)} KGS).`;
+    f.lineItems.forEach((item, index) => {
       if (!(item.descriptionOfGoods ?? '').trim()) e[`lineItems.${index}.descriptionOfGoods`] = 'Description is required.';
       if (Number(item.netWeightPerPackage) <= 0) e[`lineItems.${index}.netWeightPerPackage`] = 'Must be > 0.';
       if (!Number.isInteger(Number(item.numberOfBoxes)) || Number(item.numberOfBoxes) < 1) e[`lineItems.${index}.numberOfBoxes`] = 'Enter a whole number, 1 or more.';
@@ -419,22 +456,75 @@ export default function InvoiceForm() {
     return e;
   };
 
+  /** What is sent for one page: trimmed text, the amount in words and the line items worked out for that page. */
+  const buildPayload = (f: CreateInvoiceDto): CreateInvoiceDto => {
+    const pageTotal = f.lineItems.reduce((sum, item) => sum + Number(item.netWeightPerPackage) * Number(item.numberOfBoxes) * Number(item.ratePerKg), 0);
+    return {
+      ...f, invoiceDate: f.invoiceDate,
+      currency: (f.currency || '').toUpperCase(),
+      exporterName: f.exporterName?.trim() || undefined, exporterAddress: f.exporterAddress?.trim() || undefined,
+      exporterContact: f.exporterContact?.trim() || undefined, exporterEmail: f.exporterEmail?.trim() || undefined,
+      declaration: f.declaration?.trim() || DEFAULT_DECLARATION,
+      signName: f.signName?.trim() || undefined, signImage: f.signImage || undefined,
+      bankName: f.bankName?.trim() || undefined, bankAccountNumber: f.bankAccountNumber?.trim() || undefined,
+      bankIfscCode: f.bankIfscCode?.trim() || undefined, bankSwiftCode: f.bankSwiftCode?.trim() || undefined,
+      amountInWords: formatAmountInWords(pageTotal, (f.currency || 'USD').toUpperCase()), roundOff: 0,
+      lineItems: f.lineItems.map((item) => ({ ...item, containerNo: item.marksAndNos, netWeightPerPackage: Number(item.netWeightPerPackage), numberOfBoxes: Number(item.numberOfBoxes), ratePerKg: Number(item.ratePerKg) })),
+    };
+  };
+
+  /** Switches between the party page and the custom page. The custom page is made from the party page the first time it is opened. */
+  const goToPage = (target: 'party' | 'custom') => {
+    if (target === page) return;
+    let next: CreateInvoiceDto;
+    if (target === 'custom') {
+      // the number and importer are shared, so the custom page always follows the party page for those
+      next = { ...(otherForm ?? (JSON.parse(JSON.stringify(form)) as CreateInvoiceDto)), invoiceKind: 'CUSTOM', importerId: form.importerId, invoiceNumber: form.invoiceNumber };
+    } else {
+      next = otherForm ?? form;
+    }
+    setOtherForm(form);
+    setForm(next);
+    setPage(target);
+    setErrors({});
+    setSubmitError(null);
+  };
+
+  /** Starts the custom page again from what is on the party page. */
+  const copyPartyToCustom = () => {
+    if (page !== 'custom' || !otherForm) return;
+    setForm({ ...(JSON.parse(JSON.stringify(otherForm)) as CreateInvoiceDto), invoiceKind: 'CUSTOM' });
+    setErrors({});
+    showToast('Custom page refilled', 'It now has the same values as the party page.', 'success');
+  };
+
   const submitInvoice = async () => {
     setSubmitError(null);
-    const fieldErrors = validateForm();
-    if (Object.keys(fieldErrors).length > 0) { setErrors(fieldErrors); return; }
-    const payload: CreateInvoiceDto = {
-      ...form, invoiceDate: form.invoiceDate,
-      currency: (resolvedCurrency || form.currency).toUpperCase(),
-      exporterName: form.exporterName?.trim() || undefined, exporterAddress: form.exporterAddress?.trim() || undefined,
-      exporterContact: form.exporterContact?.trim() || undefined, exporterEmail: form.exporterEmail?.trim() || undefined,
-      declaration: form.declaration?.trim() || DEFAULT_DECLARATION,
-      signName: form.signName?.trim() || undefined, signImage: form.signImage || undefined,
-      bankName: form.bankName?.trim() || undefined, bankAccountNumber: form.bankAccountNumber?.trim() || undefined,
-      bankIfscCode: form.bankIfscCode?.trim() || undefined, bankSwiftCode: form.bankSwiftCode?.trim() || undefined,
-      amountInWords: autoAmountInWords, roundOff: 0,
-      lineItems: form.lineItems.map((item) => ({ ...item, containerNo: item.marksAndNos, netWeightPerPackage: Number(item.netWeightPerPackage), numberOfBoxes: Number(item.numberOfBoxes), ratePerKg: Number(item.ratePerKg) })),
-    };
+    const partyForm = page === 'party' ? form : (otherForm ?? form);
+    const customForm = bothMode ? { ...(page === 'custom' ? form : (otherForm ?? (JSON.parse(JSON.stringify(partyForm)) as CreateInvoiceDto))), invoiceKind: 'CUSTOM' as const, importerId: partyForm.importerId, invoiceNumber: partyForm.invoiceNumber } : null;
+
+    // every page is checked; if one has problems it is shown so they can be fixed there
+    const partyErrors = validateForm(partyForm);
+    const customErrors = customForm ? validateForm(customForm) : {};
+    if (Object.keys(partyErrors).length > 0 || Object.keys(customErrors).length > 0) {
+      const showParty = Object.keys(partyErrors).length > 0;
+      if (bothMode && showParty !== (page === 'party')) {
+        // jump to the page that has the problem
+        const other = showParty ? partyForm : customForm!;
+        setOtherForm(form);
+        setForm(other);
+        setPage(showParty ? 'party' : 'custom');
+      }
+      setErrors(showParty ? partyErrors : customErrors);
+      if (bothMode) showToast(showParty ? 'Fix the party page' : 'Fix the custom page', 'Some details need attention before the invoice can be saved.', 'error');
+      return;
+    }
+
+    let payload: CreateInvoiceDto = buildPayload(partyForm);
+    if (customForm) {
+      const { invoiceNumber: _n, importerId: _i, invoiceKind: _k, customVersion: _c, ...customPart } = buildPayload(customForm);
+      payload = { ...payload, invoiceKind: 'BOTH', customVersion: customPart };
+    }
     try {
       if (isEditing && editingId) {
         await updateMutation.mutateAsync({ id: editingId, dto: payload });
@@ -444,7 +534,7 @@ export default function InvoiceForm() {
         showToast('Invoice created', `${payload.invoiceNumber} created.`, 'success');
         if (draftId) deleteDraftMutation.mutate(draftId); // the draft became a real invoice
       }
-      closeForm(); setForm(initialInvoice); setErrors({});
+      closeForm(); setForm(initialInvoice); setOtherForm(null); setPage('party'); setErrors({});
     } catch (error) {
       if (error instanceof ApiClientError && error.details) {
         const ne: FieldErrors = {};
@@ -468,7 +558,7 @@ export default function InvoiceForm() {
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--primary))] text-white"><FileText className="h-4 w-4" /></span>
               <div className="min-w-0">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--primary))]">
-                  {isEditing ? 'Edit Invoice' : draftId ? 'Edit Draft Invoice' : 'New Invoice'}
+                  {isEditing ? 'Edit Invoice' : draftId ? 'Edit Draft Invoice' : 'New Invoice'}{bothMode ? ` · ${page === 'party' ? 'Party page (1 of 2)' : 'Custom page (2 of 2)'}` : ''}
                 </p>
                 <h2 className={cn('truncate text-lg font-bold leading-tight', !(originalNumber ?? form.invoiceNumber).trim() && 'font-medium text-muted-foreground')}>
                   {(originalNumber ?? form.invoiceNumber).trim() || 'Invoice no. not set'}
@@ -491,6 +581,27 @@ export default function InvoiceForm() {
           </div>
         </div>
 
+        {bothMode && (
+          <div role="tablist" aria-label="Invoice pages" className="shrink-0 flex flex-wrap items-center justify-between gap-3 border-b bg-background px-3 py-2 sm:px-4">
+            <div className="flex items-center gap-2">
+              {(['party', 'custom'] as const).map((target, i) => (
+                <button
+                  key={target}
+                  type="button"
+                  role="tab"
+                  aria-selected={page === target}
+                  onClick={() => goToPage(target)}
+                  className={cn('rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors', page === target ? 'border-[hsl(var(--brand-accent))] bg-[hsl(var(--brand-accent))] text-white' : 'hover:bg-accent')}
+                >
+                  {i + 1}. {target === 'party' ? 'Party invoice' : 'Custom invoice'}
+                </button>
+              ))}
+            </div>
+            {page === 'custom' ? (
+              <button type="button" onClick={copyPartyToCustom} className="shrink-0 rounded-md border px-2.5 py-1.5 text-xs font-medium hover:bg-accent">Copy from party page</button>
+            ) : null}
+          </div>
+        )}
         <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 bg-gradient-to-b from-[hsl(var(--primary)/0.07)] via-[hsl(var(--primary)/0.02)] to-[hsl(var(--brand-accent)/0.10)]">
           {submitError ? <div className="text-xs text-destructive bg-destructive/5 border border-destructive/30 rounded-md px-3 py-2">{submitError}</div> : null}
 
@@ -532,6 +643,7 @@ export default function InvoiceForm() {
                 searchPlaceholder="Search importers…"
                 labelClassName="w-auto max-w-[65%] truncate"
                 hasError={!!errors.importerId}
+                disabled={page === 'custom'}
                 className="input"
               />
               {errors.importerId ? <p className="err">{errors.importerId}</p> : null}
@@ -548,28 +660,30 @@ export default function InvoiceForm() {
           <Section title="Invoice Details" icon={FileText} tone="teal">
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-2">
-                <Field label="Invoice No" value={originalNumber ?? form.invoiceNumber} readOnly={!!originalNumber} error={errors.invoiceNumber} onChange={(v) => { clearFieldError('invoiceNumber'); setForm((p) => ({ ...p, invoiceNumber: v })); }} />
+                <Field label="Invoice No" value={originalNumber ?? form.invoiceNumber} readOnly={!!originalNumber || page === 'custom'} error={errors.invoiceNumber} onChange={(v) => { clearFieldError('invoiceNumber'); setForm((p) => ({ ...p, invoiceNumber: v })); }} />
                 <div>
                   <p className="label">Invoice type</p>
                   <div role="radiogroup" aria-label="Invoice type" className="flex gap-2">
-                    {(['NORMAL', 'PARTY', 'CUSTOM'] as const).map((kind) => (
+                    {(['NORMAL', 'PARTY', 'CUSTOM', 'BOTH'] as const).map((kind) => (
                       <button
                         key={kind}
                         type="button"
                         role="radio"
                         aria-checked={(form.invoiceKind ?? 'NORMAL') === kind}
-                        disabled={isEditing}
-                        onClick={() => setForm((p) => ({ ...p, invoiceKind: kind }))}
+                        disabled={isEditing || page === 'custom'}
+                        onClick={() => { setForm((p) => ({ ...p, invoiceKind: kind })); if (kind !== 'BOTH') setOtherForm(null); }}
                         className={cn(
                           'flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed',
                           (form.invoiceKind ?? 'NORMAL') === kind ? 'border-[hsl(var(--brand-accent))] bg-[hsl(var(--brand-accent)/0.1)] text-[hsl(var(--brand-accent))]' : 'hover:bg-accent disabled:opacity-50',
                         )}
                       >
-                        {kind === 'NORMAL' ? 'Normal' : kind === 'PARTY' ? 'Party' : 'Custom'}
+                        {kind === 'NORMAL' ? 'Normal' : kind === 'PARTY' ? 'Party' : kind === 'CUSTOM' ? 'Custom' : 'Both'}
                       </button>
                     ))}
                   </div>
-                  {isEditing && <p className="mt-1 text-[11px] text-muted-foreground">Fixed when the invoice is created.{form.invoiceKind === 'NORMAL' ? '' : ` Use the button on the invoice to make its ${form.invoiceKind === 'CUSTOM' ? 'party' : 'custom'} partner.`}</p>}
+                  {isEditing && <p className="mt-1 text-[11px] text-muted-foreground">Fixed when the invoice is created.{form.invoiceKind === 'NORMAL' || bothMode ? '' : ` Use the button on the invoice to make its ${form.invoiceKind === 'CUSTOM' ? 'party' : 'custom'} partner.`}</p>}
+                  {!isEditing && form.invoiceKind === 'BOTH' && <p className="mt-1 text-[11px] text-muted-foreground">Fill the party page, then open the custom page with the tab at the top. It starts with the same values.</p>}
+                  {page === 'custom' && <p className="mt-1 text-[11px] text-muted-foreground">The invoice type is set on the party page.</p>}
                 </div>
                 <div>
                   <label className="label">Invoice Date</label>

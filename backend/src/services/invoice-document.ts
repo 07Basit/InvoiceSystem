@@ -219,7 +219,8 @@ export function buildInvoiceDocument(invoice: InvoiceSource): InvoiceDocument {
 
   return {
     invoiceNumber: printedInvoiceNumber(invoice),
-    kindLabel: invoice.invoiceKind === 'CUSTOM' ? 'CUSTOM' : invoice.invoiceKind === 'PARTY' ? 'PARTY' : '',
+    // the party page of a BOTH invoice is labelled PARTY (its custom page is a CUSTOM invoice of its own)
+    kindLabel: invoice.invoiceKind === 'CUSTOM' ? 'CUSTOM' : invoice.invoiceKind === 'PARTY' || invoice.invoiceKind === 'BOTH' ? 'PARTY' : '',
     invoiceDate: formatDate(invoice.invoiceDate),
     currency: invoice.currency,
     exporter: party(text(invoice.exporterName), invoice.exporterAddress, invoice.exporterContact, invoice.exporterEmail),

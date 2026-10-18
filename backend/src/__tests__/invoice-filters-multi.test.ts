@@ -81,7 +81,7 @@ describe('invoiceService.list with several values and the new filters', () => {
 
   it('ignores blank values', async () => {
     await list({ importerId: [], currency: '', year: [] });
-    expect(whereOf()).toEqual({ deletedAt: null });
+    expect(whereOf()).toEqual({ deletedAt: null, isCompanion: false });
   });
 });
 

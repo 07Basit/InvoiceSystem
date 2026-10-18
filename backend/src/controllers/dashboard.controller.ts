@@ -23,7 +23,7 @@ export const getDashboardStats = asyncHandler(async (_req: Request, res: Respons
       select: { importerId: true, invoiceDate: true, total: true, currency: true, manualRate: true, manualRateBase: true },
     }),
     prisma.invoice.findMany({
-      where: { deletedAt: null },
+      where: { deletedAt: null, isCompanion: false },
       orderBy: { createdAt: 'desc' },
       take: 8,
       select: {

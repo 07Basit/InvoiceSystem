@@ -130,4 +130,11 @@ describe('InvoiceCard', () => {
     render(<InvoiceCard invoice={{ ...invoice, invoiceKind: 'PARTY', counterparts: [{ id: 'x', invoiceNumber: 'A (Custom)', invoiceKind: 'CUSTOM' }] }} {...handlers()} onCreateCounterpart={vi.fn()} />);
     expect(screen.getByRole('button', { name: 'Custom invoice already created' })).toBeDisabled();
   });
+
+  it('shows a Party + Custom tag on a Both invoice, with the actual button but no party / custom button', () => {
+    render(<InvoiceCard invoice={{ ...invoice, invoiceKind: 'BOTH' }} {...handlers()} onCreateCounterpart={vi.fn()} />);
+    expect(screen.getByText('Party + Custom')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /custom invoice|party invoice/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create actual invoice' })).toBeEnabled();
+  });
 });

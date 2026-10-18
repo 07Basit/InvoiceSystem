@@ -269,8 +269,9 @@ async function signature(w: Writer, doc: InvoiceDocument) {
   w.y = top - height;
 }
 
-function footers(w: Writer, doc: InvoiceDocument) {
-  const pages = w.doc.getPages();
+/** Footer on the pages of one invoice (`from` up to but not including `to`): its number, exporter and "Page x of y" within that invoice. */
+function footers(w: Writer, doc: InvoiceDocument, from: number, to: number) {
+  const pages = w.doc.getPages().slice(from, to);
   pages.forEach((page, i) => {
     page.drawLine({ start: { x: MARGIN, y: 38 }, end: { x: PAGE_W - MARGIN, y: 38 }, thickness: 0.5, color: LINE });
     const left = w.safe(`Invoice ${doc.invoiceNumber}  |  ${doc.exporter.name}`);
@@ -280,15 +281,27 @@ function footers(w: Writer, doc: InvoiceDocument) {
   });
 }
 
-/** Renders the structured invoice as an A4 PDF: sections in a fixed order, tables that flow onto further pages. */
-export async function renderInvoicePdf(doc: InvoiceDocument): Promise<Uint8Array> {
+/** Renders the structured invoice as an A4 PDF: sections in a fixed order, tables that flow onto further pages. Several documents (a BOTH invoice) follow one another in one PDF. */
+export async function renderInvoicePdf(input: InvoiceDocument | InvoiceDocument[]): Promise<Uint8Array> {
+  const docs = Array.isArray(input) ? input : [input];
+  const first = docs[0]!;
   const pdf = await PDFDocument.create();
-  pdf.setTitle(`Invoice ${doc.invoiceNumber}`);
-  pdf.setSubject(`Invoice from ${doc.exporter.name} to ${doc.importer.name}`);
+  pdf.setTitle(`Invoice ${first.invoiceNumber}`);
+  pdf.setSubject(`Invoice from ${first.exporter.name} to ${first.importer.name}`);
   pdf.setCreator('Invoice Manager');
   const w = new Writer(pdf);
   await w.init();
 
+  for (let i = 0; i < docs.length; i++) {
+    if (i > 0) w.newPage();
+    const from = pdf.getPageCount() - 1;
+    await drawDocument(w, docs[i]!);
+    footers(w, docs[i]!, from, pdf.getPageCount());
+  }
+  return pdf.save();
+}
+
+async function drawDocument(w: Writer, doc: InvoiceDocument) {
   // title band
   w.page.drawRectangle({ x: 0, y: PAGE_H - 72, width: PAGE_W, height: 72, color: TEAL });
   w.page.drawRectangle({ x: 0, y: PAGE_H - 76, width: PAGE_W, height: 4, color: ORANGE });
@@ -322,7 +335,4 @@ export async function renderInvoicePdf(doc: InvoiceDocument): Promise<Uint8Array
   w.y = startTop;
   await signature(w, doc);
   w.y = Math.min(w.y, afterDecl) - 4;
-
-  footers(w, doc);
-  return pdf.save();
 }

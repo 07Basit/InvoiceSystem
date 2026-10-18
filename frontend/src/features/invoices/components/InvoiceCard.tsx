@@ -3,7 +3,7 @@ import { CalendarDays, Download, Eye, FileDown, Package, Pencil, PlaneLanding, P
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import Tooltip from '@/components/ui/Tooltip';
 import { formatCountry, formatPortCode } from '@/lib/format';
-import { actualInvoiceState, canHaveActual, counterpartState, type InvoiceListItem } from '../services/invoiceService';
+import { actualInvoiceState, canHaveActual, counterpartState, kindTag, type InvoiceListItem } from '../services/invoiceService';
 
 interface InvoiceCardProps {
   invoice: InvoiceListItem;
@@ -51,6 +51,7 @@ export default function InvoiceCard({ invoice, onOpen, onPdf, onExcel, onPrint, 
   const hasRoute = !!(portOfLoading || portOfDischarge || finalDestination);
   const actual = actualInvoiceState(invoice);
   const counterpart = counterpartState(invoice);
+  const tag = kindTag(invoice.invoiceKind);
   const showFinal = !!finalDestination && finalDestination !== portOfDischarge;
 
   return (
@@ -67,11 +68,7 @@ export default function InvoiceCard({ invoice, onOpen, onPdf, onExcel, onPrint, 
         <div className="min-w-0">
           <p className="flex items-center gap-2 font-mono text-base font-bold">
             <span className="truncate">{invoice.invoiceNumber}</span>
-            {(invoice.invoiceKind === 'PARTY' || invoice.invoiceKind === 'CUSTOM') && (
-              <span className={cn('shrink-0 rounded-full border px-2 py-0.5 font-sans text-[10px] font-semibold uppercase tracking-wide', invoice.invoiceKind === 'CUSTOM' ? 'border-sky-200 bg-sky-50 text-sky-700' : 'bg-muted text-muted-foreground')}>
-                {invoice.invoiceKind === 'CUSTOM' ? 'Custom' : 'Party'}
-              </span>
-            )}
+            {tag && <span className={cn('shrink-0 rounded-full border px-2 py-0.5 font-sans text-[10px] font-semibold uppercase tracking-wide', tag.className)}>{tag.label}</span>}
           </p>
           <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
             <CalendarDays className="h-3.5 w-3.5" /> {formatDate(invoice.invoiceDate)}

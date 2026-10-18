@@ -7,7 +7,7 @@ export const recycleService = {
   async listDeleted() {
     const [invoices, importers] = await Promise.all([
       prisma.invoice.findMany({
-        where: { deletedAt: { not: null } },
+        where: { deletedAt: { not: null }, isCompanion: false },
         select: {
           id: true,
           invoiceNumber: true,
@@ -43,6 +43,8 @@ export const recycleService = {
     if (type === 'invoice') {
       const record = await prisma.invoice.findFirst({ where: { id, deletedAt: { not: null } } });
       if (!record) throw new AppError('Deleted invoice not found', 404, 'NOT_FOUND');
+      // a BOTH invoice brings its custom page back with it
+      await prisma.invoice.updateMany({ where: { counterpartOfId: id, isCompanion: true }, data: { deletedAt: null } });
       return prisma.invoice.update({ where: { id }, data: { deletedAt: null } });
     }
 
@@ -60,7 +62,11 @@ export const recycleService = {
       const record = await prisma.invoice.findFirst({ where: { id, deletedAt: { not: null } } });
       if (!record) throw new AppError('Deleted invoice not found', 404, 'NOT_FOUND');
       // Delete line items first (child records), then the invoice. An actual invoice made from it keeps living on its own.
+      const companions = (await prisma.invoice.findMany({ where: { counterpartOfId: id, isCompanion: true }, select: { id: true } })).map((c) => c.id);
       await prisma.$transaction([
+        // the hidden custom page of a BOTH invoice goes with it
+        prisma.lineItem.deleteMany({ where: { invoiceId: { in: companions } } }),
+        prisma.invoice.deleteMany({ where: { id: { in: companions } } }),
         prisma.invoice.updateMany({ where: { actualOfId: id }, data: { actualOfId: null } }),
         prisma.invoice.updateMany({ where: { counterpartOfId: id }, data: { counterpartOfId: null } }),
         prisma.lineItem.deleteMany({ where: { invoiceId: id } }),

@@ -47,6 +47,7 @@ const KINDS: { id: InvoiceKindFilter; label: string }[] = [
   { id: 'normal', label: 'Normal' },
   { id: 'party', label: 'Party' },
   { id: 'custom', label: 'Custom' },
+  { id: 'both', label: 'Both' },
 ];
 
 const asOptions = (values: string[] | undefined, label: (v: string) => string = (v) => v): ChipOption[] => (values ?? []).map((value) => ({ value, label: label(value) }));
@@ -164,8 +165,8 @@ export default function InvoiceFilterPanel({ open, onClose, filters, onChange, o
             <FilterChipGroup ariaLabel="Exporters" selected={filters.exporters} onChange={(v) => set('exporters', v)} options={asOptions(options?.exporters)} emptyText="No exporters on invoices yet." />
           </Section>
 
-          <Section title="Normal / Party / Custom" count={filters.kind !== 'all' ? 1 : 0}>
-            <div role="radiogroup" aria-label="Normal, party or custom" className="flex flex-wrap gap-1.5">
+          <Section title="Normal / Party / Custom / Both" count={filters.kind !== 'all' ? 1 : 0}>
+            <div role="radiogroup" aria-label="Normal, party, custom or both" className="flex flex-wrap gap-1.5">
               {KINDS.map(({ id, label }) => (
                 <button
                   key={id}

@@ -36,9 +36,9 @@ describe('invoiceService.list date and currency filters', () => {
 
   it('filters by currency and importer, and adds nothing when no filter is given', async () => {
     await list({ currency: 'AED', importerId: 'imp1' });
-    expect(whereOf()).toMatchObject({ deletedAt: null, currency: 'AED', importerId: 'imp1' });
+    expect(whereOf()).toMatchObject({ deletedAt: null, isCompanion: false, currency: 'AED', importerId: 'imp1' });
 
     await list({});
-    expect(whereOf()).toEqual({ deletedAt: null });
+    expect(whereOf()).toEqual({ deletedAt: null, isCompanion: false });
   });
 });

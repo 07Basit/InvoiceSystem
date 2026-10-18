@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
-import { CalendarDays, Download, Eye, FileDown, Package, Pencil, PlaneLanding, PlaneTakeoff, Printer, Share2, Trash2 } from 'lucide-react';
+import { CalendarDays, Download, Eye, FileDown, Package, Pencil, PlaneLanding, PlaneTakeoff, Printer, Share2, Trash2, FileCheck2 } from 'lucide-react';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import Tooltip from '@/components/ui/Tooltip';
 import { formatCountry, formatPortCode } from '@/lib/format';
-import type { InvoiceListItem } from '../services/invoiceService';
+import { actualInvoiceState, type InvoiceListItem } from '../services/invoiceService';
 
 interface InvoiceCardProps {
   invoice: InvoiceListItem;
@@ -12,6 +12,9 @@ interface InvoiceCardProps {
   onExcel: () => void;
   onPrint: () => void;
   onShare: () => void;
+  onCreateActual: () => void;
+  /** Making the actual invoice right now */
+  creatingActual?: boolean;
   /** A document action is already running */
   documentsBusy?: boolean;
   onEdit: () => void;
@@ -19,7 +22,7 @@ interface InvoiceCardProps {
   deleting?: boolean;
 }
 
-function ActionButton({ label, onClick, children, danger, disabled }: { label: string; onClick: () => void; children: ReactNode; danger?: boolean; disabled?: boolean }) {
+function ActionButton({ label, onClick, children, danger, disabled, greyed }: { label: string; onClick: () => void; children: ReactNode; danger?: boolean; disabled?: boolean; greyed?: boolean }) {
   return (
     <Tooltip label={label} align="end">
       <button
@@ -27,7 +30,7 @@ function ActionButton({ label, onClick, children, danger, disabled }: { label: s
         onClick={(e) => { e.stopPropagation(); onClick(); }}
         disabled={disabled}
         aria-label={label}
-        className={cn('p-2 rounded-md transition-colors disabled:opacity-50', danger ? 'hover:bg-destructive/10' : 'hover:bg-accent')}
+        className={cn('p-2 rounded-md transition-colors disabled:opacity-50', danger ? 'hover:bg-destructive/10' : 'hover:bg-accent', greyed && 'cursor-not-allowed text-muted-foreground opacity-40 grayscale hover:bg-transparent')}
       >
         {children}
       </button>
@@ -35,17 +38,18 @@ function ActionButton({ label, onClick, children, danger, disabled }: { label: s
   );
 }
 
-export default function InvoiceCard({ invoice, onOpen, onPdf, onExcel, onPrint, onShare, documentsBusy, onEdit, onDelete, deleting }: InvoiceCardProps) {
+export default function InvoiceCard({ invoice, onOpen, onPdf, onExcel, onPrint, onShare, onCreateActual, creatingActual, documentsBusy, onEdit, onDelete, deleting }: InvoiceCardProps) {
   const importerName = invoice.importerName ?? invoice.importer.name; // the invoice's own copy
   const { portOfLoading, portOfDischarge, finalDestination, countryOfOrigin, countryOfDestination } = invoice;
   const hasRoute = !!(portOfLoading || portOfDischarge || finalDestination);
+  const actual = actualInvoiceState(invoice);
   const showFinal = !!finalDestination && finalDestination !== portOfDischarge;
 
   return (
     <div
       onClick={onOpen}
       className={cn(
-        'group cursor-pointer rounded-xl border bg-card card-pattern p-4 space-y-3 transition-all hover:shadow-md hover:border-[hsl(var(--brand-accent))]/40',
+        'group cursor-pointer rounded-xl border bg-card card-pattern p-4 flex flex-col gap-3 transition-all hover:shadow-md hover:border-[hsl(var(--brand-accent))]/40',
         invoice.excludedFromRevenue && 'bg-none bg-amber-50 border-amber-200',
       )}
     >
@@ -101,7 +105,7 @@ export default function InvoiceCard({ invoice, onOpen, onPdf, onExcel, onPrint, 
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-2 border-t pt-2.5">
+      <div className="mt-auto flex items-center justify-between gap-2 border-t pt-2.5">
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Package className="h-3.5 w-3.5" />
           {invoice.totalBoxes} {invoice.totalBoxes === 1 ? 'box' : 'boxes'} · {Number(invoice.totalNetWeight).toLocaleString('en-US', { maximumFractionDigits: 2 })} kg
@@ -112,6 +116,7 @@ export default function InvoiceCard({ invoice, onOpen, onPdf, onExcel, onPrint, 
           <ActionButton label="Download PDF" onClick={onPdf} disabled={!!documentsBusy}><FileDown className="h-3.5 w-3.5" /></ActionButton>
           <ActionButton label="Download Excel" onClick={onExcel} disabled={!!documentsBusy}><Download className="h-3.5 w-3.5" /></ActionButton>
           <ActionButton label="Share invoice" onClick={onShare}><Share2 className="h-3.5 w-3.5" /></ActionButton>
+          <ActionButton label={actual.label} onClick={onCreateActual} disabled={!actual.canCreate || !!creatingActual} greyed={!actual.canCreate}><FileCheck2 className="h-3.5 w-3.5" /></ActionButton>
           <ActionButton label="Edit invoice" onClick={onEdit}><Pencil className="h-3.5 w-3.5" /></ActionButton>
           <ActionButton label="Delete invoice" onClick={onDelete} danger disabled={!!deleting}><Trash2 className="h-3.5 w-3.5 text-destructive" /></ActionButton>
         </div>

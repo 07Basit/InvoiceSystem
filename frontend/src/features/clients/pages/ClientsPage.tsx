@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { Building2, Plus, Trash2, Save, MapPin, Ship, Users, type LucideIcon } from 'lucide-react';
 import { createImporterSchema, type CreateImporterDto } from 'shared';
+import { useDeleteDraft, useDrafts, useSaveDraft } from '@/features/drafts/hooks/useDrafts';
+import type { Draft } from '@/features/drafts/services/draftService';
 import { useClients, useCreateClient, useDeleteClient, useImporterSummary, useUpdateClient } from '../hooks/useClients';
 import type { Importer } from '../services/clientService';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
@@ -33,14 +35,7 @@ const emptyImporter: CreateImporterDto = {
   ],
 };
 
-const importerDraftListKey = 'importer-draft-list-v1';
 type FieldErrors = Record<string, string>;
-
-interface ImporterDraft {
-  id: string;
-  createdAt: string;
-  data: CreateImporterDto;
-}
 
 export default function ClientsPage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -70,16 +65,10 @@ export default function ClientsPage() {
   const [form, setForm] = useState<CreateImporterDto>(emptyImporter);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [drafts, setDrafts] = useState<ImporterDraft[]>(() => {
-    try {
-      const raw = localStorage.getItem(importerDraftListKey);
-      if (!raw) return [];
-      const parsed = JSON.parse(raw) as ImporterDraft[];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  });
+  const { data: draftData } = useDrafts<CreateImporterDto>('importer');
+  const saveDraftMutation = useSaveDraft<CreateImporterDto>('importer');
+  const deleteDraftMutation = useDeleteDraft('importer');
+  const drafts = draftData ?? [];
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
 
   const importers = data?.data ?? [];
@@ -163,7 +152,7 @@ export default function ClientsPage() {
     setIsFormOpen(true);
   };
 
-  const openDraft = (draft: ImporterDraft) => {
+  const openDraft = (draft: Draft<CreateImporterDto>) => {
     setEditing(null);
     setEditingDraftId(draft.id);
     setErrors({});
@@ -172,11 +161,13 @@ export default function ClientsPage() {
     setIsFormOpen(true);
   };
 
-  const deleteDraft = (draftId: string) => {
-    const next = drafts.filter((item) => item.id !== draftId);
-    setDrafts(next);
-    localStorage.setItem(importerDraftListKey, JSON.stringify(next));
-    showToast('Draft deleted', 'Importer draft was removed.', 'info');
+  const deleteDraft = async (draftId: string) => {
+    try {
+      await deleteDraftMutation.mutateAsync(draftId);
+      showToast('Draft deleted', 'Importer draft was removed.', 'info');
+    } catch (error) {
+      showToast("Couldn't delete the draft", error instanceof Error ? error.message : 'Please try again.', 'error');
+    }
   };
 
   const closeForm = () => {
@@ -247,22 +238,15 @@ export default function ClientsPage() {
     }
   };
 
-  const saveDraft = () => {
-    const now = new Date().toISOString();
-    const draft: ImporterDraft = {
-      id: editingDraftId ?? `draft-${Date.now()}`,
-      createdAt: now,
-      data: form,
-    };
-
-    const next = editingDraftId
-      ? drafts.map((item) => (item.id === editingDraftId ? draft : item))
-      : [draft, ...drafts];
-
-    setDrafts(next);
-    localStorage.setItem(importerDraftListKey, JSON.stringify(next));
-    showToast('Draft saved', 'Draft importer added to the list.', 'success');
-    closeForm();
+  /** Saves the form as a draft in the database (updating it when this form was opened from a draft). */
+  const saveDraft = async () => {
+    try {
+      await saveDraftMutation.mutateAsync({ id: editingDraftId, data: form });
+      showToast('Draft saved', 'Importer draft saved to your account.', 'success');
+      closeForm();
+    } catch (error) {
+      showToast("Couldn't save the draft", error instanceof Error ? error.message : 'Please try again.', 'error');
+    }
   };
 
   const saveImporter = async () => {
@@ -283,11 +267,7 @@ export default function ClientsPage() {
       } else {
         await createMutation.mutateAsync(payload);
         showToast('Importer created', `${payload.name} is ready to use in invoices.`, 'success');
-        if (editingDraftId) {
-          const next = drafts.filter((item) => item.id !== editingDraftId);
-          setDrafts(next);
-          localStorage.setItem(importerDraftListKey, JSON.stringify(next));
-        }
+        if (editingDraftId) deleteDraftMutation.mutate(editingDraftId); // the draft became a real importer
       }
 
       closeForm();
@@ -376,7 +356,7 @@ export default function ClientsPage() {
             email={draft.data.email}
             landing={draft.data.landingLocations}
             loading={draft.data.loadingLocations}
-            footnote={`Draft saved ${new Date(draft.createdAt).toLocaleString()}`}
+            footnote={`Draft saved ${new Date(draft.updatedAt).toLocaleString()}`}
             editLabel="Edit draft"
             deleteLabel="Delete draft"
             onEdit={() => openDraft(draft)}
@@ -568,7 +548,7 @@ export default function ClientsPage() {
             <div className="shrink-0 border-t bg-gradient-to-r from-[hsl(var(--primary)/0.08)] to-[hsl(var(--brand-accent)/0.12)] p-3">
               <div className="flex items-center justify-end gap-2 flex-wrap">
                 <button onClick={closeForm} className="px-3 py-1.5 text-sm border rounded-md bg-background hover:bg-accent shrink-0">Cancel</button>
-                <button onClick={saveDraft} className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm border rounded-md bg-background hover:bg-accent shrink-0">
+                <button onClick={saveDraft} disabled={saveDraftMutation.isPending} className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm border rounded-md bg-background hover:bg-accent shrink-0">
                   <Save className="h-3.5 w-3.5" /> Save Draft
                 </button>
                 <button

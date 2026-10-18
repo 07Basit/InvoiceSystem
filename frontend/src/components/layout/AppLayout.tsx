@@ -3,10 +3,12 @@ import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
 import ScrollToTop from '@/components/ui/ScrollToTop';
+import { useImportBrowserDrafts } from '@/features/drafts/hooks/useImportBrowserDrafts';
 
 export default function AppLayout() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
+  useImportBrowserDrafts(); // drafts saved in this browser before they lived in the database
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">

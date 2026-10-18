@@ -9,8 +9,9 @@ import Pagination from '@/components/ui/Pagination';
 import { INVOICES_TWO_COLUMNS_FROM, scrollMainToTop, usePageSize } from '@/lib/pagination';
 import InvoiceCard from './InvoiceCard';
 import ShareInvoiceDialog, { toShareable, type ShareableInvoice } from './ShareInvoiceDialog';
-import { useDeleteInvoice } from '../hooks/useInvoices';
+import { useCreateActualInvoice, useDeleteInvoice } from '../hooks/useInvoices';
 import { useConfirm } from '@/components/ui/confirm';
+import { useToast } from '@/components/ui/toast';
 
 export default function InvoiceTable() {
   const { search, filters, page, setPage, openEditForm, clearFilters } = useInvoiceStore();
@@ -50,6 +51,22 @@ export default function InvoiceTable() {
   const documents = useInvoiceDocuments();
   const [sharing, setSharing] = useState<ShareableInvoice | null>(null);
   const confirm = useConfirm();
+  const createActualMutation = useCreateActualInvoice();
+  const { showToast } = useToast();
+  const askCreateActual = async (id: string, invoiceNumber: string) => {
+    const ok = await confirm({
+      title: `Create the actual invoice for ${invoiceNumber}?`,
+      message: `A full copy named ACTUAL ${invoiceNumber} is created with all the same details. Only one actual invoice can be made from an invoice.`,
+      confirmLabel: 'Create actual invoice',
+    });
+    if (!ok) return;
+    try {
+      await createActualMutation.mutateAsync(id);
+      showToast('Actual invoice created', `ACTUAL ${invoiceNumber} is ready.`, 'success');
+    } catch (error) {
+      showToast("Couldn't create the actual invoice", error instanceof Error ? error.message : 'Please try again.', 'error');
+    }
+  };
   const askDelete = async (id: string, invoiceNumber: string) => {
     const ok = await confirm({
       title: `Delete invoice ${invoiceNumber}?`,
@@ -92,6 +109,8 @@ export default function InvoiceTable() {
             documentsBusy={documents.isBusy}
             onPrint={() => documents.print(invoice.id)}
             onShare={() => setSharing(toShareable(invoice))}
+            onCreateActual={() => askCreateActual(invoice.id, invoice.invoiceNumber)}
+            creatingActual={createActualMutation.isPending}
             onPdf={() => documents.downloadPdf(invoice.id)}
             onExcel={() => documents.downloadExcel(invoice.id)}
             onEdit={() => openEditForm(invoice.id)}

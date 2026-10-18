@@ -37,6 +37,13 @@ export const createInvoice = asyncHandler(async (req: Request, res: Response) =>
   res.status(201).json({ success: true, data: invoice, error: null, meta: null });
 });
 
+export const createActualInvoice = asyncHandler(async (req: Request, res: Response) => {
+  const invoice = await invoiceService.createActual(String(req.params['id']));
+  await events.invoiceCreated(actorOf(req), invoice.id);
+  logger.info('Actual invoice created', { invoiceId: invoice.id, originalId: String(req.params['id']), action: 'create_actual_invoice' });
+  res.status(201).json({ success: true, data: invoice, error: null, meta: null });
+});
+
 export const updateInvoice = asyncHandler(async (req: Request, res: Response) => {
   const dto = req.body as UpdateInvoiceDto;
   const id = String(req.params['id']);

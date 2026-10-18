@@ -15,6 +15,7 @@ import {
   exportInvoices,
   nativeShareStatus,
   shareInvoiceNative,
+  createActualInvoice,
 } from '../controllers/invoice.controller';
 import {
   createInvoiceSchema,
@@ -34,6 +35,7 @@ router.post('/import', importInvoices);
 router.get('/:id', getInvoice);
 router.get('/:id/download/pdf', downloadInvoicePdf);
 router.get('/:id/download/excel', downloadInvoiceExcel);
+router.post('/:id/actual', createActualInvoice);
 router.post('/:id/share/native', validate(shareNativeSchema), shareInvoiceNative);
 router.post('/', validate(createInvoiceSchema), createInvoice);
 router.put('/:id', validate(updateInvoiceSchema), updateInvoice);

@@ -30,6 +30,15 @@ function calculateLine(item: InvoiceLineInput) {
   };
 }
 
+/** Which invoice an actual invoice came from (and whether an invoice already has one), for the buttons and links. */
+const actualLinks = {
+  actuals: { where: { deletedAt: null }, select: { id: true, invoiceNumber: true }, take: 1 },
+  actualOf: { select: { id: true, invoiceNumber: true } },
+} as const;
+
+/** "SMP-DEMO-E" -> "ACTUAL SMP-DEMO-E". */
+export const actualNumber = (invoiceNumber: string) => `ACTUAL ${invoiceNumber}`;
+
 function calculateInvoiceTotals(lineItems: InvoiceLineInput[], roundOff: number) {
   const computed = lineItems.map((item) => ({
     totalBoxes: item.numberOfBoxes,
@@ -146,6 +155,7 @@ export const invoiceService = {
         include: {
           importer: { select: { id: true, name: true, currency: true } },
           lineItems: true,
+          ...actualLinks,
         },
         orderBy: { [sort]: order },
         skip: (page - 1) * limit,
@@ -178,6 +188,7 @@ export const invoiceService = {
         landingLocation: true,
         loadingLocation: true,
         lineItems: true,
+        ...actualLinks,
       },
     });
 
@@ -188,10 +199,41 @@ export const invoiceService = {
     return invoice;
   },
 
+  /**
+   * Makes the "actual" invoice: a full copy named "ACTUAL <number>", linked back to the original.
+   * Only one per invoice, and an actual invoice can't have an actual of its own.
+   */
+  async createActual(id: string) {
+    const original = await prisma.invoice.findFirst({
+      where: { id, deletedAt: null },
+      include: { lineItems: true, actuals: { where: { deletedAt: null }, select: { id: true } } },
+    });
+    if (!original) throw new AppError('Invoice not found', 404, 'INVOICE_NOT_FOUND');
+    if (original.actualOfId) throw new AppError('This already is an actual invoice', 400, 'ALREADY_ACTUAL');
+    if (original.actuals.length > 0) throw new AppError('An actual invoice was already created for this invoice', 409, 'ACTUAL_EXISTS');
+
+    const invoiceNumber = actualNumber(original.invoiceNumber);
+    if (await prisma.invoice.findUnique({ where: { invoiceNumber }, select: { id: true } })) {
+      throw new AppError(`An invoice named ${invoiceNumber} already exists (it may be in the Recycle Bin)`, 409, 'ACTUAL_NUMBER_TAKEN');
+    }
+
+    const { id: _id, createdAt: _created, updatedAt: _updated, deletedAt: _deleted, lineItems, actuals: _actuals, ...fields } = original;
+    return prisma.invoice.create({
+      data: {
+        ...fields,
+        invoiceNumber,
+        actualOfId: original.id,
+        lineItems: { create: lineItems.map(({ id: _lineId, invoiceId: _invoiceId, ...line }) => line) },
+      },
+      include: { importer: true, lineItems: true },
+    });
+  },
+
   /** Headline numbers for the Invoices page: counts and the total value in the reporting currency. */
   async summary() {
     const invoices = await prisma.invoice.findMany({
-      where: { deletedAt: null },
+      // an "actual" invoice is a copy of an original, so it is left out of the totals (nothing counted twice)
+      where: { deletedAt: null, actualOfId: null },
       select: { invoiceDate: true, total: true, currency: true, manualRate: true, manualRateBase: true },
     });
     const { baseCurrency, convert } = await currencyService.buildConverter(invoices);

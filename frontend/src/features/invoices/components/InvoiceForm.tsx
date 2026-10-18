@@ -6,6 +6,7 @@ import { useClients } from '@/features/clients/hooks/useClients';
 import { useCreateInvoice, useInvoice, useUpdateInvoice } from '../hooks/useInvoices';
 import { useExporterProfiles } from '../hooks/useExporterProfiles';
 import { useBankProfiles } from '../hooks/useBankProfiles';
+import { useDeleteDraft, useSaveDraft } from '@/features/drafts/hooks/useDrafts';
 import { useSignProfiles } from '../hooks/useSignProfiles';
 import type { SignProfile } from '../services/signService';
 import { bankLabel } from '@/features/auth/components/BankProfilesSection';
@@ -14,6 +15,7 @@ import type { ExporterProfile } from '../services/exporterService';
 import SearchCombobox from '@/components/ui/SearchCombobox';
 import DatePicker, { formatYmd } from '@/components/ui/DatePicker';
 import NumberInput from '@/components/ui/NumberInput';
+import { fitRatesToTotal, parseAmount } from '../utils/targetTotal';
 import { cn } from '@/lib/utils';
 import { formatNumber } from '@/lib/format';
 import { AirportSelect, CountrySelect, CurrencySelect } from '@/components/ui/PlacePickers';
@@ -21,16 +23,8 @@ import { useInvoiceStore } from '../store/invoiceStore';
 import { useToast } from '@/components/ui/toast';
 import { ApiClientError } from '@/services/api';
 
-const invoiceDraftListKey = 'invoice-draft-list-v1';
 
 type FieldErrors = Record<string, string>;
-
-interface InvoiceDraft {
-  id: string;
-  createdAt: string;
-  data: CreateInvoiceDto;
-}
-
 
 const initialInvoice: CreateInvoiceDto = {
   importerId: '',
@@ -121,9 +115,6 @@ function formatAmountInWords(amount: number, currency: string) {
   return `${mw} and ${toWords(minor)} ${fractionLabel(currency)}`;
 }
 
-function readInvoiceDrafts(): InvoiceDraft[] {
-  try { const raw = localStorage.getItem(invoiceDraftListKey); if (!raw) return []; const p = JSON.parse(raw) as InvoiceDraft[]; return Array.isArray(p) ? p : []; } catch { return []; }
-}
 /** Terms of Delivery are always "CNF" followed by the final destination's code (e.g. "CNF YYZ"). */
 export const cnfTerms = (finalDestination?: string | null) => `CNF${finalDestination?.trim() ? ` ${finalDestination.trim().toUpperCase()}` : ''}`;
 
@@ -147,6 +138,8 @@ export default function InvoiceForm() {
   const allExporterProfiles = exporterData?.data ?? [];
   // "Not needed" profiles are hidden from new invoices (an edited invoice's own copy is unaffected)
   const exporterProfiles = allExporterProfiles.filter((p) => p.isActive);
+  const saveDraftMutation = useSaveDraft<CreateInvoiceDto>('invoice');
+  const deleteDraftMutation = useDeleteDraft('invoice');
   const createMutation = useCreateInvoice();
   const updateMutation = useUpdateInvoice();
   const { showToast } = useToast();
@@ -250,6 +243,21 @@ export default function InvoiceForm() {
     }
   };
 
+  const [targetText, setTargetText] = useState('');
+  const [targetNote, setTargetNote] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
+
+  /** Sets the rate per kg of every product so the invoice adds up to the pasted total. */
+  const applyTargetTotal = () => {
+    const target = parseAmount(targetText);
+    if (!(target > 0)) { setTargetNote({ kind: 'error', text: 'Enter a total above zero.' }); return; }
+    const result = fitRatesToTotal(form.lineItems.map((item) => ({ kg: Number(item.netWeightPerPackage) * Number(item.numberOfBoxes), rate: Number(item.ratePerKg) })), target);
+    if (!result) { setTargetNote({ kind: 'error', text: 'Enter the boxes and weight of the products first.' }); return; }
+    setForm((p) => ({ ...p, lineItems: p.lineItems.map((item, i) => ({ ...item, ratePerKg: result.rates[i]! })) }));
+    form.lineItems.forEach((_, i) => clearFieldError(`lineItems.${i}.ratePerKg`));
+    setTargetText(formatNumber(target));
+    setTargetNote({ kind: 'ok', text: `Rates updated${result.oddIndex >= 0 ? `. Product ${result.oddIndex + 1} has a slightly different rate so the total matches exactly` : ''}. You can fix or rearrange any rate by hand if you want.` });
+  };
+
   const lineDetails = form.lineItems.map((item) => {
     const totalNetWeight = Number(item.netWeightPerPackage) * Number(item.numberOfBoxes);
     const totalPerBox = Number(item.netWeightPerPackage) * Number(item.ratePerKg);
@@ -299,18 +307,19 @@ export default function InvoiceForm() {
     setForm((p) => ({ ...p, loadingLocationId: loc.id, portOfLoading: loc.portOfLoading, countryOfOrigin: loc.countryOfOrigin }));
   };
 
-  const saveDraft = () => {
-    const draft: InvoiceDraft = {
-      id: draftId ?? `draft-${Date.now()}`, createdAt: new Date().toISOString(),
-      // the (large) seal & sign image is not kept in the draft; the default is filled in again when it is reopened
-      data: { ...form, signName: '', signImage: '', currency: (resolvedCurrency || form.currency || '').toUpperCase() },
-    };
-    const existing = readInvoiceDrafts();
-    const next = draftId ? existing.map((i) => (i.id === draft.id ? draft : i)) : [draft, ...existing];
-    localStorage.setItem(invoiceDraftListKey, JSON.stringify(next));
-    window.dispatchEvent(new Event('invoice-drafts-updated'));
-    showToast('Draft saved', 'Invoice draft saved.', 'success');
-    closeForm();
+  /** Saves the form as a draft in the database (updating it when this form was opened from a draft). */
+  const saveDraft = async () => {
+    try {
+      await saveDraftMutation.mutateAsync({
+        id: draftId,
+        // the (large) seal & sign image is not kept in the draft; the default is filled in again when it is reopened
+        data: { ...form, signName: '', signImage: '', currency: (resolvedCurrency || form.currency || '').toUpperCase() },
+      });
+      showToast('Draft saved', 'Invoice draft saved to your account.', 'success');
+      closeForm();
+    } catch (error) {
+      showToast("Couldn't save the draft", error instanceof Error ? error.message : 'Please try again.', 'error');
+    }
   };
 
   const validateForm = (): FieldErrors => {
@@ -370,11 +379,7 @@ export default function InvoiceForm() {
       } else {
         await createMutation.mutateAsync(payload);
         showToast('Invoice created', `${payload.invoiceNumber} created.`, 'success');
-        if (draftId) {
-          const nd = readInvoiceDrafts().filter((i) => i.id !== draftId);
-          localStorage.setItem(invoiceDraftListKey, JSON.stringify(nd));
-          window.dispatchEvent(new Event('invoice-drafts-updated'));
-        }
+        if (draftId) deleteDraftMutation.mutate(draftId); // the draft became a real invoice
       }
       closeForm(); setForm(initialInvoice); setErrors({});
     } catch (error) {
@@ -541,6 +546,25 @@ export default function InvoiceForm() {
 
           <Section title="Product Details" icon={Package} tone="orange">
             <div className="space-y-4">
+              <div className="rounded-lg border border-[hsl(var(--brand-accent))]/30 bg-[hsl(var(--brand-accent))]/5 p-3">
+                <label className="label" htmlFor="target-total">Target total{form.currency ? ` (${form.currency})` : ''}</label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    id="target-total"
+                    inputMode="decimal"
+                    autoComplete="off"
+                    placeholder="Paste the invoice total"
+                    value={targetText}
+                    onChange={(e) => { setTargetText(e.target.value); setTargetNote(null); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyTargetTotal(); } }}
+                    className="input min-w-[180px] flex-1"
+                  />
+                  <button type="button" onClick={applyTargetTotal} className="rounded-lg border bg-background px-3 py-2 text-sm font-semibold hover:bg-accent">Update rates</button>
+                </div>
+                <p className={cn('mt-1.5 text-xs', targetNote?.kind === 'error' ? 'text-destructive' : 'text-muted-foreground')} aria-live="polite">
+                  {targetNote?.text ?? 'Sets the rate per kg of each product so the invoice adds up to this total. Boxes and weights stay as they are.'}
+                </p>
+              </div>
               <div className="space-y-2">
                 {/* Phones: one stacked card per product */}
                 <div className="space-y-3 sm:hidden">
@@ -722,7 +746,7 @@ export default function InvoiceForm() {
         <div className="sticky bottom-0 shrink-0 border-t bg-gradient-to-r from-[hsl(var(--primary)/0.08)] to-[hsl(var(--brand-accent)/0.12)] p-3">
           <div className="flex items-center justify-end gap-2">
             <button onClick={closeForm} className="px-3 py-1.5 text-xs border rounded-md bg-background hover:bg-accent">Cancel</button>
-            <button onClick={saveDraft} className="px-3 py-1.5 text-xs border rounded-md bg-background hover:bg-accent">Save Draft</button>
+            <button onClick={saveDraft} disabled={saveDraftMutation.isPending} className="px-3 py-1.5 text-xs border rounded-md bg-background hover:bg-accent disabled:opacity-50">{saveDraftMutation.isPending ? 'Saving…' : 'Save Draft'}</button>
             <button onClick={submitInvoice} disabled={isPending} className="px-3 py-1.5 text-xs bg-[hsl(var(--brand-accent))] text-white rounded-md hover:opacity-90 disabled:opacity-50">
               {isEditing ? 'Save Invoice' : 'Create Invoice'}
             </button>

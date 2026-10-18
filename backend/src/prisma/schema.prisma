@@ -163,6 +163,10 @@ model Invoice {
   bankSwiftCode              String?
   signName                   String?
   signImage                  String?           @db.NVarChar(Max)
+  // An "actual" invoice is a full copy of an original, named "ACTUAL <number>". It points back to that original.
+  actualOfId                 String?
+  actualOf                   Invoice?         @relation("ActualInvoice", fields: [actualOfId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  actuals                    Invoice[]        @relation("ActualInvoice")
   lineItems                  LineItem[]
   totalBoxes                 Int              @default(0)
   totalNetWeight             Decimal          @default(0) @db.Decimal(12, 2)
@@ -186,6 +190,7 @@ model Invoice {
   @@index([landingLocationId])
   @@index([loadingLocationId])
   @@index([invoiceNumber])
+  @@index([actualOfId])
   @@index([invoiceDate])
   @@index([deletedAt])
 }
@@ -249,6 +254,7 @@ model User {
   updatedAt    DateTime  @updatedAt
 
   notifications Notification[]
+  drafts        Draft[]
 
   @@map("users")
 }
@@ -310,4 +316,21 @@ model SignProfile {
   updatedAt DateTime @updatedAt
 
   @@map("sign_profiles")
+}
+
+// A form someone saved half-finished ("Save draft"): an invoice or an importer. Private to the person who saved it.
+model Draft {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String   // invoice | importer
+  // shown in the drafts list: the invoice number or the importer name typed so far
+  title     String?
+  // the form's values as JSON
+  data      String   @db.NVarChar(Max)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, kind, updatedAt])
+  @@map("drafts")
 }

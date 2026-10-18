@@ -95,6 +95,11 @@ export interface Invoice {
   bankAccountNumber?: string | null;
   bankIfscCode?: string | null;
   bankSwiftCode?: string | null;
+  /** Set on an "actual" invoice: the invoice it was made from */
+  actualOfId?: string | null;
+  actualOf?: { id: string; invoiceNumber: string } | null;
+  /** The actual invoice made from this one, if there is one (at most one) */
+  actuals?: { id: string; invoiceNumber: string }[];
   lineItems: InvoiceLineItem[];
   totalBoxes: number;
   totalNetWeight: number;
@@ -113,6 +118,13 @@ export interface Invoice {
 
 export interface InvoiceListItem extends Omit<Invoice, 'lineItems'> {}
 
+/** Whether "Create actual invoice" can be used, and the text to show on the button. */
+export function actualInvoiceState(invoice: Pick<Invoice, 'actualOfId' | 'actuals'>): { canCreate: boolean; label: string } {
+  if (invoice.actualOfId) return { canCreate: false, label: 'This is already the actual invoice' };
+  if (invoice.actuals && invoice.actuals.length > 0) return { canCreate: false, label: 'Actual invoice already created' };
+  return { canCreate: true, label: 'Create actual invoice' };
+}
+
 export const invoiceService = {
   async getAll(query: Partial<ListInvoicesQuery> = {}) {
     const { data } = await apiClient.get<ApiResponse<InvoiceListItem[]>>('/invoices', { params: query });
@@ -126,6 +138,12 @@ export const invoiceService = {
 
   async getById(id: string) {
     const { data } = await apiClient.get<ApiResponse<Invoice>>(`/invoices/${id}`);
+    return data;
+  },
+
+  /** Copies this invoice into "ACTUAL <number>" with all the same content. */
+  async createActual(id: string) {
+    const { data } = await apiClient.post<ApiResponse<Invoice>>(`/invoices/${id}/actual`);
     return data;
   },
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { CreateInvoiceDto } from 'shared';
 import { useInvoiceStore } from '../store/invoiceStore';
@@ -12,31 +12,15 @@ import InvoiceFilters from '../components/InvoiceFilters';
 import { useClients } from '@/features/clients/hooks/useClients';
 import Tooltip from '@/components/ui/Tooltip';
 import { useInvoiceSummary } from '../hooks/useInvoices';
-
-const invoiceDraftListKey = 'invoice-draft-list-v1';
-
-interface InvoiceDraft {
-  id: string;
-  createdAt: string;
-  data: CreateInvoiceDto;
-}
-
-function readInvoiceDrafts() {
-  try {
-    const raw = localStorage.getItem(invoiceDraftListKey);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as InvoiceDraft[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
+import { useDeleteDraft, useDrafts } from '@/features/drafts/hooks/useDrafts';
 
 export default function InvoicesPage() {
   const { search, filters, openCreateForm, openDraftForm, setSearch, setFilter, clearFilters } = useInvoiceStore();
   const { data: importersData } = useClients({ limit: 100, sort: 'name' });
   const { showToast } = useToast();
-  const [drafts, setDrafts] = useState<InvoiceDraft[]>(() => readInvoiceDrafts());
+  const { data: draftData } = useDrafts<CreateInvoiceDto>('invoice');
+  const deleteDraftMutation = useDeleteDraft('invoice');
+  const drafts = draftData ?? [];
   const { data: summary } = useInvoiceSummary();
 
   // The top bar's "New invoice" arrives as /invoices?new=1: open the form once and tidy the URL
@@ -48,18 +32,13 @@ export default function InvoicesPage() {
     }
   }, [searchParams, setSearchParams, openCreateForm]);
 
-  useEffect(() => {
-    const handleDraftUpdate = () => setDrafts(readInvoiceDrafts());
-    window.addEventListener('invoice-drafts-updated', handleDraftUpdate);
-    return () => window.removeEventListener('invoice-drafts-updated', handleDraftUpdate);
-  }, []);
-
-  const deleteDraft = (draftId: string) => {
-    const next = drafts.filter((item) => item.id !== draftId);
-    setDrafts(next);
-    localStorage.setItem(invoiceDraftListKey, JSON.stringify(next));
-    window.dispatchEvent(new Event('invoice-drafts-updated'));
-    showToast('Draft deleted', 'Invoice draft was removed.', 'info');
+  const deleteDraft = async (draftId: string) => {
+    try {
+      await deleteDraftMutation.mutateAsync(draftId);
+      showToast('Draft deleted', 'Invoice draft was removed.', 'info');
+    } catch (error) {
+      showToast("Couldn't delete the draft", error instanceof Error ? error.message : 'Please try again.', 'error');
+    }
   };
 
   return (
@@ -128,7 +107,7 @@ export default function InvoicesPage() {
                 </div>
 
                 <p className="text-[10px] text-muted-foreground border-t border-amber-200/60 pt-2">
-                  Saved {new Date(draft.createdAt).toLocaleString()}
+                  Saved {new Date(draft.updatedAt).toLocaleString()}
                 </p>
               </div>
             ))}

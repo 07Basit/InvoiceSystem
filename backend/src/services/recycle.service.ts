@@ -59,8 +59,9 @@ export const recycleService = {
     if (type === 'invoice') {
       const record = await prisma.invoice.findFirst({ where: { id, deletedAt: { not: null } } });
       if (!record) throw new AppError('Deleted invoice not found', 404, 'NOT_FOUND');
-      // Delete line items first (child records), then the invoice
+      // Delete line items first (child records), then the invoice. An actual invoice made from it keeps living on its own.
       await prisma.$transaction([
+        prisma.invoice.updateMany({ where: { actualOfId: id }, data: { actualOfId: null } }),
         prisma.lineItem.deleteMany({ where: { invoiceId: id } }),
         prisma.invoice.delete({ where: { id } }),
       ]);
@@ -74,7 +75,7 @@ export const recycleService = {
       await prisma.$transaction([
         prisma.invoice.updateMany({
           where: { importerId: id },
-          data: { landingLocationId: null, loadingLocationId: null },
+          data: { landingLocationId: null, loadingLocationId: null, actualOfId: null },
         }),
         prisma.invoice.deleteMany({ where: { importerId: id } }),
         prisma.landingLocation.deleteMany({ where: { importerId: id } }),

@@ -9,6 +9,7 @@ import dashboardRouter from './dashboard-routes';
 import currencyRouter from './currency-routes';
 import notificationRouter from './notification-routes';
 import recycleRouter from './recycle-routes';
+import draftRouter from './draft-routes';
 import authRouter from './auth-routes';
 import { requireAuth, requireCsrfHeader } from '../middleware/auth';
 
@@ -27,5 +28,6 @@ apiRouter.use('/sign-profiles', signRouter);
 apiRouter.use('/documents', documentRouter);
 apiRouter.use('/dashboard', dashboardRouter);
 apiRouter.use('/recycle', recycleRouter);
+apiRouter.use('/drafts', draftRouter);
 apiRouter.use('/currency-settings', currencyRouter);
 apiRouter.use('/notifications', notificationRouter);

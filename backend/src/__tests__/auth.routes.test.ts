@@ -68,7 +68,7 @@ describe('POST /auth/login', () => {
 
 describe('protected API', () => {
   it('returns 401 for every resource without a session', async () => {
-    for (const path of ['/invoices', '/importers', '/documents', '/dashboard/overview', '/recycle', '/exporter-profiles', '/bank-profiles', '/sign-profiles', '/auth/me']) {
+    for (const path of ['/invoices', '/importers', '/documents', '/dashboard/overview', '/recycle', '/exporter-profiles', '/bank-profiles', '/sign-profiles', '/drafts?kind=invoice', '/auth/me']) {
       const res = await request(app).get(`${API}${path}`);
       expect(res.status).toBe(401);
     }

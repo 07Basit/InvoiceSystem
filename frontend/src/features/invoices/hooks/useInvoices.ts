@@ -13,6 +13,7 @@ export function useInvoices(query: Partial<ListInvoicesQuery> = {}) {
     queryKey: invoiceKeys.list(query),
     queryFn: () => invoiceService.getAll(query),
     placeholderData: keepPreviousData,
+    staleTime: 0, // always re-check when the list is opened, so the newest invoice is on top
   });
 }
 
@@ -28,6 +29,15 @@ export function useInvoice(id: string) {
     queryKey: invoiceKeys.detail(id),
     queryFn: () => invoiceService.getById(id),
     enabled: !!id,
+  });
+}
+
+/** Makes the "ACTUAL <number>" copy of an invoice. */
+export function useCreateActualInvoice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => invoiceService.createActual(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: invoiceKeys.all }),
   });
 }
 

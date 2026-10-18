@@ -1,16 +1,18 @@
 import { useState, type ReactNode } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
-  ArrowLeft, Building2, CalendarDays, Download, FileDown, FileText, Package, Pencil, Printer, Share2, Receipt, Ship, StickyNote, Truck, User,
+  ArrowLeft, Building2, CalendarDays, Download, FileDown, FileText, Package, Landmark, Pencil, Printer, Share2, FileCheck2, Receipt, Ship, ScrollText, Stamp, Truck, User,
 } from 'lucide-react';
-import { useInvoice } from '../hooks/useInvoices';
+import { useCreateActualInvoice, useInvoice } from '../hooks/useInvoices';
+import { useConfirm } from '@/components/ui/confirm';
+import { useToast } from '@/components/ui/toast';
 import { useInvoiceStore } from '../store/invoiceStore';
-import type { Invoice } from '../services/invoiceService';
+import { actualInvoiceState, type Invoice } from '../services/invoiceService';
 import { useInvoiceDocuments } from '../hooks/useInvoiceDocuments';
 import ShareInvoiceDialog, { toShareable } from '../components/ShareInvoiceDialog';
 import InvoiceForm from '../components/InvoiceForm';
 import ExchangeRatePanel from '../components/ExchangeRatePanel';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import { formatCountry, formatNumber, formatPortCode } from '@/lib/format';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import Tooltip from '@/components/ui/Tooltip';
@@ -41,7 +43,7 @@ const Grid = ({ children }: { children: ReactNode }) => (
   <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">{children}</dl>
 );
 
-function HeaderAction({ label, text, onClick, icon: Icon, primary, disabled }: { label: string; text: string; onClick: () => void; icon: typeof Printer; primary?: boolean; disabled?: boolean }) {
+function HeaderAction({ label, text, onClick, icon: Icon, primary, disabled, greyed }: { label: string; text: string; onClick: () => void; icon: typeof Printer; primary?: boolean; disabled?: boolean; greyed?: boolean }) {
   return (
     <Tooltip label={label} align="end">
       <button
@@ -50,7 +52,7 @@ function HeaderAction({ label, text, onClick, icon: Icon, primary, disabled }: {
         aria-label={label}
         className={primary
           ? 'flex items-center gap-2 px-3 py-2 text-sm bg-[hsl(var(--brand-accent))] text-white rounded-md hover:opacity-90 disabled:opacity-50'
-          : 'flex items-center gap-2 px-3 py-2 text-sm border rounded-md hover:bg-accent disabled:opacity-50'}
+          : cn('flex items-center gap-2 px-3 py-2 text-sm border rounded-md hover:bg-accent disabled:opacity-50', greyed && 'cursor-not-allowed text-muted-foreground opacity-40 grayscale hover:bg-transparent')}
       >
         <Icon className="h-4 w-4" /> <span className="hidden sm:inline">{text}</span>
       </button>
@@ -77,11 +79,31 @@ export default function InvoiceDetailPage() {
   const { openEditForm } = useInvoiceStore();
   const documents = useInvoiceDocuments();
   const [shareOpen, setShareOpen] = useState(false);
+  const confirm = useConfirm();
+  const { showToast } = useToast();
+  const createActualMutation = useCreateActualInvoice();
 
   if (isLoading) return <div className="flex justify-center py-16"><LoadingSpinner /></div>;
   if (isError || !data?.data) return <div className="text-center py-16 text-destructive">Invoice not found.</div>;
 
   const invoice = data.data;
+  const actual = actualInvoiceState(invoice);
+  const originalOfThis = invoice.actualOf ?? null;
+  const actualOfThis = invoice.actuals?.[0] ?? null;
+  const askCreateActual = async () => {
+    const ok = await confirm({
+      title: `Create the actual invoice for ${invoice.invoiceNumber}?`,
+      message: `A full copy named ACTUAL ${invoice.invoiceNumber} is created with all the same details. Only one actual invoice can be made from an invoice.`,
+      confirmLabel: 'Create actual invoice',
+    });
+    if (!ok) return;
+    try {
+      await createActualMutation.mutateAsync(invoice.id);
+      showToast('Actual invoice created', `ACTUAL ${invoice.invoiceNumber} is ready.`, 'success');
+    } catch (error) {
+      showToast("Couldn't create the actual invoice", error instanceof Error ? error.message : 'Please try again.', 'error');
+    }
+  };
   const cur = invoice.currency;
   const { importer } = invoice;
   const p = parties(invoice);
@@ -102,6 +124,8 @@ export default function InvoiceDetailPage() {
                 <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> Invoice Date {formatDate(invoice.invoiceDate)}</span>
                 <span className="hidden sm:inline">Created {formatDate(invoice.createdAt)}</span>
                 <span className="hidden sm:inline">Updated {formatDate(invoice.updatedAt)}</span>
+                {originalOfThis ? <Link to={`/invoices/${originalOfThis.id}`} className="font-semibold text-[hsl(var(--brand-accent))] hover:underline">Actual of {originalOfThis.invoiceNumber}</Link> : null}
+                {actualOfThis ? <Link to={`/invoices/${actualOfThis.id}`} className="font-semibold text-[hsl(var(--brand-accent))] hover:underline">Actual invoice: {actualOfThis.invoiceNumber}</Link> : null}
               </p>
             </div>
             <div className="flex items-center gap-2 print:hidden">
@@ -109,6 +133,7 @@ export default function InvoiceDetailPage() {
               <HeaderAction label="Download PDF" text="PDF" icon={FileDown} onClick={() => documents.downloadPdf(invoice.id)} disabled={documents.isBusy} />
               <HeaderAction label="Download Excel" text="Excel" icon={Download} onClick={() => documents.downloadExcel(invoice.id)} disabled={documents.isBusy} />
               <HeaderAction label="Share invoice" text="Share" icon={Share2} onClick={() => setShareOpen(true)} />
+              <HeaderAction label={actual.label} text="Actual" icon={FileCheck2} onClick={askCreateActual} disabled={!actual.canCreate || createActualMutation.isPending} greyed={!actual.canCreate} />
               <HeaderAction label="Edit invoice" text="Edit" icon={Pencil} primary onClick={() => openEditForm(invoice.id)} />
             </div>
           </div>
@@ -157,7 +182,6 @@ export default function InvoiceDetailPage() {
         </div>
       </Section>
 
-      {/* References */}
       <Section title="Shipping Details" icon={User}>
         <Grid>
           <Item label="Invoice No" value={invoice.invoiceNumber} />
@@ -170,7 +194,6 @@ export default function InvoiceDetailPage() {
         </Grid>
       </Section>
 
-      {/* Shipment */}
       <Section title="Route and Ports" icon={Ship}>
         <Grid>
           <Item label="Pre-Carriage by" value={invoice.preCarriageBy} />
@@ -196,33 +219,10 @@ export default function InvoiceDetailPage() {
         </Grid>
       </Section>
 
-      {/* Bank details: the invoice's own copy */}
-      <Section title="Bank Details" icon={Building2}>
-        <Grid>
-          <Item label="Bank Name" value={invoice.bankName} />
-          <Item label="Account Number" value={invoice.bankAccountNumber} />
-          <Item label="IFSC Code" value={invoice.bankIfscCode} />
-          <Item label="SWIFT Code" value={invoice.bankSwiftCode} />
-        </Grid>
-      </Section>
-
-      {invoice.declaration ? (
-        <Section title="Declaration" icon={Building2}>
-          <p className="whitespace-pre-line text-sm leading-relaxed">{invoice.declaration}</p>
-        </Section>
-      ) : null}
-
-      {invoice.signImage ? (
-        <Section title="Seal & Sign" icon={Building2}>
-          <img src={invoice.signImage} alt={invoice.signName ?? 'Seal and sign'} className="max-h-28 w-auto rounded-md border bg-white p-2 object-contain" />
-          {invoice.signName ? <p className="mt-1 text-xs text-muted-foreground">{invoice.signName}</p> : null}
-        </Section>
-      ) : null}
-
       {/* Line items */}
       <section className="rounded-xl border bg-card overflow-hidden">
         <h2 className="flex items-center gap-2 border-b px-5 py-3 text-sm font-semibold">
-          <Package className="h-4 w-4 text-muted-foreground" /> Line Items
+          <Package className="h-4 w-4 text-muted-foreground" /> Product Items
           <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">{invoice.lineItems.length}</span>
         </h2>
         <div className="overflow-x-auto">
@@ -273,10 +273,28 @@ export default function InvoiceDetailPage() {
         </div>
       </Section>
 
-      {/* Notes */}
-      <Section title="Notes" icon={StickyNote}>
-        {invoice.notes ? <p className="whitespace-pre-wrap text-sm">{invoice.notes}</p> : <p className="text-sm text-muted-foreground">No notes.</p>}
+      {/* Bank details: the invoice's own copy */}
+      <Section title="Bank Details" icon={Landmark}>
+        <Grid>
+          <Item label="Bank Name" value={invoice.bankName} />
+          <Item label="Account Number" value={invoice.bankAccountNumber} />
+          <Item label="IFSC Code" value={invoice.bankIfscCode} />
+          <Item label="SWIFT Code" value={invoice.bankSwiftCode} />
+        </Grid>
       </Section>
+
+      {invoice.declaration ? (
+        <Section title="Declaration" icon={ScrollText}>
+          <p className="whitespace-pre-line text-sm leading-relaxed">{invoice.declaration}</p>
+        </Section>
+      ) : null}
+
+      {invoice.signImage ? (
+        <Section title="Seal & Sign" icon={Stamp}>
+          <img src={invoice.signImage} alt={invoice.signName ?? 'Seal and sign'} className="max-h-28 w-auto rounded-md border bg-white p-2 object-contain" />
+          {invoice.signName ? <p className="mt-1 text-xs text-muted-foreground">{invoice.signName}</p> : null}
+        </Section>
+      ) : null}
 
       <p className="text-xs text-muted-foreground print:hidden">Importer: {invoice.importerName ?? importer.name} · Invoice ID {invoice.id}</p>
 

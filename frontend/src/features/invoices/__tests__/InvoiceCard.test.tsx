@@ -12,7 +12,7 @@ const invoice = {
 } as unknown as InvoiceListItem;
 
 const setup = (over: Partial<InvoiceListItem> = {}) => {
-  const handlers = { onOpen: vi.fn(), onPdf: vi.fn(), onExcel: vi.fn(), onPrint: vi.fn(), onShare: vi.fn(), onEdit: vi.fn(), onDelete: vi.fn() };
+  const handlers = { onOpen: vi.fn(), onPdf: vi.fn(), onExcel: vi.fn(), onPrint: vi.fn(), onShare: vi.fn(), onCreateActual: vi.fn(), onEdit: vi.fn(), onDelete: vi.fn() };
   render(<InvoiceCard invoice={{ ...invoice, ...over }} {...handlers} />);
   return { handlers, user: userEvent.setup() };
 };
@@ -33,7 +33,7 @@ describe('InvoiceCard', () => {
   it('labels every action with a hover tooltip', () => {
     setup();
     const tips = screen.getAllByRole('tooltip').map((t) => t.textContent);
-    expect(tips).toEqual(['View details', 'Print invoice', 'Download PDF', 'Download Excel', 'Share invoice', 'Edit invoice', 'Delete invoice']);
+    expect(tips).toEqual(['View details', 'Print invoice', 'Download PDF', 'Download Excel', 'Share invoice', 'Create actual invoice', 'Edit invoice', 'Delete invoice']);
   });
 
   it('opens on card click, but each action only runs its own handler', async () => {
@@ -59,5 +59,28 @@ describe('InvoiceCard', () => {
   it('flags an invoice that has no exchange rate', () => {
     setup({ excludedFromRevenue: true });
     expect(screen.getByText('Not in revenue')).toBeInTheDocument();
+  });
+
+  it('"Create actual invoice" works for an invoice that has none yet', async () => {
+    const { handlers, user } = setup();
+    const button = screen.getByRole('button', { name: 'Create actual invoice' });
+    expect(button).toBeEnabled();
+    await user.click(button);
+    expect(handlers.onCreateActual).toHaveBeenCalledTimes(1);
+  });
+
+  it('greys out the button once the actual invoice exists, so a second one cannot be made', async () => {
+    const { handlers, user } = setup({ actuals: [{ id: 'a1', invoiceNumber: 'ACTUAL INV-2026-001' }] });
+    const button = screen.getByRole('button', { name: 'Actual invoice already created' });
+    expect(button).toBeDisabled();
+    expect(button.className).toContain('grayscale');
+    await user.click(button);
+    expect(handlers.onCreateActual).not.toHaveBeenCalled();
+  });
+
+  it('greys out the button on the actual invoice itself', () => {
+    setup({ invoiceNumber: 'ACTUAL INV-2026-001', actualOfId: 'orig1' });
+    const button = screen.getByRole('button', { name: 'This is already the actual invoice' });
+    expect(button).toBeDisabled();
   });
 });

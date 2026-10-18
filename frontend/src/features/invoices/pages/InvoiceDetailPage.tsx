@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
-  ArrowLeft, Building2, CalendarDays, Download, FileDown, FileText, Package, Landmark, Pencil, Printer, Share2, FileCheck2, Receipt, Ship, ScrollText, Stamp, Truck, User,
+  Building2, CalendarDays, Download, FileDown, FileText, Package, Landmark, Pencil, Printer, Share2, FileCheck2, Receipt, Ship, ScrollText, Stamp, Truck, User,
 } from 'lucide-react';
 import { useCreateActualInvoice, useInvoice } from '../hooks/useInvoices';
 import { useConfirm } from '@/components/ui/confirm';
@@ -15,6 +15,7 @@ import ExchangeRatePanel from '../components/ExchangeRatePanel';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import { formatCountry, formatNumber, formatPortCode } from '@/lib/format';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import Tooltip from '@/components/ui/Tooltip';
 
 function Section({ title, icon: Icon, children }: { title: string; icon: typeof FileText; children: ReactNode }) {
@@ -110,9 +111,7 @@ export default function InvoiceDetailPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-5">
-      <Link to="/invoices" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground print:hidden">
-        <ArrowLeft className="h-4 w-4" /> Back to Invoices
-      </Link>
+      <Breadcrumbs items={[{ label: 'Invoices', to: '/invoices' }, { label: invoice.invoiceNumber }]} />
 
       {/* Fixed panel: invoice number down to the invoice amount stays visible while the rest scrolls */}
       <div className="sticky -top-4 z-20 -mx-4 bg-background px-4 pb-2 pt-4 sm:-top-6 sm:-mx-6 sm:px-6 sm:pt-6 print:static">

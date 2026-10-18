@@ -8,6 +8,9 @@ import { useExporterProfiles } from '../hooks/useExporterProfiles';
 import { useBankProfiles } from '../hooks/useBankProfiles';
 import { useDeclarationProfiles } from '../hooks/useDeclarationProfiles';
 import ProductPicker from './ProductPicker';
+import { useProductLists } from '../hooks/useProductLists';
+import { GENERAL_LIST, listsForImporter, priceInList, scopeOfList } from '../utils/productLists';
+import { useProducts } from '../hooks/useProducts';
 import type { Product } from '../services/productService';
 import { useDeleteDraft, useSaveDraft } from '@/features/drafts/hooks/useDrafts';
 import { useSignProfiles } from '../hooks/useSignProfiles';
@@ -138,6 +141,8 @@ export default function InvoiceForm() {
   const { data: bankData } = useBankProfiles();
   // "Not needed" accounts are hidden from new invoices (an edited invoice keeps its own copy)
   const bankProfiles = (bankData?.data ?? []).filter((p) => p.isActive);
+  const { data: productListData } = useProductLists();
+  const { data: productData } = useProducts();
   const { data: declarationData } = useDeclarationProfiles();
   const declarationProfiles = (declarationData?.data ?? []).filter((p) => p.isActive);
   const allExporterProfiles = exporterData?.data ?? [];
@@ -156,6 +161,7 @@ export default function InvoiceForm() {
   const [bankProfileId, setBankProfileId] = useState('');
   const [signProfileId, setSignProfileId] = useState('');
   const [declarationProfileId, setDeclarationProfileId] = useState('');
+  const [productListId, setProductListId] = useState(GENERAL_LIST);
 
   const isEditing = Boolean(editingId);
   const invoice = invoiceData?.data;
@@ -227,6 +233,38 @@ export default function InvoiceForm() {
     setSignProfileId(start.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFormOpen, isEditing, signData]);
+
+  // The product list the Description of Goods dropdown draws from: the general list unless the person picks one of this
+  // importer's lists. A chosen list is dropped (back to the general list) when it no longer belongs to the invoice's importer.
+  const landingName = selectedImporter?.landingLocations.find((l) => l.id === form.landingLocationId)?.name || undefined;
+  const allProductLists = productListData?.data ?? [];
+  const importerProductLists = listsForImporter(allProductLists, { importerId: form.importerId || undefined, currency: form.currency || undefined, locationName: landingName });
+  const chosenProductList = importerProductLists.find((l) => l.id === productListId);
+  useEffect(() => {
+    if (!isFormOpen) { setProductListId(GENERAL_LIST); return; }
+    if (productListId !== GENERAL_LIST && !importerProductLists.some((l) => l.id === productListId)) setProductListId(GENERAL_LIST);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFormOpen, form.importerId, productListData]);
+
+  /** Picking a list reprices the product lines from it: the list's price, or 0 when the product or its price is missing. */
+  const chooseProductList = (id: string) => {
+    setProductListId(id);
+    const scope = scopeOfList(importerProductLists.find((l) => l.id === id));
+    const products = productData?.data ?? [];
+    setForm((prev) => ({
+      ...prev,
+      lineItems: prev.lineItems.map((item) => (item.descriptionOfGoods.trim() ? { ...item, ratePerKg: priceInList(products, scope, item.descriptionOfGoods).price ?? 0 } : item)),
+    }));
+    form.lineItems.forEach((_, i) => clearFieldError(`lineItems.${i}.ratePerKg`));
+  };
+
+  /** A line with a product but no price is highlighted, with a note saying why when the chosen list is the reason. */
+  const needsPrice = (item: { descriptionOfGoods: string; ratePerKg: number | string }) => item.descriptionOfGoods.trim() !== '' && !Number(item.ratePerKg);
+  const priceNote = (item: { descriptionOfGoods: string; ratePerKg: number | string }) => {
+    if (!needsPrice(item)) return '';
+    const { found } = priceInList(productData?.data ?? [], scopeOfList(chosenProductList), item.descriptionOfGoods);
+    return found ? 'No price in this list. Enter the rate.' : 'Not in this list. Enter the rate.';
+  };
 
   // And the declaration: a NEW invoice starts from the default (or only) one, unless its wording was already changed.
   useEffect(() => {
@@ -568,6 +606,23 @@ export default function InvoiceForm() {
 
           <Section title="Product Details" icon={Package} tone="orange">
             <div className="space-y-4">
+              <div className="max-w-md">
+                <label className="label">Product list</label>
+                <SearchCombobox
+                  ariaLabel="Product list"
+                  value={productListId}
+                  onChange={chooseProductList}
+                  options={[
+                    { value: GENERAL_LIST, label: 'General list', description: 'all products' },
+                    ...importerProductLists.map((l) => ({ value: l.id, label: `${selectedImporter?.name ?? 'Importer'} · ${l.currency}`, description: l.locationName || 'All locations' })),
+                  ]}
+                  searchPlaceholder="Search product lists…"
+                  labelClassName="w-auto max-w-[70%] truncate"
+                  className="input"
+                  display={productListId === GENERAL_LIST ? 'General list' : chosenProductList ? `${selectedImporter?.name ?? 'Importer'} · ${chosenProductList.currency} · ${chosenProductList.locationName || 'All locations'}` : 'General list'}
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground">The product names and prices in the table below come from this list. A product that is not in it, or has no price, gets a rate of 0 and a yellow row. You can still change them on the invoice.</p>
+              </div>
               <div className="rounded-lg border border-[hsl(var(--brand-accent))]/30 bg-[hsl(var(--brand-accent))]/5 p-3">
                 <label className="label" htmlFor="target-total">Target total{form.currency ? ` (${form.currency})` : ''}</label>
                 <div className="flex flex-wrap items-center gap-2">
@@ -591,7 +646,7 @@ export default function InvoiceForm() {
                 {/* Phones: one stacked card per product */}
                 <div className="space-y-3 sm:hidden">
                   {form.lineItems.map((item, index) => (
-                    <div key={`card-${index}`} className="rounded-md border p-3 space-y-2">
+                    <div key={`card-${index}`} className={cn('rounded-md border p-3 space-y-2', needsPrice(item) && 'border-yellow-300 bg-yellow-100/70')}>
                       <div className="flex items-center justify-between">
                         <p className="text-xs font-semibold">Product {index + 1}</p>
                         {form.lineItems.length > 1 ? (
@@ -632,7 +687,7 @@ export default function InvoiceForm() {
                     </thead>
                     <tbody>
                       {form.lineItems.map((item, index) => (
-                        <tr key={`line-${index}`} className="border-t align-top">
+                        <tr key={`line-${index}`} className={cn('border-t align-top', needsPrice(item) && 'bg-yellow-100/70')}>
                           <td className="p-2 min-w-[200px]">{lineField(index, 'marks')}</td>
                           <td className="p-2 min-w-[160px]">{lineField(index, 'description')}</td>
                           <td className="p-2 min-w-[110px]">{lineField(index, 'weight')}</td>
@@ -814,11 +869,12 @@ export default function InvoiceForm() {
         <ProductPicker
           ariaLabel={`Description of goods for product ${index + 1}`}
           value={item.descriptionOfGoods}
-          scope={{ importerId: form.importerId || undefined, currency: form.currency || undefined, locationName: selectedImporter?.landingLocations.find((l) => l.id === form.landingLocationId)?.name || undefined }}
+          scope={scopeOfList(chosenProductList)}
           hasError={!!errors[`lineItems.${index}.descriptionOfGoods`]}
           onSelect={(text, product) => { clearFieldError(`lineItems.${index}.descriptionOfGoods`); pickProduct(index, text, product); }}
         />
         {err('descriptionOfGoods')}
+        {priceNote(item) ? <p className="mt-1 text-[11px] font-medium text-amber-700">{priceNote(item)}</p> : null}
       </>
     );
     if (field === 'weight') return num('netWeightPerPackage', 'Nett weight per package', { decimals: 3 });
@@ -826,21 +882,11 @@ export default function InvoiceForm() {
     return num('ratePerKg', 'Rate per kg', { decimals: 4 });
   }
 
-  /** Sets the product name on a line and fills the usual weight and rate (and HS code) where they are still empty. */
+  /** Sets the product on a line and its price from the chosen list: the list's price, or 0 when it has none (or the text is not in the list). */
   function pickProduct(index: number, text: string, product: Product | undefined) {
-    setForm((p) => {
-      const lineItems = p.lineItems.map((item, i) => {
-        if (i !== index) return item;
-        const filled = { ...item, descriptionOfGoods: text };
-        if (product?.nettWeightPerPackage != null && !Number(item.netWeightPerPackage)) filled.netWeightPerPackage = Number(product.nettWeightPerPackage);
-        if (product?.ratePerKg != null && !Number(item.ratePerKg)) filled.ratePerKg = Number(product.ratePerKg);
-        return filled;
-      });
-      return { ...p, lineItems, ...(product?.hsCode && !p.hsCode ? { hsCode: product.hsCode } : {}) };
-    });
-    if (product?.hsCode) clearFieldError('hsCode');
-    if (product?.nettWeightPerPackage != null) clearFieldError(`lineItems.${index}.netWeightPerPackage`);
-    if (product?.ratePerKg != null) clearFieldError(`lineItems.${index}.ratePerKg`);
+    const price = product?.ratePerKg != null && Number(product.ratePerKg) > 0 ? Number(product.ratePerKg) : 0;
+    updateLine(index, { descriptionOfGoods: text, ratePerKg: price });
+    clearFieldError(`lineItems.${index}.ratePerKg`);
   }
 
   function updateLine(index: number, patch: Partial<CreateInvoiceDto['lineItems'][number]>) {

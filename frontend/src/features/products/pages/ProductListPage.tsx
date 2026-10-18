@@ -1,11 +1,12 @@
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Trash2 } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { Trash2 } from 'lucide-react';
 import { useClients } from '@/features/clients/hooks/useClients';
 import { useProducts } from '@/features/invoices/hooks/useProducts';
 import { useProductListMutations, useProductLists } from '@/features/invoices/hooks/useProductLists';
 import { useConfirm } from '@/components/ui/confirm';
 import { useToast } from '@/components/ui/toast';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import ProductsSection, { inScope } from '../components/ProductsSection';
 import { listScope } from './ProductsPage';
 
@@ -24,15 +25,11 @@ export default function ProductListPage() {
   const list = (listData?.data ?? []).find((l) => l.id === listId);
   const importer = list ? (importersData?.data ?? []).find((i) => i.id === list.importerId) : undefined;
 
-  const back = (
-    <Link to="/products" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back to Products</Link>
-  );
-
   if (!isGeneral && isLoading) return <div className="flex justify-center py-16"><LoadingSpinner /></div>;
   if (!isGeneral && !list) {
     return (
       <div className="max-w-3xl mx-auto space-y-4">
-        {back}
+        <Breadcrumbs items={[{ label: 'Products', to: '/products' }, { label: 'List not found' }]} />
         <p className="py-12 text-center text-sm text-muted-foreground">This list was not found. It may have been deleted.</p>
       </div>
     );
@@ -63,7 +60,7 @@ export default function ProductListPage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      {back}
+      <Breadcrumbs items={[{ label: 'Products', to: '/products' }, { label: isGeneral ? 'General list' : [title, subtitle].join(' · ') }]} />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold break-words">{title}</h1>

@@ -124,7 +124,9 @@ describe('ProductListPage (the detail view)', () => {
     expect(screen.getByText('Fig')).toBeInTheDocument();
     expect(screen.queryByText('Banana')).not.toBeInTheDocument();
     expect(screen.queryByText('Alphonso Mango')).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Back to Products/ })).toHaveAttribute('href', '/products');
+    const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    expect(within(crumbs).getAllByRole('link', { name: 'Products' })[0]).toHaveAttribute('href', '/products');
+    expect(within(crumbs).getByText('KJ Fruits · CAD · Toronto')).toHaveAttribute('aria-current', 'page');
   });
 
   it('shows the general list, which cannot be deleted', async () => {

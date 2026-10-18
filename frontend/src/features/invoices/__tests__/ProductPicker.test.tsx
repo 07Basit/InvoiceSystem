@@ -78,49 +78,44 @@ describe('ProductPicker', () => {
   });
 });
 
-describe('ProductPicker for an importer', () => {
+describe('ProductPicker for a chosen list', () => {
   const scoped = (over: Partial<Product>) => product({ nettWeightPerPackage: null, ratePerKg: null, ...over });
   beforeEach(() => {
     products.list.mockResolvedValue({
       success: true, error: null, meta: null,
       data: [
         product({ id: 'g1', name: 'Banana', ratePerKg: '2' }),
-        scoped({ id: 's1', name: 'Banana', importerId: 'i1', currency: 'CAD', ratePerKg: '3.5' }),
+        product({ id: 'g2', name: 'Mango' }),
+        scoped({ id: 's1', name: 'Banana', importerId: 'i1', currency: 'CAD', locationName: 'Toronto', ratePerKg: '3.5' }),
         scoped({ id: 's2', name: 'Papaya', importerId: 'i1', currency: 'CAD', locationName: 'Toronto' }),
-        scoped({ id: 's3', name: 'Lychee', importerId: 'i1', currency: 'USD' }),
-        scoped({ id: 's4', name: 'Guava', importerId: 'i2', currency: 'CAD' }),
-        scoped({ id: 's5', name: 'Fig', importerId: 'i1', currency: 'CAD', locationName: 'Montreal' }),
+        scoped({ id: 's3', name: 'Lychee', importerId: 'i1', currency: 'CAD' }),
+        scoped({ id: 's4', name: 'Guava', importerId: 'i2', currency: 'CAD', locationName: 'Toronto' }),
       ],
     });
   });
 
-  it('lists the importer products first, then the general ones', async () => {
+  it('offers only the products of the chosen importer list', async () => {
     const { user } = setup('', { importerId: 'i1', currency: 'CAD', locationName: 'Toronto' });
     await user.click(screen.getByRole('combobox', { name: /Description of goods/ }));
     await screen.findByRole('option', { name: /Papaya/ });
-    const names = screen.getAllByRole('option').map((o) => o.textContent?.split(/\d/)[0]);
-    expect(names.slice(0, 2)).toEqual(expect.arrayContaining(['Banana', 'Papaya']));
-    expect(screen.getByText('For this importer')).toBeInTheDocument();
+    expect(screen.getAllByRole('option').map((o) => o.textContent?.split(/\d/)[0]).sort()).toEqual(['Banana', 'Papaya']);
   });
 
-  it('leaves out other importers, other currencies and other locations', async () => {
-    const { user } = setup('', { importerId: 'i1', currency: 'CAD', locationName: 'Toronto' });
+  it('offers only the general products when the general list is chosen', async () => {
+    const { user } = setup('', {});
     await user.click(screen.getByRole('combobox', { name: /Description of goods/ }));
-    await screen.findByRole('option', { name: /Papaya/ });
-    expect(screen.queryByRole('option', { name: /Guava/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('option', { name: /Lychee/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('option', { name: /Fig/ })).not.toBeInTheDocument();
+    await screen.findByRole('option', { name: /Mango/ });
+    expect(screen.getAllByRole('option').map((o) => o.textContent?.split(/\d/)[0]).sort()).toEqual(['Banana', 'Mango']);
   });
 
-  it('uses the importer entry (and its rate) when a name is also in the general list', async () => {
+  it('hands back the entry (and rate) of the chosen list, not the general one with the same name', async () => {
     const { onSelect, user } = setup('', { importerId: 'i1', currency: 'CAD', locationName: 'Toronto' });
     await user.click(screen.getByRole('combobox', { name: /Description of goods/ }));
-    expect(screen.getAllByRole('option', { name: /Banana/ })).toHaveLength(1);
-    await user.click(screen.getByRole('option', { name: /Banana/ }));
+    await user.click(await screen.findByRole('option', { name: /Banana/ }));
     expect(onSelect).toHaveBeenCalledWith('Banana', expect.objectContaining({ id: 's1', ratePerKg: '3.5' }));
   });
 
-  it('saves a new product to the importer list', async () => {
+  it('saves a new product to the chosen list', async () => {
     products.create.mockResolvedValue({ success: true, data: product({ id: 'n1', name: 'Star Fruit' }), error: null, meta: null });
     const { user } = setup('', { importerId: 'i1', currency: 'CAD', locationName: 'Toronto' });
     await user.click(screen.getByRole('combobox', { name: /Description of goods/ }));

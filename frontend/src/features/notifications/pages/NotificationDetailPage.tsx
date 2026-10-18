@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ExternalLink, EyeOff, Trash2 } from 'lucide-react';
+import { ExternalLink, EyeOff, Trash2 } from 'lucide-react';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import { cn } from '@/lib/utils';
 import { categoryLabel, formatDateTime, timeAgo, typeStyle } from '@/lib/notifications';
 import { useDeleteNotification, useMarkRead, useMarkUnread, useNotification } from '../hooks/useNotifications';
@@ -36,9 +37,7 @@ export default function NotificationDetailPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <Link to="/notifications" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Back to notifications
-      </Link>
+      <Breadcrumbs items={[{ label: 'Notifications', to: '/notifications' }, { label: n.title }]} />
 
       <div className="rounded-xl border bg-card p-5 sm:p-6">
         <div className="flex items-start gap-4">

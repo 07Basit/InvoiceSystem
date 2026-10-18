@@ -4,6 +4,7 @@ import {
   listInvoices,
   getInvoice,
   getInvoiceSummary,
+  getFilterOptions,
   createInvoice,
   updateInvoice,
   deleteInvoice,
@@ -41,6 +42,7 @@ router.post('/bulk-delete', validate(bulkInvoiceIdsSchema), deleteInvoices);
 router.post('/zip', validate(zipInvoicesSchema), downloadInvoicesZip);
 router.post('/zip/clipboard', validate(copyZipSchema), copyInvoicesZip);
 router.get('/summary', getInvoiceSummary);
+router.get('/filter-options', getFilterOptions);
 router.get('/share/native', nativeShareStatus);
 router.post('/import', importInvoices);
 router.get('/:id', getInvoice);

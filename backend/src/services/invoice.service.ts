@@ -104,34 +104,83 @@ export function snapshotChanges(
   return out;
 }
 
-/** The filters of the invoice list (search, importer, currency, year and month) as one database condition. */
+/** A filter value arrives as one value or a list (and blank means "no filter"). */
+function asList<T>(value: T | T[] | undefined | null): T[] {
+  if (value === undefined || value === null) return [];
+  return (Array.isArray(value) ? value : [value]).filter((v) => v !== '' && v !== undefined && v !== null);
+}
+
+/** One value stays a plain match; several become "any of these". */
+const oneOrIn = <T>(list: T[]) => (list.length === 1 ? list[0]! : { in: list });
+
+const dayAfter = (ymd: string) => new Date(Date.UTC(Number(ymd.slice(0, 4)), Number(ymd.slice(5, 7)) - 1, Number(ymd.slice(8, 10)) + 1));
+
+/** The filters of the invoice list (search, importers, currencies, dates, amount, route, product, exporter, type) as one database condition. */
 async function whereFor(query: ListInvoicesQuery): Promise<Prisma.InvoiceWhereInput> {
   const search = query.search;
-  const importerId = query.importerId;
+  const importerIds = asList(query.importerId);
+  const currencies = asList(query.currency);
   // Query-string values can arrive as text ("2023"), and "2023" + 1 would be "20231", so convert explicitly.
-  const year = query.year !== undefined && query.year !== null ? Number(query.year) : undefined;
-  const month = query.month !== undefined && query.month !== null ? Number(query.month) : undefined;
-  const { currency } = query;
+  const years = asList(query.year).map(Number).filter((y) => y > 0);
+  const months = asList(query.month).map(Number).filter((m) => m > 0);
+  const and: Prisma.InvoiceWhereInput[] = [];
 
-  // A year (with or without a month) is a plain date range. A month on its own means "that month in any year",
-  // which Prisma can't express, so the matching ids are looked up with a small raw query.
+  // One year (with or without one month) is a plain date range. Months on their own, or several of anything, are
+  // "that month in any year" which Prisma can't express, so the matching ids are looked up with a small raw query.
   let invoiceDate: Prisma.InvoiceWhereInput['invoiceDate'];
   let idsForMonth: string[] | undefined;
-  if (year) {
-    const start = new Date(Date.UTC(year, (month ?? 1) - 1, 1));
-    const end = month ? new Date(Date.UTC(year, month, 1)) : new Date(Date.UTC(year + 1, 0, 1));
-    invoiceDate = { gte: start, lt: end };
-  } else if (month) {
-    const rows = await prisma.$queryRaw<Array<{ id: string }>>`SELECT id FROM invoices WHERE deletedAt IS NULL AND MONTH(invoiceDate) = ${month}`;
+  const yearRange = (year: number, month?: number) => ({
+    gte: new Date(Date.UTC(year, (month ?? 1) - 1, 1)),
+    lt: month ? new Date(Date.UTC(year, month, 1)) : new Date(Date.UTC(year + 1, 0, 1)),
+  });
+  if (years.length === 1 && months.length <= 1) {
+    invoiceDate = yearRange(years[0]!, months[0]);
+  } else if (years.length === 0 && months.length === 1) {
+    const rows = await prisma.$queryRaw<Array<{ id: string }>>`SELECT id FROM invoices WHERE deletedAt IS NULL AND MONTH(invoiceDate) = ${months[0]}`;
     idsForMonth = rows.map((r) => r.id);
+  } else {
+    if (years.length > 0) and.push({ OR: years.map((y) => ({ invoiceDate: yearRange(y) })) });
+    if (months.length > 0) {
+      const rows = await prisma.$queryRaw<Array<{ id: string }>>`SELECT id FROM invoices WHERE deletedAt IS NULL AND MONTH(invoiceDate) IN (${Prisma.join(months)})`;
+      and.push({ id: { in: rows.map((r) => r.id) } });
+    }
   }
 
-  const where: Prisma.InvoiceWhereInput = {
+  if (query.dateFrom || query.dateTo) {
+    and.push({
+      invoiceDate: {
+        ...(query.dateFrom ? { gte: new Date(`${query.dateFrom}T00:00:00.000Z`) } : {}),
+        ...(query.dateTo ? { lt: dayAfter(query.dateTo) } : {}),
+      },
+    });
+  }
+
+  const loading = asList(query.loadingPort);
+  const discharge = asList(query.dischargePort);
+  const countries = asList(query.country);
+  const products = asList(query.product);
+  const exporters = asList(query.exporter);
+  if (loading.length) and.push({ portOfLoading: { in: loading } });
+  // "to" a port: the port of discharge or the final destination
+  if (discharge.length) and.push({ OR: [{ portOfDischarge: { in: discharge } }, { finalDestination: { in: discharge } }] });
+  if (countries.length) and.push({ countryOfDestination: { in: countries } });
+  if (products.length) and.push({ lineItems: { some: { descriptionOfGoods: { in: products } } } });
+  if (exporters.length) and.push({ exporterName: { in: exporters } });
+
+  const total = {
+    ...(query.minTotal !== undefined && query.minTotal !== null ? { gte: Number(query.minTotal) } : {}),
+    ...(query.maxTotal !== undefined && query.maxTotal !== null ? { lte: Number(query.maxTotal) } : {}),
+  };
+
+  return {
     deletedAt: null,
-    ...(importerId ? { importerId } : {}),
-    ...(currency ? { currency } : {}),
+    ...(importerIds.length ? { importerId: oneOrIn(importerIds) } : {}),
+    ...(currencies.length ? { currency: oneOrIn(currencies) } : {}),
     ...(invoiceDate ? { invoiceDate } : {}),
     ...(idsForMonth ? { id: { in: idsForMonth } } : {}),
+    ...(Object.keys(total).length ? { total } : {}),
+    ...(query.type === 'regular' ? { actualOfId: null } : query.type === 'actual' ? { actualOfId: { not: null } } : {}),
+    ...(and.length ? { AND: and } : {}),
     ...(search
       ? {
           OR: [
@@ -143,7 +192,6 @@ async function whereFor(query: ListInvoicesQuery): Promise<Prisma.InvoiceWhereIn
         }
       : {}),
   };
-  return where;
 }
 
 /** Most invoices one bulk action (delete, ZIP) works on, so a request never grows without limit. */
@@ -554,6 +602,39 @@ export const invoiceService = {
         },
       });
     });
+  },
+
+  /** The values the filter panel can offer: only things that actually appear on some invoice. */
+  async filterOptions() {
+    const live = { deletedAt: null };
+    const [dates, currencies, loading, discharge, finals, countries, exporters, products] = await Promise.all([
+      prisma.invoice.findMany({ where: live, select: { invoiceDate: true } }),
+      prisma.invoice.findMany({ where: live, select: { currency: true }, distinct: ['currency'] }),
+      prisma.invoice.findMany({ where: live, select: { portOfLoading: true }, distinct: ['portOfLoading'] }),
+      prisma.invoice.findMany({ where: live, select: { portOfDischarge: true }, distinct: ['portOfDischarge'] }),
+      prisma.invoice.findMany({ where: live, select: { finalDestination: true }, distinct: ['finalDestination'] }),
+      prisma.invoice.findMany({ where: live, select: { countryOfDestination: true }, distinct: ['countryOfDestination'] }),
+      prisma.invoice.findMany({ where: live, select: { exporterName: true }, distinct: ['exporterName'] }),
+      prisma.lineItem.findMany({ where: { invoice: live }, select: { descriptionOfGoods: true }, distinct: ['descriptionOfGoods'] }),
+    ]);
+    // the same port or name can be saved in different capitals: keep one of each, sorted
+    const unique = (values: Array<string | null | undefined>, fold: (v: string) => string) => {
+      const seen = new Map<string, string>();
+      for (const raw of values) {
+        const value = raw?.trim();
+        if (value && !seen.has(value.toLowerCase())) seen.set(value.toLowerCase(), fold(value));
+      }
+      return [...seen.values()].sort((a, b) => a.localeCompare(b));
+    };
+    return {
+      years: [...new Set(dates.map((d) => d.invoiceDate.getUTCFullYear()))].sort((a, b) => b - a),
+      currencies: unique(currencies.map((r) => r.currency), (v) => v.toUpperCase()),
+      loadingPorts: unique(loading.map((r) => r.portOfLoading), (v) => v.toUpperCase()),
+      dischargePorts: unique([...discharge.map((r) => r.portOfDischarge), ...finals.map((r) => r.finalDestination)], (v) => v.toUpperCase()),
+      countries: unique(countries.map((r) => r.countryOfDestination), (v) => v),
+      exporters: unique(exporters.map((r) => r.exporterName), (v) => v),
+      products: unique(products.map((r) => r.descriptionOfGoods), (v) => v),
+    };
   },
 
   /** Every invoice matching the list filters (newest first), for "select all matching". Capped so one request stays small. */

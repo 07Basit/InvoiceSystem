@@ -1,14 +1,9 @@
 import { create } from 'zustand';
 import type { CreateInvoiceDto } from 'shared';
 
-export interface InvoiceFilterValues {
-  year: string;
-  month: string;
-  importerId: string;
-  currency: string;
-}
+import { noFilters, type InvoiceFilterValues } from '../utils/invoiceFilters';
 
-const noFilters: InvoiceFilterValues = { year: '', month: '', importerId: '', currency: '' };
+export type { InvoiceFilterValues };
 
 interface InvoiceUIState {
   isFormOpen: boolean;
@@ -26,7 +21,9 @@ interface InvoiceUIState {
   openDraftForm: (draftId: string, draftData: CreateInvoiceDto) => void;
   closeForm: () => void;
   setSearch: (s: string) => void;
-  setFilter: (key: keyof InvoiceFilterValues, value: string) => void;
+  setFilter: <K extends keyof InvoiceFilterValues>(key: K, value: InvoiceFilterValues[K]) => void;
+  /** Replaces all filters at once (a saved view, or a removed chip) */
+  setFilters: (filters: InvoiceFilterValues) => void;
   clearFilters: () => void;
   setPage: (p: number) => void;
   setSelectionMode: (on: boolean) => void;
@@ -52,6 +49,7 @@ export const useInvoiceStore = create<InvoiceUIState>((set) => ({
   closeForm: () => set({ isFormOpen: false, editingId: null, draftId: null, draftData: null }),
   // a new search or filter means a different set of invoices, so the old ticks are dropped
   setSearch: (search) => set({ search, page: 1, selectedIds: [] }),
+  setFilters: (filters) => set({ filters, page: 1, selectedIds: [] }),
   setFilter: (key, value) => set((state) => ({ filters: { ...state.filters, [key]: value }, page: 1, selectedIds: [] })),
   clearFilters: () => set({ filters: noFilters, search: '', page: 1, selectedIds: [] }),
   setPage: (page) => set({ page }),

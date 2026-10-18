@@ -18,6 +18,11 @@ export const listInvoices = asyncHandler(async (req: Request, res: Response) => 
   res.json({ success: true, data: result.data, error: null, meta: result.meta });
 });
 
+/** Values for the filter panel (years, currencies, ports, countries, exporters, products). */
+export const getFilterOptions = asyncHandler(async (_req: Request, res: Response) => {
+  res.json({ success: true, data: await invoiceService.filterOptions(), error: null, meta: null });
+});
+
 export const getInvoiceSummary = asyncHandler(async (_req: Request, res: Response) => {
   const summary = await invoiceService.summary();
   res.json({ success: true, data: summary, error: null, meta: null });

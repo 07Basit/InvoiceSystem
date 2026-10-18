@@ -1,14 +1,14 @@
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { invoiceService } from '../services/invoiceService';
-import type { CreateInvoiceDto, UpdateInvoiceDto, ListInvoicesQuery } from 'shared';
+import type { CreateInvoiceDto, UpdateInvoiceDto, ListInvoicesInput } from 'shared';
 
 export const invoiceKeys = {
   all: ['invoices'] as const,
-  list: (query: Partial<ListInvoicesQuery>) => ['invoices', 'list', query] as const,
+  list: (query: Partial<ListInvoicesInput>) => ['invoices', 'list', query] as const,
   detail: (id: string) => ['invoices', 'detail', id] as const,
 };
 
-export function useInvoices(query: Partial<ListInvoicesQuery> = {}) {
+export function useInvoices(query: Partial<ListInvoicesInput> = {}) {
   return useQuery({
     queryKey: invoiceKeys.list(query),
     queryFn: () => invoiceService.getAll(query),
@@ -100,4 +100,9 @@ export function useBulkDeleteInvoices() {
       qc.invalidateQueries({ queryKey: ['recycle-bin'] });
     },
   });
+}
+
+/** What the filter panel offers: only values that appear on at least one invoice. */
+export function useInvoiceFilterOptions() {
+  return useQuery({ queryKey: [...invoiceKeys.all, 'filter-options'] as const, queryFn: () => invoiceService.getFilterOptions(), staleTime: 60_000 });
 }

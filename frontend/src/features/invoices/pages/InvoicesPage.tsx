@@ -12,17 +12,24 @@ import InvoiceStats from '../components/InvoiceStats';
 import InvoiceFilters from '../components/InvoiceFilters';
 import { useClients } from '@/features/clients/hooks/useClients';
 import Tooltip from '@/components/ui/Tooltip';
-import { useInvoiceSummary } from '../hooks/useInvoices';
+import { useInvoiceFilterOptions, useInvoices, useInvoiceSummary } from '../hooks/useInvoices';
+import ActiveFilterChips from '../components/ActiveFilterChips';
+import { filtersToQuery } from '../utils/invoiceFilters';
 import { useDeleteDraft, useDrafts } from '@/features/drafts/hooks/useDrafts';
 
 export default function InvoicesPage() {
-  const { search, filters, openCreateForm, openDraftForm, setSearch, setFilter, clearFilters, selectionMode, setSelectionMode } = useInvoiceStore();
+  const { search, filters, openCreateForm, openDraftForm, setSearch, setFilters, selectionMode, setSelectionMode } = useInvoiceStore();
   const { data: importersData } = useClients({ limit: 100, sort: 'name' });
   const { showToast } = useToast();
   const { data: draftData } = useDrafts<CreateInvoiceDto>('invoice');
   const deleteDraftMutation = useDeleteDraft('invoice');
   const drafts = draftData ?? [];
   const { data: summary } = useInvoiceSummary();
+  const { data: filterOptions } = useInvoiceFilterOptions();
+  const importers = importersData?.data ?? [];
+  const importerName = (id: string) => importers.find((i) => i.id === id)?.name ?? 'Importer';
+  // the count on the filter panel's button: one small request for what the list would show
+  const { data: matchingData } = useInvoices({ ...(search ? { search } : {}), ...filtersToQuery(filters), page: 1, limit: 1 });
 
   // The top bar's "New invoice" arrives as /invoices?new=1: open the form once and tidy the URL
   const [searchParams, setSearchParams] = useSearchParams();
@@ -120,11 +127,10 @@ export default function InvoicesPage() {
         search={search}
         onSearchChange={setSearch}
         filters={filters}
-        onFilterChange={setFilter}
-        onClear={clearFilters}
-        years={summary?.data?.years ?? []}
-        currencies={summary?.data?.currencies ?? []}
-        importers={importersData?.data ?? []}
+        onFiltersChange={setFilters}
+        options={filterOptions}
+        importers={importers}
+        matching={matchingData?.meta?.total}
         trailing={(
           <button
             type="button"
@@ -140,6 +146,10 @@ export default function InvoicesPage() {
           </button>
         )}
       />
+
+      <div className="!mt-3">
+        <ActiveFilterChips filters={filters} onChange={setFilters} importerName={importerName} />
+      </div>
 
       <InvoiceTable />
 

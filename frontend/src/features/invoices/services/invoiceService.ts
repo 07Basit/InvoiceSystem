@@ -1,6 +1,6 @@
 import { apiClient } from '@/services/api';
 import { saveBlob } from '@/lib/share';
-import type { ApiResponse, CreateInvoiceDto, ListInvoicesQuery, UpdateInvoiceDto } from 'shared';
+import type { ApiResponse, CreateInvoiceDto, ListInvoicesInput, UpdateInvoiceDto } from 'shared';
 
 export interface InvoiceLineItem {
   id: string;
@@ -125,10 +125,26 @@ export function actualInvoiceState(invoice: Pick<Invoice, 'actualOfId' | 'actual
   return { canCreate: true, label: 'Create actual invoice' };
 }
 
+export interface InvoiceFilterOptions {
+  years: number[];
+  currencies: string[];
+  loadingPorts: string[];
+  dischargePorts: string[];
+  countries: string[];
+  exporters: string[];
+  products: string[];
+}
+
 export const invoiceService = {
-  async getAll(query: Partial<ListInvoicesQuery> = {}) {
+  async getAll(query: Partial<ListInvoicesInput> = {}) {
     const { data } = await apiClient.get<ApiResponse<InvoiceListItem[]>>('/invoices', { params: query });
     return data;
+  },
+
+  /** The values the filter panel can offer (years, currencies, ports, countries, exporters, products). */
+  async getFilterOptions() {
+    const { data } = await apiClient.get<ApiResponse<InvoiceFilterOptions>>('/invoices/filter-options');
+    return data.data!;
   },
 
   async getSummary() {
@@ -208,7 +224,7 @@ export const invoiceService = {
   },
 
   /** Every invoice id matching the search and filters, for "select all matching". */
-  async listIds(query: Partial<ListInvoicesQuery>) {
+  async listIds(query: Partial<ListInvoicesInput>) {
     const { data } = await apiClient.get<ApiResponse<{ ids: string[]; truncated: boolean }>>('/invoices/ids', { params: query });
     return data.data!;
   },

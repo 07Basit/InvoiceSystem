@@ -92,16 +92,37 @@ export type UpdateInvoiceDto = z.infer<typeof updateInvoiceSchema>;
 // ---------------------------------------------------------------------------
 // List Query
 // ---------------------------------------------------------------------------
+/** "a,b,c" in the URL becomes ["a","b","c"] (blank pieces dropped), so one filter can hold several values. */
+const csv = <T extends z.ZodTypeAny>(item: T) =>
+  z.string().transform((text) => text.split(',').map((part) => part.trim()).filter(Boolean)).pipe(z.array(item).max(50)).optional();
+const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a date like 2026-10-31').optional();
+
 export const listInvoicesQuerySchema = paginationQuerySchema.extend({
-  importerId: z.string().cuid().optional(),
-  // invoice date filters: a year, a month (1-12), or both; and the invoice currency
-  year: z.coerce.number().int().min(1900).max(2200).optional(),
-  month: z.coerce.number().int().min(1).max(12).optional(),
-  currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/, 'Use a 3-letter currency code').optional(),
+  importerId: csv(z.string().cuid()),
+  // invoice date filters: years, months (1-12), a from/to range; and the invoice currencies
+  year: csv(z.coerce.number().int().min(1900).max(2200)),
+  month: csv(z.coerce.number().int().min(1).max(12)),
+  currency: csv(z.string().toUpperCase().regex(/^[A-Z]{3}$/, 'Use 3-letter currency codes')),
+  dateFrom: ymd,
+  dateTo: ymd,
+  // invoice total range
+  minTotal: z.coerce.number().min(0).optional(),
+  maxTotal: z.coerce.number().min(0).optional(),
+  // route and goods
+  loadingPort: csv(z.string().max(60)),
+  dischargePort: csv(z.string().max(60)),
+  country: csv(z.string().max(100)),
+  product: csv(z.string().max(200)),
+  exporter: csv(z.string().max(200)),
+  // regular invoices, actual copies, or both
+  type: z.enum(['all', 'regular', 'actual']).optional(),
   sort: z.enum(['createdAt', 'invoiceDate', 'total', 'invoiceNumber']).default('createdAt'),
 });
 
+/** What the server works with after validation (lists are real arrays). */
 export type ListInvoicesQuery = z.infer<typeof listInvoicesQuerySchema>;
+/** What a client sends in the URL (lists as comma-separated text). */
+export type ListInvoicesInput = z.input<typeof listInvoicesQuerySchema>;
 
 // ---------------------------------------------------------------------------
 // Bulk actions (several invoices at once)

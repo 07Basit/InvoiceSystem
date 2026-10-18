@@ -15,19 +15,14 @@ import InvoiceSelectionBar, { type DownloadFormat } from './InvoiceSelectionBar'
 import { invoiceService } from '../services/invoiceService';
 import { saveBlob } from '@/lib/share';
 import { useBulkDeleteInvoices, useCreateActualInvoice, useDeleteInvoice } from '../hooks/useInvoices';
+import { filtersToQuery, isEmptyFilters } from '../utils/invoiceFilters';
 import { useConfirm } from '@/components/ui/confirm';
 import { useToast } from '@/components/ui/toast';
 
 export default function InvoiceTable() {
   const { search, filters, page, setPage, openEditForm, clearFilters, selectionMode, selectedIds, toggleSelected, setSelected, clearSelection } = useInvoiceStore();
   const pageSize = usePageSize(INVOICES_TWO_COLUMNS_FROM);
-  const matching = {
-    ...(search ? { search } : {}),
-    ...(filters.year ? { year: Number(filters.year) } : {}),
-    ...(filters.month ? { month: Number(filters.month) } : {}),
-    ...(filters.importerId ? { importerId: filters.importerId } : {}),
-    ...(filters.currency ? { currency: filters.currency } : {}),
-  };
+  const matching = { ...(search ? { search } : {}), ...filtersToQuery(filters) };
   const { data, isLoading, isError } = useInvoices({ ...matching, page, limit: pageSize });
 
   // A different screen size means different page boundaries, so start again from page 1.
@@ -49,7 +44,7 @@ export default function InvoiceTable() {
     setPage(next);
     scrollMainToTop();
   };
-  const isFiltering = search !== '' || Object.values(filters).some((v) => v !== '');
+  const isFiltering = search !== '' || !isEmptyFilters(filters);
   const deleteMutation = useDeleteInvoice();
   const navigate = useNavigate();
   const documents = useInvoiceDocuments();
@@ -155,7 +150,7 @@ export default function InvoiceTable() {
           <FileDown className="h-6 w-6 text-muted-foreground/50" />
         </div>
         <p className="text-sm font-semibold text-foreground">{isFiltering ? 'No invoices match your search or filters' : 'No invoices found'}</p>
-        <p className="text-xs text-muted-foreground mt-1">{isFiltering ? 'Try a different year, month, importer or currency.' : 'Create your first invoice to get started.'}</p>
+        <p className="text-xs text-muted-foreground mt-1">{isFiltering ? 'Try removing a filter or searching for something else.' : 'Create your first invoice to get started.'}</p>
         {isFiltering && <button onClick={clearFilters} className="mt-3 text-sm font-semibold underline">Clear search and filters</button>}
       </div>
     );

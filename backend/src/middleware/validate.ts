@@ -23,7 +23,9 @@ export const validate = (schema: ZodSchema, target: ValidateTarget = 'body') => 
     if (target === 'body') {
       req.body = result.data;
     } else if (target === 'query') {
-      Object.assign(req.query as Record<string, unknown>, result.data as Record<string, unknown>);
+      // Express 5 builds req.query fresh on every read, so assigning into it is lost: replace it with the parsed values
+      // (this is what makes lists, numbers and defaults from the schema reach the controller)
+      Object.defineProperty(req, 'query', { value: result.data, writable: true, configurable: true, enumerable: true });
     } else {
       Object.assign(req.params as Record<string, unknown>, result.data as Record<string, unknown>);
     }

@@ -1,84 +1,39 @@
-import type { ReactNode } from 'react';
-import SearchCombobox, { type ComboOption } from '@/components/ui/SearchCombobox';
+import { useState, type ReactNode } from 'react';
 import FilterBar from '@/components/ui/FilterBar';
-import { cn } from '@/lib/utils';
-import type { InvoiceFilterValues } from '../store/invoiceStore';
-
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+import type { InvoiceFilterOptions } from '../services/invoiceService';
+import { countActive, noFilters, type InvoiceFilterValues } from '../utils/invoiceFilters';
+import InvoiceFilterPanel from './InvoiceFilterPanel';
 
 interface InvoiceFiltersProps {
   search: string;
   onSearchChange: (value: string) => void;
   filters: InvoiceFilterValues;
-  onFilterChange: (key: keyof InvoiceFilterValues, value: string) => void;
-  onClear: () => void;
-  years: number[];
-  currencies: string[];
+  onFiltersChange: (filters: InvoiceFilterValues) => void;
+  options: InvoiceFilterOptions | undefined;
   importers: Array<{ id: string; name: string; isActive?: boolean }>;
+  /** Invoices matching the current search and filters */
+  matching: number | undefined;
   /** Shown to the right of the Filters button */
   trailing?: ReactNode;
 }
 
-interface FilterPickProps {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: ComboOption[];
-  searchPlaceholder: string;
-  align?: 'left' | 'right';
-  className?: string;
-}
-
-/** One compact dropdown; the first option ("All …") clears it, and it turns orange while a value is set. */
-function FilterPick({ label, value, onChange, options, searchPlaceholder, align = 'left', className }: FilterPickProps) {
-  return (
-    <SearchCombobox
-      ariaLabel={label}
-      value={value}
-      onChange={onChange}
-      options={options}
-      searchPlaceholder={searchPlaceholder}
-      labelClassName="w-auto"
-      align={align}
-      className={cn(
-        'w-full rounded-lg border bg-background px-3 py-2 text-sm hover:bg-muted/50 transition-colors',
-        value !== '' && 'border-[hsl(var(--brand-accent))]/50 bg-[hsl(var(--brand-accent))]/5 font-medium',
-        className,
-      )}
-    />
-  );
-}
-
-/** Search box and a Filters button; Year / Month / Importer / Currency live inside the panel. */
-export default function InvoiceFilters({
-  search, onSearchChange, filters, onFilterChange, onClear, years, currencies, importers, trailing,
-}: InvoiceFiltersProps) {
-  const yearOptions: ComboOption[] = [{ value: '', label: 'All years' }, ...years.map((y) => ({ value: String(y), label: String(y) }))];
-  const monthOptions: ComboOption[] = [{ value: '', label: 'All months' }, ...MONTHS.map((m, i) => ({ value: String(i + 1), label: m }))];
-  const importerOptions: ComboOption[] = [
-    { value: '', label: 'All importers' },
-    ...importers.map((i): ComboOption => (i.isActive === false ? { value: i.id, label: i.name, description: 'not needed' } : { value: i.id, label: i.name })),
-  ];
-  const currencyOptions: ComboOption[] = [{ value: '', label: 'All currencies' }, ...currencies.map((c) => ({ value: c, label: c }))];
-
-  const activeCount = Object.values(filters).filter((v) => v !== '').length;
+/** The search box and the Filters button; the filters themselves open in a side panel (a bottom sheet on phones). */
+export default function InvoiceFilters({ search, onSearchChange, filters, onFiltersChange, options, importers, matching, trailing }: InvoiceFiltersProps) {
+  const [open, setOpen] = useState(false);
 
   return (
-    <FilterBar
-      search={search}
-      onSearchChange={onSearchChange}
-      searchPlaceholder="Search invoices…"
-      searchLabel="Search invoices"
-      activeCount={activeCount}
-      onClear={onClear}
-      trailing={trailing}
-    >
-      <div className="grid w-[min(21rem,calc(100vw-4rem))] grid-cols-1 gap-2 sm:grid-cols-2">
-        <FilterPick label="Year" value={filters.year} onChange={(v) => onFilterChange('year', v)} options={yearOptions} searchPlaceholder="Search year" />
-        <FilterPick label="Month" value={filters.month} onChange={(v) => onFilterChange('month', v)} options={monthOptions} searchPlaceholder="Search month" align="right" />
-        <FilterPick label="Importer" value={filters.importerId} onChange={(v) => onFilterChange('importerId', v)} options={importerOptions} searchPlaceholder="Search importer" />
-        <FilterPick label="Currency" value={filters.currency} onChange={(v) => onFilterChange('currency', v)} options={currencyOptions} searchPlaceholder="Search currency, e.g. AED" align="right" />
-      </div>
-    </FilterBar>
+    <>
+      <FilterBar
+        search={search}
+        onSearchChange={onSearchChange}
+        searchPlaceholder="Search invoices…"
+        searchLabel="Search invoices"
+        activeCount={countActive(filters)}
+        onClear={() => { onSearchChange(''); onFiltersChange(noFilters); }}
+        onOpenFilters={() => setOpen(true)}
+        trailing={trailing}
+      />
+      <InvoiceFilterPanel open={open} onClose={() => setOpen(false)} filters={filters} onChange={onFiltersChange} options={options} importers={importers} matching={matching} />
+    </>
   );
 }

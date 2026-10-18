@@ -11,7 +11,9 @@ interface FilterBarProps {
   /** How many filters are currently set; shown as a badge on the Filters button. */
   activeCount: number;
   onClear: () => void;
-  children: ReactNode;
+  children?: ReactNode;
+  /** When given, the Filters button calls this instead of opening the built-in dropdown (the caller shows its own panel). */
+  onOpenFilters?: () => void;
   /** Extra control shown to the right of the Filters button (e.g. a Select button). */
   trailing?: ReactNode;
 }
@@ -21,7 +23,7 @@ interface FilterBarProps {
  * under the button, as wide as its contents and anchored to the button's right edge, so it looks the same on a
  * phone, a laptop and a wide monitor (no full-width bar with empty space).
  */
-export default function FilterBar({ search, onSearchChange, searchPlaceholder, searchLabel, activeCount, onClear, children, trailing }: FilterBarProps) {
+export default function FilterBar({ search, onSearchChange, searchPlaceholder, searchLabel, activeCount, onClear, children, onOpenFilters, trailing }: FilterBarProps) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -90,9 +92,8 @@ export default function FilterBar({ search, onSearchChange, searchPlaceholder, s
         <div ref={wrapRef} className="relative shrink-0">
           <button
             type="button"
-            onClick={() => setOpen((o) => !o)}
-            aria-expanded={open}
-            aria-controls="filter-panel"
+            onClick={() => (onOpenFilters ? onOpenFilters() : setOpen((o) => !o))}
+            {...(onOpenFilters ? { 'aria-haspopup': 'dialog' as const } : { 'aria-expanded': open, 'aria-controls': 'filter-panel' })}
             className={cn(
               'inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors hover:bg-muted',
               (open || activeCount > 0) && 'border-[hsl(var(--brand-accent))]/50 bg-[hsl(var(--brand-accent))]/5',
@@ -107,7 +108,7 @@ export default function FilterBar({ search, onSearchChange, searchPlaceholder, s
             )}
           </button>
 
-          {open && (
+          {open && !onOpenFilters && (
             <div
               id="filter-panel"
               className="absolute right-0 top-full z-40 mt-2 w-max max-w-[calc(100vw-2rem)] space-y-3 rounded-xl border bg-card p-3 shadow-lg"

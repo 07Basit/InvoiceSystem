@@ -1,9 +1,10 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
 import { logger } from '../utils/logger';
-import { invoiceService } from '../services/invoice.service';
+import { invoiceService, MAX_SELECTION } from '../services/invoice.service';
+import { zipInvoices } from '../services/invoice-zip';
 import { actorOf, events } from '../services/notification.events';
-import { type CreateInvoiceDto, type ListInvoicesQuery, type ManualRateDto, type ShareNativeDto, type UpdateInvoiceDto } from 'shared';
+import { type CopyZipDto, type BulkInvoiceIdsDto, type ZipInvoicesDto, type CreateInvoiceDto, type ListInvoicesQuery, type ManualRateDto, type ShareNativeDto, type UpdateInvoiceDto } from 'shared';
 import * as XLSX from 'xlsx';
 import { buildInvoiceDocument } from '../services/invoice-document';
 import { renderInvoicePdf } from '../services/invoice-pdf';
@@ -76,6 +77,59 @@ export const deleteInvoice = asyncHandler(async (req: Request, res: Response) =>
   await events.invoiceDeleted(actorOf(req), id);
   logger.info('Invoice deleted (soft)', { invoiceId: id, action: 'delete_invoice' });
   res.json({ success: true, data: null, error: null, meta: null });
+});
+
+/** Delete several invoices at once; invoices that can't be deleted are reported, the rest are still deleted. */
+export const deleteInvoices = asyncHandler(async (req: Request, res: Response) => {
+  const { ids } = req.body as BulkInvoiceIdsDto;
+  const deleted: string[] = [];
+  const failed: { id: string; message: string }[] = [];
+  for (const id of new Set(ids)) {
+    try {
+      await invoiceService.softDelete(id);
+      await events.invoiceDeleted(actorOf(req), id);
+      deleted.push(id);
+    } catch (error) {
+      failed.push({ id, message: error instanceof Error ? error.message : 'Could not be deleted' });
+    }
+  }
+  logger.info('Invoices deleted (soft)', { count: deleted.length, failed: failed.length, action: 'bulk_delete_invoices' });
+  res.json({ success: true, data: { deleted, failed }, error: null, meta: null });
+});
+
+/** One ZIP with the PDF and/or Excel file of every selected invoice. */
+export const downloadInvoicesZip = asyncHandler(async (req: Request, res: Response) => {
+  const { ids, formats } = req.body as ZipInvoicesDto;
+  const wanted = [...new Set(ids)];
+  const invoices = [];
+  for (const id of wanted) invoices.push(await invoiceService.getById(id));
+  const buffer = await zipInvoices(invoices, formats);
+  logger.info('Invoice ZIP generated', { count: invoices.length, formats, action: 'download_invoices_zip' });
+
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', `attachment; filename="invoices-${invoices.length}.zip"`);
+  res.setHeader('Cache-Control', 'no-store');
+  res.send(buffer);
+});
+
+/** Puts the ZIP on the clipboard of the computer running the app, so it can be pasted into an email or chat. */
+export const copyInvoicesZip = asyncHandler(async (req: Request, res: Response) => {
+  if (!nativeShare.supportsFileClipboard()) throw new AppError('Copying files is not available here.', 501, 'NATIVE_SHARE_UNAVAILABLE');
+  if (!nativeShare.isLocalRequest(req.socket.remoteAddress, req.headers['x-forwarded-for'])) throw new AppError('Only available from the computer running the server.', 403, 'NATIVE_SHARE_LOCAL_ONLY');
+  const { ids, formats, text } = req.body as CopyZipDto;
+  const invoices = [];
+  for (const id of new Set(ids)) invoices.push(await invoiceService.getById(id));
+  const filename = `invoices-${invoices.length}.zip`;
+  const path = await nativeShare.writeTempFile(filename, await zipInvoices(invoices, formats));
+  await nativeShare.copyFile(path, text);
+  logger.info('Invoice ZIP copied', { count: invoices.length, action: 'copy_invoices_zip' });
+  res.json({ success: true, data: { filename }, error: null, meta: null });
+});
+
+/** The ids of every invoice matching the current search and filters ("select all matching"). */
+export const listInvoiceIds = asyncHandler(async (req: Request, res: Response) => {
+  const result = await invoiceService.listIds(req.query as unknown as ListInvoicesQuery, MAX_SELECTION);
+  res.json({ success: true, data: result, error: null, meta: null });
 });
 
 /** attachment = save the file; inline = show/print it in the browser. */

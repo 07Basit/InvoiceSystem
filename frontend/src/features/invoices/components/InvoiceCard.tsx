@@ -20,6 +20,10 @@ interface InvoiceCardProps {
   onEdit: () => void;
   onDelete: () => void;
   deleting?: boolean;
+  /** Selection mode: a click on the card selects it (highlighted) instead of opening the invoice. */
+  selectionMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
 }
 
 function ActionButton({ label, onClick, children, danger, disabled, greyed }: { label: string; onClick: () => void; children: ReactNode; danger?: boolean; disabled?: boolean; greyed?: boolean }) {
@@ -38,7 +42,7 @@ function ActionButton({ label, onClick, children, danger, disabled, greyed }: { 
   );
 }
 
-export default function InvoiceCard({ invoice, onOpen, onPdf, onExcel, onPrint, onShare, onCreateActual, creatingActual, documentsBusy, onEdit, onDelete, deleting }: InvoiceCardProps) {
+export default function InvoiceCard({ invoice, onOpen, onPdf, onExcel, onPrint, onShare, onCreateActual, creatingActual, documentsBusy, onEdit, onDelete, deleting, selectionMode, selected, onToggleSelect }: InvoiceCardProps) {
   const importerName = invoice.importerName ?? invoice.importer.name; // the invoice's own copy
   const { portOfLoading, portOfDischarge, finalDestination, countryOfOrigin, countryOfDestination } = invoice;
   const hasRoute = !!(portOfLoading || portOfDischarge || finalDestination);
@@ -47,10 +51,12 @@ export default function InvoiceCard({ invoice, onOpen, onPdf, onExcel, onPrint, 
 
   return (
     <div
-      onClick={onOpen}
+      onClick={selectionMode ? onToggleSelect : onOpen}
+      {...(selectionMode ? { role: 'button', 'aria-pressed': !!selected, 'aria-label': `${selected ? 'Unselect' : 'Select'} invoice ${invoice.invoiceNumber}`, tabIndex: 0, onKeyDown: (e: React.KeyboardEvent) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); onToggleSelect?.(); } } } : {})}
       className={cn(
         'group cursor-pointer rounded-xl border bg-card card-pattern p-4 flex flex-col gap-3 transition-all hover:shadow-md hover:border-[hsl(var(--brand-accent))]/40',
         invoice.excludedFromRevenue && 'bg-none bg-amber-50 border-amber-200',
+        selected && 'border-[hsl(var(--brand-accent))] ring-2 ring-[hsl(var(--brand-accent))]/40',
       )}
     >
       <div className="flex items-start justify-between gap-3">

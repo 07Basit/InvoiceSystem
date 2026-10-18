@@ -12,6 +12,8 @@ interface FilterBarProps {
   activeCount: number;
   onClear: () => void;
   children: ReactNode;
+  /** Extra control shown to the right of the Filters button (e.g. a Select button). */
+  trailing?: ReactNode;
 }
 
 /**
@@ -19,7 +21,7 @@ interface FilterBarProps {
  * under the button, as wide as its contents and anchored to the button's right edge, so it looks the same on a
  * phone, a laptop and a wide monitor (no full-width bar with empty space).
  */
-export default function FilterBar({ search, onSearchChange, searchPlaceholder, searchLabel, activeCount, onClear, children }: FilterBarProps) {
+export default function FilterBar({ search, onSearchChange, searchPlaceholder, searchLabel, activeCount, onClear, children, trailing }: FilterBarProps) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -121,6 +123,7 @@ export default function FilterBar({ search, onSearchChange, searchPlaceholder, s
             </div>
           )}
         </div>
+        {trailing}
       </div>
     </>
   );

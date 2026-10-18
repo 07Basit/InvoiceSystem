@@ -102,3 +102,27 @@ export const listInvoicesQuerySchema = paginationQuerySchema.extend({
 });
 
 export type ListInvoicesQuery = z.infer<typeof listInvoicesQuerySchema>;
+
+// ---------------------------------------------------------------------------
+// Bulk actions (several invoices at once)
+// ---------------------------------------------------------------------------
+/** Most invoices one bulk action works on. */
+export const MAX_BULK_INVOICES = 200;
+
+export const bulkInvoiceIdsSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1, 'Select at least one invoice').max(MAX_BULK_INVOICES, `Select at most ${MAX_BULK_INVOICES} invoices`),
+});
+export type BulkInvoiceIdsDto = z.infer<typeof bulkInvoiceIdsSchema>;
+
+/** A ZIP renders every file on the server, so it takes fewer invoices than a delete. */
+export const MAX_ZIP_INVOICES = 50;
+
+export const zipInvoicesSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1, 'Select at least one invoice').max(MAX_ZIP_INVOICES, `A ZIP holds at most ${MAX_ZIP_INVOICES} invoices`),
+  formats: z.array(z.enum(['pdf', 'excel'])).min(1, 'Choose PDF, Excel or both').default(['pdf']),
+});
+export type ZipInvoicesDto = z.infer<typeof zipInvoicesSchema>;
+
+/** Copy the ZIP itself to the clipboard of the computer running the app (local only). */
+export const copyZipSchema = zipInvoicesSchema.extend({ text: z.string().max(2000).optional() });
+export type CopyZipDto = z.infer<typeof copyZipSchema>;

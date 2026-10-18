@@ -5,7 +5,8 @@ import { useInvoiceStore } from '../store/invoiceStore';
 import { invoiceService } from '../services/invoiceService';
 import InvoiceTable from '../components/InvoiceTable';
 import InvoiceForm from '../components/InvoiceForm';
-import { Plus, Download, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Download, Pencil, Trash2, CheckSquare } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
 import InvoiceStats from '../components/InvoiceStats';
 import InvoiceFilters from '../components/InvoiceFilters';
@@ -15,7 +16,7 @@ import { useInvoiceSummary } from '../hooks/useInvoices';
 import { useDeleteDraft, useDrafts } from '@/features/drafts/hooks/useDrafts';
 
 export default function InvoicesPage() {
-  const { search, filters, openCreateForm, openDraftForm, setSearch, setFilter, clearFilters } = useInvoiceStore();
+  const { search, filters, openCreateForm, openDraftForm, setSearch, setFilter, clearFilters, selectionMode, setSelectionMode } = useInvoiceStore();
   const { data: importersData } = useClients({ limit: 100, sort: 'name' });
   const { showToast } = useToast();
   const { data: draftData } = useDrafts<CreateInvoiceDto>('invoice');
@@ -124,6 +125,20 @@ export default function InvoicesPage() {
         years={summary?.data?.years ?? []}
         currencies={summary?.data?.currencies ?? []}
         importers={importersData?.data ?? []}
+        trailing={(
+          <button
+            type="button"
+            onClick={() => setSelectionMode(!selectionMode)}
+            aria-pressed={selectionMode}
+            className={cn(
+              'inline-flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors hover:bg-muted',
+              selectionMode && 'border-[hsl(var(--brand-accent))]/50 bg-[hsl(var(--brand-accent))]/10 text-[hsl(var(--brand-accent))]',
+            )}
+          >
+            <CheckSquare className="h-4 w-4" />
+            <span>{selectionMode ? 'Done' : 'Select'}</span>
+          </button>
+        )}
       />
 
       <InvoiceTable />

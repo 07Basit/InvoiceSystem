@@ -16,6 +16,10 @@ import {
   nativeShareStatus,
   shareInvoiceNative,
   createActualInvoice,
+  deleteInvoices,
+  downloadInvoicesZip,
+  listInvoiceIds,
+  copyInvoicesZip,
 } from '../controllers/invoice.controller';
 import {
   createInvoiceSchema,
@@ -23,12 +27,19 @@ import {
   listInvoicesQuerySchema,
   manualRateSchema,
   shareNativeSchema,
+  bulkInvoiceIdsSchema,
+  zipInvoicesSchema,
+  copyZipSchema,
 } from 'shared';
 
 const router = Router();
 
 router.get('/', validate(listInvoicesQuerySchema, 'query'), listInvoices);
 router.get('/export', exportInvoices);
+router.get('/ids', validate(listInvoicesQuerySchema, 'query'), listInvoiceIds);
+router.post('/bulk-delete', validate(bulkInvoiceIdsSchema), deleteInvoices);
+router.post('/zip', validate(zipInvoicesSchema), downloadInvoicesZip);
+router.post('/zip/clipboard', validate(copyZipSchema), copyInvoicesZip);
 router.get('/summary', getInvoiceSummary);
 router.get('/share/native', nativeShareStatus);
 router.post('/import', importInvoices);

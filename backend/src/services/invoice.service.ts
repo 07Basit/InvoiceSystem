@@ -104,49 +104,58 @@ export function snapshotChanges(
   return out;
 }
 
+/** The filters of the invoice list (search, importer, currency, year and month) as one database condition. */
+async function whereFor(query: ListInvoicesQuery): Promise<Prisma.InvoiceWhereInput> {
+  const search = query.search;
+  const importerId = query.importerId;
+  // Query-string values can arrive as text ("2023"), and "2023" + 1 would be "20231", so convert explicitly.
+  const year = query.year !== undefined && query.year !== null ? Number(query.year) : undefined;
+  const month = query.month !== undefined && query.month !== null ? Number(query.month) : undefined;
+  const { currency } = query;
+
+  // A year (with or without a month) is a plain date range. A month on its own means "that month in any year",
+  // which Prisma can't express, so the matching ids are looked up with a small raw query.
+  let invoiceDate: Prisma.InvoiceWhereInput['invoiceDate'];
+  let idsForMonth: string[] | undefined;
+  if (year) {
+    const start = new Date(Date.UTC(year, (month ?? 1) - 1, 1));
+    const end = month ? new Date(Date.UTC(year, month, 1)) : new Date(Date.UTC(year + 1, 0, 1));
+    invoiceDate = { gte: start, lt: end };
+  } else if (month) {
+    const rows = await prisma.$queryRaw<Array<{ id: string }>>`SELECT id FROM invoices WHERE deletedAt IS NULL AND MONTH(invoiceDate) = ${month}`;
+    idsForMonth = rows.map((r) => r.id);
+  }
+
+  const where: Prisma.InvoiceWhereInput = {
+    deletedAt: null,
+    ...(importerId ? { importerId } : {}),
+    ...(currency ? { currency } : {}),
+    ...(invoiceDate ? { invoiceDate } : {}),
+    ...(idsForMonth ? { id: { in: idsForMonth } } : {}),
+    ...(search
+      ? {
+          OR: [
+            { invoiceNumber: { contains: search } },
+            { importer: { name: { contains: search } } },
+            { importerName: { contains: search } },
+            { buyerName: { contains: search } },
+          ],
+        }
+      : {}),
+  };
+  return where;
+}
+
+/** Most invoices one bulk action (delete, ZIP) works on, so a request never grows without limit. */
+export const MAX_SELECTION = 200;
+
 export const invoiceService = {
   async list(query: ListInvoicesQuery): Promise<{ data: unknown[]; meta: PaginationMeta }> {
     const page = Number.isFinite(Number(query.page)) ? Math.max(1, Math.floor(Number(query.page))) : 1;
     const limit = Number.isFinite(Number(query.limit)) ? Math.min(100, Math.max(1, Math.floor(Number(query.limit)))) : 20;
-    const search = query.search;
     const sort = query.sort === 'invoiceDate' || query.sort === 'invoiceNumber' || query.sort === 'total' ? query.sort : 'createdAt';
     const order = query.order === 'asc' ? 'asc' : 'desc';
-    const importerId = query.importerId;
-    // Query-string values can arrive as text ("2023"), and "2023" + 1 would be "20231", so convert explicitly.
-    const year = query.year !== undefined && query.year !== null ? Number(query.year) : undefined;
-    const month = query.month !== undefined && query.month !== null ? Number(query.month) : undefined;
-    const { currency } = query;
-
-    // A year (with or without a month) is a plain date range. A month on its own means "that month in any year",
-    // which Prisma can't express, so the matching ids are looked up with a small raw query.
-    let invoiceDate: Prisma.InvoiceWhereInput['invoiceDate'];
-    let idsForMonth: string[] | undefined;
-    if (year) {
-      const start = new Date(Date.UTC(year, (month ?? 1) - 1, 1));
-      const end = month ? new Date(Date.UTC(year, month, 1)) : new Date(Date.UTC(year + 1, 0, 1));
-      invoiceDate = { gte: start, lt: end };
-    } else if (month) {
-      const rows = await prisma.$queryRaw<Array<{ id: string }>>`SELECT id FROM invoices WHERE deletedAt IS NULL AND MONTH(invoiceDate) = ${month}`;
-      idsForMonth = rows.map((r) => r.id);
-    }
-
-    const where: Prisma.InvoiceWhereInput = {
-      deletedAt: null,
-      ...(importerId ? { importerId } : {}),
-      ...(currency ? { currency } : {}),
-      ...(invoiceDate ? { invoiceDate } : {}),
-      ...(idsForMonth ? { id: { in: idsForMonth } } : {}),
-      ...(search
-        ? {
-            OR: [
-              { invoiceNumber: { contains: search } },
-              { importer: { name: { contains: search } } },
-              { importerName: { contains: search } },
-              { buyerName: { contains: search } },
-            ],
-          }
-        : {}),
-    };
+    const where = await whereFor(query);
 
     const [invoices, total] = await prisma.$transaction([
       prisma.invoice.findMany({
@@ -545,6 +554,12 @@ export const invoiceService = {
         },
       });
     });
+  },
+
+  /** Every invoice matching the list filters (newest first), for "select all matching". Capped so one request stays small. */
+  async listIds(query: ListInvoicesQuery, cap = MAX_SELECTION) {
+    const rows = await prisma.invoice.findMany({ where: await whereFor(query), select: { id: true }, orderBy: { createdAt: 'desc' }, take: cap + 1 });
+    return { ids: rows.slice(0, cap).map((r) => r.id), truncated: rows.length > cap };
   },
 
   async softDelete(id: string) {

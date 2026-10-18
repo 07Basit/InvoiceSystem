@@ -90,3 +90,14 @@ export function useDeleteInvoice() {
     },
   });
 }
+
+export function useBulkDeleteInvoices() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: string[]) => invoiceService.bulkDelete(ids),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: invoiceKeys.all });
+      qc.invalidateQueries({ queryKey: ['recycle-bin'] });
+    },
+  });
+}

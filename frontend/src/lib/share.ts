@@ -42,8 +42,9 @@ export function whatsappUrl(number: string | null | undefined, text: string): st
 }
 
 /** True when this browser can hand a real file to the system share sheet (Mail, WhatsApp, AirDrop...). */
-export function canShareFile(file: File): boolean {
-  return typeof navigator !== 'undefined' && typeof navigator.canShare === 'function' && typeof navigator.share === 'function' && navigator.canShare({ files: [file] });
+export function canShareFile(file: File | File[]): boolean {
+  const files = Array.isArray(file) ? file : [file];
+  return typeof navigator !== 'undefined' && typeof navigator.canShare === 'function' && typeof navigator.share === 'function' && navigator.canShare({ files });
 }
 
 /** "blocked" = the browser refused to share this file (it only lets some file types through, often not Excel). */
@@ -54,8 +55,9 @@ export type ShareOutcome = 'shared' | 'cancelled' | 'blocked';
  * "blocked" when the browser refuses the file ("Permission denied": Chrome and Brave only allow some file
  * types, such as PDF and images, and turn away others like Excel). A plainer share is tried before giving up.
  */
-export async function shareFile(file: File, message: Pick<ShareMessage, 'subject' | 'text'>): Promise<ShareOutcome> {
-  const attempts: ShareData[] = [{ files: [file], title: message.subject, text: message.text }, { files: [file] }];
+export async function shareFile(file: File | File[], message: Pick<ShareMessage, 'subject' | 'text'>): Promise<ShareOutcome> {
+  const files = Array.isArray(file) ? file : [file];
+  const attempts: ShareData[] = [{ files, title: message.subject, text: message.text }, { files }];
   for (const data of attempts) {
     try {
       await navigator.share(data);

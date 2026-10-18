@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import SearchCombobox, { type ComboOption } from '@/components/ui/SearchCombobox';
 import FilterBar from '@/components/ui/FilterBar';
 import { cn } from '@/lib/utils';
@@ -14,6 +15,8 @@ interface InvoiceFiltersProps {
   years: number[];
   currencies: string[];
   importers: Array<{ id: string; name: string; isActive?: boolean }>;
+  /** Shown to the right of the Filters button */
+  trailing?: ReactNode;
 }
 
 interface FilterPickProps {
@@ -48,7 +51,7 @@ function FilterPick({ label, value, onChange, options, searchPlaceholder, align 
 
 /** Search box and a Filters button; Year / Month / Importer / Currency live inside the panel. */
 export default function InvoiceFilters({
-  search, onSearchChange, filters, onFilterChange, onClear, years, currencies, importers,
+  search, onSearchChange, filters, onFilterChange, onClear, years, currencies, importers, trailing,
 }: InvoiceFiltersProps) {
   const yearOptions: ComboOption[] = [{ value: '', label: 'All years' }, ...years.map((y) => ({ value: String(y), label: String(y) }))];
   const monthOptions: ComboOption[] = [{ value: '', label: 'All months' }, ...MONTHS.map((m, i) => ({ value: String(i + 1), label: m }))];
@@ -68,6 +71,7 @@ export default function InvoiceFilters({
       searchLabel="Search invoices"
       activeCount={activeCount}
       onClear={onClear}
+      trailing={trailing}
     >
       <div className="grid w-[min(21rem,calc(100vw-4rem))] grid-cols-1 gap-2 sm:grid-cols-2">
         <FilterPick label="Year" value={filters.year} onChange={(v) => onFilterChange('year', v)} options={yearOptions} searchPlaceholder="Search year" />

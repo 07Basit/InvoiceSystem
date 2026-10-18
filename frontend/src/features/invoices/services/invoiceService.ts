@@ -207,6 +207,32 @@ export const invoiceService = {
     await printBlob(file.blob);
   },
 
+  /** Every invoice id matching the search and filters, for "select all matching". */
+  async listIds(query: Partial<ListInvoicesQuery>) {
+    const { data } = await apiClient.get<ApiResponse<{ ids: string[]; truncated: boolean }>>('/invoices/ids', { params: query });
+    return data.data!;
+  },
+
+  /** Delete several invoices; the ones that can't be deleted are listed in `failed`. */
+  async bulkDelete(ids: string[]) {
+    const { data } = await apiClient.post<ApiResponse<{ deleted: string[]; failed: { id: string; message: string }[] }>>('/invoices/bulk-delete', { ids });
+    return data.data!;
+  },
+
+  /** One ZIP with the PDF and/or Excel file of every invoice, as a file in memory. */
+  async getZip(ids: string[], formats: ('pdf' | 'excel')[]): Promise<{ blob: Blob; filename: string }> {
+    const response = await apiClient.post<Blob>('/invoices/zip', { ids, formats }, { responseType: 'blob' });
+    const disposition = String(response.headers['content-disposition'] ?? '');
+    const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
+    return { blob: response.data, filename: match?.[1] ? decodeURIComponent(match[1]) : `invoices-${ids.length}.zip` };
+  },
+
+  /** Puts the ZIP on the clipboard of the computer running the app (only where that is supported). */
+  async copyZip(ids: string[], formats: ('pdf' | 'excel')[], text?: string) {
+    const { data } = await apiClient.post<ApiResponse<{ filename: string }>>('/invoices/zip/clipboard', { ids, formats, ...(text ? { text } : {}) });
+    return data.data!;
+  },
+
   exportAll() {
     return downloadFile('/invoices/export', 'invoices-export.xlsx');
   },

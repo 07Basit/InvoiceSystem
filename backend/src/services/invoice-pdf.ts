@@ -1,4 +1,4 @@
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage, type RGB } from 'pdf-lib';
+import { PDFDocument, StandardFonts, concatTransformationMatrix, popGraphicsState, pushGraphicsState, rgb, type PDFFont, type PDFPage, type RGB } from 'pdf-lib';
 import { formatNumber, type DocField, type DocParty, type InvoiceDocument } from './invoice-document';
 
 const PAGE_W = 595.28;
@@ -28,7 +28,7 @@ class Writer {
   y = 0;
   private supported!: Set<number>;
 
-  constructor(doc: PDFDocument, readonly pageH: number = PAGE_H) {
+  constructor(doc: PDFDocument, public pageH: number = PAGE_H) {
     this.doc = doc;
   }
 
@@ -284,11 +284,22 @@ function footers(w: Writer, doc: InvoiceDocument, from: number, to: number) {
 
 /** Height of the tall scratch page an invoice is first drawn on, so it never has to break onto a second page while being measured. */
 const MEASURE_H = 20_000;
+/** Extra virtual room below an invoice: a section can reserve more space than it ends up using, and must never start a second page because of it. */
+const RESERVE_SLACK = 300;
+
+/** How tall an invoice is when drawn in one piece (from the top of the page down to its last line). */
+async function measure(doc: InvoiceDocument): Promise<number> {
+  const scratch = await PDFDocument.create();
+  const w = new Writer(scratch, MEASURE_H);
+  await w.init();
+  await drawDocument(w, doc);
+  return MEASURE_H - (w.y - 6);
+}
 
 /**
  * Renders the structured invoice as an A4 PDF: sections in a fixed order, and every invoice on exactly ONE page.
- * Each invoice is drawn once on a tall scratch page to find out how tall it is, then placed on an A4 page, scaled down
- * when it is taller than the page (a long product table), so it never runs on to a second page.
+ * Each invoice is measured first. If it is taller than the page (a long product table) it is drawn again with everything
+ * scaled down to fit, as ordinary page content (no embedded sub-pages, so every viewer and printer shows the text).
  * Several documents (a BOTH invoice) follow one another in one PDF, one page each.
  */
 export async function renderInvoicePdf(input: InvoiceDocument | InvoiceDocument[]): Promise<Uint8Array> {
@@ -298,33 +309,33 @@ export async function renderInvoicePdf(input: InvoiceDocument | InvoiceDocument[
   pdf.setTitle(`Invoice ${first.invoiceNumber}`);
   pdf.setSubject(`Invoice from ${first.exporter.name} to ${first.importer.name}`);
   pdf.setCreator('Invoice Manager');
-  // fonts for the footers (the invoice itself is drawn on scratch pages)
-  const footerWriter = new Writer(pdf);
-  await footerWriter.init(false);
+  const w = new Writer(pdf);
+  await w.init(false);
 
   const placed: { doc: InvoiceDocument; index: number }[] = [];
   for (const doc of docs) {
-    const scratch = await PDFDocument.create();
-    const w = new Writer(scratch, MEASURE_H);
-    await w.init();
-    await drawDocument(w, doc);
-    const bottom = w.y - 6;
-    const contentH = w.pageH - bottom;
-
-    const embedded = await pdf.embedPage(scratch.getPage(0), { left: 0, bottom, right: PAGE_W, top: w.pageH });
+    const contentH = await measure(doc);
     const scale = Math.min(1, (PAGE_H - BOTTOM) / contentH);
+    // The drawing code works in a "virtual" page a little taller than the content (room for the space some sections reserve
+    // for themselves), and a transform maps it onto the A4 page: top-aligned, centred, scaled down when it is taller than the page.
+    w.pageH = contentH + BOTTOM + 6 + RESERVE_SLACK;
     const page = pdf.addPage([PAGE_W, PAGE_H]);
-    // a scaled-down invoice is narrower than the page, so the title band is extended to the page edges behind it
+    w.page = page;
+    w.y = w.pageH - MARGIN;
+
     if (scale < 1) {
+      // a scaled-down invoice is narrower than the page, so the title band is extended to the page edges behind it
       page.drawRectangle({ x: 0, y: PAGE_H - 72 * scale, width: PAGE_W, height: 72 * scale, color: TEAL });
       page.drawRectangle({ x: 0, y: PAGE_H - 76 * scale, width: PAGE_W, height: 4 * scale, color: ORANGE });
     }
-    // top-aligned and centred; at scale 1 this is the invoice exactly as drawn
-    page.drawPage(embedded, { x: (PAGE_W - PAGE_W * scale) / 2, y: PAGE_H - contentH * scale, xScale: scale, yScale: scale });
+    page.pushOperators(pushGraphicsState(), concatTransformationMatrix(scale, 0, 0, scale, (PAGE_W - PAGE_W * scale) / 2, PAGE_H - scale * w.pageH));
+    await drawDocument(w, doc);
+    page.pushOperators(popGraphicsState());
     placed.push({ doc, index: pdf.getPageCount() - 1 });
   }
   // footers last, so "Page x of y" knows the final page count
-  for (const { doc, index } of placed) footers(footerWriter, doc, index, index + 1);
+  w.pageH = PAGE_H;
+  for (const { doc, index } of placed) footers(w, doc, index, index + 1);
   return pdf.save();
 }
 

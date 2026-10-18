@@ -1,7 +1,8 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, ChevronDown, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { shouldAlignRight } from '@/lib/popover';
+import { useFloatingPosition } from '@/lib/useFloatingPosition';
 
 export interface ComboOption {
   /** What gets stored/returned when picked (e.g. "INR", "BOM", "India"). */
@@ -61,12 +62,12 @@ export default function SearchCombobox({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
-  const [dropUp, setDropUp] = useState(false);
-  const [flip, setFlip] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const id = useId();
+  const position = useFloatingPosition(open, rootRef, { width: 320, height: 340, alignRight: align === 'right' });
 
   const selected = options.find((o) => o.value === value);
   const shown = display ?? (selected ? (selected.description ? `${selected.label} — ${selected.description}` : selected.label) : value);
@@ -91,9 +92,6 @@ export default function SearchCombobox({
 
   const openList = (seed = '') => {
     if (disabled) return;
-    const rect = rootRef.current?.getBoundingClientRect();
-    if (rootRef.current) setFlip(shouldAlignRight(rootRef.current, 320));
-    if (rect) setDropUp(window.innerHeight - rect.bottom < 340 && rect.top > window.innerHeight - rect.bottom);
     setQuery(seed);
     setActive(0);
     setOpen(true);
@@ -106,9 +104,13 @@ export default function SearchCombobox({
 
   useEffect(() => {
     if (!open) return;
-    searchRef.current?.focus();
+    // straight into the search box, caret after anything already typed (so "c" then "a" reads "ca")
+    const input = searchRef.current;
+    input?.focus();
+    input?.setSelectionRange(input.value.length, input.value.length);
     const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) close();
+      const target = e.target as Node;
+      if (!rootRef.current?.contains(target) && !popupRef.current?.contains(target)) close();
     };
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
@@ -157,8 +159,8 @@ export default function SearchCombobox({
         <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} />
       </button>
 
-      {open && (
-        <div className={cn('absolute z-50 w-80 max-w-[calc(100vw-2rem)] rounded-lg border bg-card text-foreground shadow-lg', dropUp ? 'bottom-full mb-1' : 'mt-1', align === 'right' || flip ? 'right-0' : 'left-0')}>
+      {open && createPortal(
+        <div ref={popupRef} data-floating-popup="" style={position} className="fixed z-[9999] rounded-lg border bg-card text-foreground shadow-lg">
           <div className="flex items-center gap-2 border-b px-3 py-2">
             <Search className="h-4 w-4 text-muted-foreground shrink-0" />
             <input
@@ -203,7 +205,8 @@ export default function SearchCombobox({
           {total > items.length && (
             <p className="border-t px-3 py-1.5 text-[11px] text-muted-foreground">Showing {items.length} of {total}. Keep typing to narrow the list.</p>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

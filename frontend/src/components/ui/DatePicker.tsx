@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { shouldAlignRight } from '@/lib/popover';
+import { useFloatingPosition } from '@/lib/useFloatingPosition';
 
 interface DatePickerProps {
   /** "YYYY-MM-DD", or "" for no date. */
@@ -50,9 +51,9 @@ export default function DatePicker({ value, onChange, ariaLabel, hasError, disab
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<'days' | 'months' | 'years'>('days');
   const [view, setView] = useState({ y: selected?.y ?? today.getFullYear(), m: selected?.m ?? today.getMonth() });
-  const [dropUp, setDropUp] = useState(false);
-  const [flip, setFlip] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+  const position = useFloatingPosition(open, rootRef, { width: 288, height: 360 });
 
   const close = () => { setOpen(false); setMode('days'); };
 
@@ -60,15 +61,14 @@ export default function DatePicker({ value, onChange, ariaLabel, hasError, disab
     if (disabled) return;
     const p = parseYmd(value);
     setView({ y: p?.y ?? today.getFullYear(), m: p?.m ?? today.getMonth() });
-    if (rootRef.current) setFlip(shouldAlignRight(rootRef.current, 288));
-    const rect = rootRef.current?.getBoundingClientRect();
-    if (rect) setDropUp(window.innerHeight - rect.bottom < 360 && rect.top > window.innerHeight - rect.bottom);
     setOpen(true);
   };
 
   useEffect(() => {
     if (!open) return;
-    const onDown = (e: MouseEvent) => { if (rootRef.current && !rootRef.current.contains(e.target as Node)) close(); };
+    const onDown = (e: MouseEvent) => { const target = e.target as Node;
+      if (!rootRef.current?.contains(target) && !popupRef.current?.contains(target)) close();
+    };
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
   }, [open]);
@@ -101,11 +101,13 @@ export default function DatePicker({ value, onChange, ariaLabel, hasError, disab
         <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
       </button>
 
-      {open && (
+      {open && createPortal(
         <div
+          ref={popupRef} data-floating-popup=""
           role="dialog"
           aria-label={`${ariaLabel} calendar`}
-          className={cn('absolute z-50 w-72 max-w-[calc(100vw-2rem)] rounded-lg border bg-card p-3 text-foreground shadow-lg', dropUp ? 'bottom-full mb-1' : 'mt-1', flip ? 'right-0' : 'left-0')}
+          style={position}
+          className="fixed z-[9999] rounded-lg border bg-card p-3 text-foreground shadow-lg"
         >
           <div className="mb-2 flex items-center justify-between">
             <button type="button" aria-label={mode === 'days' ? 'Previous month' : 'Previous years'} className={navBtn}
@@ -179,7 +181,8 @@ export default function DatePicker({ value, onChange, ariaLabel, hasError, disab
               ))}
             </div>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

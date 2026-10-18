@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { canShareFile, mailtoUrl, shareFile, shareMessage, whatsappNumber, whatsappUrl } from '../share';
+import { canSharePdf, canShareFile, mailtoUrl, shareFile, shareMessage, whatsappNumber, whatsappUrl } from '../share';
 
 const info = { invoiceNumber: 'INV-1', invoiceDate: '2026-10-17T00:00:00.000Z', currency: 'EUR', total: 2570.4, exporterName: 'Green Harvest' };
 
@@ -56,5 +56,33 @@ describe('share sheet', () => {
     await expect(shareFile(file, { subject: 'S', text: 'T' })).resolves.toBe('cancelled');
     Object.assign(navigator, { share: vi.fn().mockRejectedValue(new Error('boom')) });
     await expect(shareFile(file, { subject: 'S', text: 'T' })).rejects.toThrow('boom');
+  });
+
+  it('"Permission denied" (the browser turning the file type away) is retried plainer, then reported as blocked', async () => {
+    const denied = () => new DOMException('Permission denied', 'NotAllowedError');
+    const share = vi.fn().mockRejectedValueOnce(denied()).mockResolvedValueOnce(undefined);
+    Object.assign(navigator, { canShare: () => true, share });
+    await expect(shareFile(file, { subject: 'S', text: 'T' })).resolves.toBe('shared');
+    expect(share).toHaveBeenNthCalledWith(1, { files: [file], title: 'S', text: 'T' });
+    expect(share).toHaveBeenNthCalledWith(2, { files: [file] });
+
+    const alwaysDenied = vi.fn().mockRejectedValue(denied());
+    Object.assign(navigator, { share: alwaysDenied });
+    await expect(shareFile(file, { subject: 'S', text: 'T' })).resolves.toBe('blocked');
+    expect(alwaysDenied).toHaveBeenCalledTimes(2);
+  });
+
+  it('cancelling stops straight away without a second attempt', async () => {
+    const share = vi.fn().mockRejectedValue(new DOMException('closed', 'AbortError'));
+    Object.assign(navigator, { canShare: () => true, share });
+    await expect(shareFile(file, { subject: 'S', text: 'T' })).resolves.toBe('cancelled');
+    expect(share).toHaveBeenCalledTimes(1);
+  });
+
+  it('canSharePdf tells a browser that shares PDFs from one that shares nothing', () => {
+    expect(canSharePdf()).toBe(false);
+    Object.assign(navigator, { share: vi.fn(), canShare: (d: { files: File[] }) => d.files[0]!.type === 'application/pdf' });
+    expect(canSharePdf()).toBe(true);
+    expect(canShareFile(new File(['x'], 'a.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }))).toBe(false);
   });
 });

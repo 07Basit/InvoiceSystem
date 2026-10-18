@@ -92,6 +92,48 @@ describe('ShareInvoiceDialog', () => {
   });
 });
 
+describe('ShareInvoiceDialog when the browser refuses a file type (Excel in Chrome and Brave)', () => {
+  const pdfOnly = (d: { files: File[] }) => d.files[0]!.type === 'application/pdf';
+
+  it('says only PDF can be shared and copies the Excel file to the clipboard instead of downloading it', async () => {
+    Object.assign(navigator, { share: vi.fn(), canShare: pdfOnly });
+    vi.spyOn(invoiceService, 'nativeShareStatus').mockResolvedValue({ available: true, copyFile: true });
+    const shareNative = vi.spyOn(invoiceService, 'shareNative').mockResolvedValue({ target: 'clipboard', filename: 'invoice-INV-1.xlsx', opened: 'clipboard' });
+    const before = saved.length;
+    const { user } = setup();
+    await screen.findByText(/\.pdf/);
+    await user.click(screen.getByRole('radio', { name: /Excel/ }));
+    await screen.findByText(/\.xlsx/);
+    await screen.findByRole('button', { name: /Copy file/ });
+    expect(screen.getByText(/Excel is copied to your clipboard instead/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Share to an app/ }));
+    expect(shareNative).toHaveBeenCalledWith('i1', 'excel', 'clipboard');
+    expect(saved.length).toBe(before);
+    expect(await screen.findByText(/is on your clipboard/)).toBeInTheDocument();
+  });
+
+  it('still shares the PDF through the share sheet', async () => {
+    const share = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { share, canShare: pdfOnly });
+    const { user } = setup();
+    await user.click(await screen.findByRole('button', { name: /Share to an app/ }));
+    await waitFor(() => expect(share).toHaveBeenCalled());
+  });
+
+  it('copies the file instead when the browser says "Permission denied" at the last moment', async () => {
+    const share = vi.fn().mockRejectedValue(new DOMException('Permission denied', 'NotAllowedError'));
+    Object.assign(navigator, { share, canShare: () => true });
+    vi.spyOn(invoiceService, 'nativeShareStatus').mockResolvedValue({ available: true, copyFile: true });
+    const shareNative = vi.spyOn(invoiceService, 'shareNative').mockResolvedValue({ target: 'clipboard', filename: 'invoice-INV-1.pdf', opened: 'clipboard' });
+    const before = saved.length;
+    const { user } = setup();
+    await screen.findByRole('button', { name: /Copy file/ });
+    await user.click(screen.getByRole('button', { name: /Share to an app/ }));
+    await waitFor(() => expect(shareNative).toHaveBeenCalledWith('i1', 'pdf', 'clipboard'));
+    expect(saved.length).toBe(before);
+  });
+});
+
 describe('ShareInvoiceDialog copy buttons', () => {
   const message = 'Invoice INV-1\n\nHello,\n\nPlease find attached invoice INV-1 dated Oct 17, 2026.\n\nThank you.';
 

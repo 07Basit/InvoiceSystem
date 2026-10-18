@@ -4,7 +4,7 @@ import { Check, Copy, Download, FileSpreadsheet, FileText, Paperclip, Share2, X 
 import { invoiceService } from '../services/invoiceService';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
-import { canShareFile, saveBlob, shareFile, shareMessage, type ShareInvoiceInfo } from '@/lib/share';
+import { canSharePdf, canShareFile, saveBlob, shareFile, shareMessage, type ShareInvoiceInfo } from '@/lib/share';
 
 type Kind = 'pdf' | 'excel';
 
@@ -84,37 +84,12 @@ export default function ShareInvoiceDialog({ invoice, onClose }: { invoice: Shar
 
   const ready = prepared !== null;
   const sheetAvailable = ready && canShareFile(prepared.file);
-
-  const openShareSheet = useCallback(async () => {
-    if (!prepared) return;
-    setSharing(true);
-    try {
-      const outcome = await shareFile(prepared.file, message);
-      if (outcome === 'shared') { showToast('Shared', `${prepared.filename} was sent to the app you picked.`, 'success'); onClose(); }
-    } catch (error) {
-      showToast("Couldn't open the share sheet", error instanceof Error ? error.message : 'Download the file and attach it yourself instead.', 'error');
-    } finally {
-      setSharing(false);
-    }
-  }, [prepared, message, showToast, onClose]);
-
-  /** The browser has no share sheet for files: say so and point to what works here. */
-  const explainShareSheet = () => {
-    showToast(
-      "This browser can't share files to other apps",
-      'Use Chrome, Edge or Brave on Windows, Safari on a Mac, or a phone browser. Meanwhile, download the file and attach it yourself.',
-      'info',
-    );
-  };
-
-  const download = () => {
-    if (!prepared) return;
-    saveBlob(prepared.file, prepared.filename);
-    showToast(kind === 'pdf' ? 'PDF ready' : 'Excel ready', `${prepared.filename} was downloaded.`, 'success');
-  };
+  // PDF can be shared here but this file type can't (typical for Excel in Chrome and Brave)
+  const onlyPdfShares = !sheetAvailable && kind === 'excel' && canSharePdf();
+  const kindLabel = kind === 'excel' ? 'Excel' : 'PDF';
 
   /** Puts the file itself on the clipboard (only where the app runs on your own computer). */
-  const copyFileToClipboard = async () => {
+  const copyFileToClipboard = useCallback(async () => {
     if (!prepared || copying) return;
     setCopying(true);
     try {
@@ -127,6 +102,44 @@ export default function ShareInvoiceDialog({ invoice, onClose }: { invoice: Shar
     } finally {
       setCopying(false);
     }
+  }, [prepared, copying, invoice.id, kind, showToast]);
+
+  const openShareSheet = useCallback(async () => {
+    if (!prepared) return;
+    setSharing(true);
+    try {
+      const outcome = await shareFile(prepared.file, message);
+      if (outcome === 'shared') { showToast('Shared', `${prepared.filename} was sent to the app you picked.`, 'success'); onClose(); }
+      if (outcome === 'blocked') {
+        // the browser won't hand this type of file to other apps: put it on the clipboard instead
+        if (canCopyFile) await copyFileToClipboard();
+        else showToast(`This browser can't share ${kindLabel} files to other apps`, `Switch to PDF, which can be shared${kind === 'excel' ? '' : ' from another browser'}.`, 'info');
+      }
+    } catch (error) {
+      showToast("Couldn't open the share sheet", error instanceof Error ? error.message : 'Download the file and attach it yourself instead.', 'error');
+    } finally {
+      setSharing(false);
+    }
+  }, [prepared, message, showToast, onClose, kind, kindLabel, canCopyFile, copyFileToClipboard]);
+
+  /** The browser has no share sheet for files: say so and point to what works here. */
+  const explainShareSheet = () => {
+    if (onlyPdfShares) {
+      if (canCopyFile) void copyFileToClipboard();
+      else showToast("This browser can't share Excel files to other apps", 'Switch to PDF, which can be shared.', 'info');
+      return;
+    }
+    showToast(
+      "This browser can't share files to other apps",
+      'Use Chrome, Edge or Brave on Windows, Safari on a Mac, or a phone browser. Meanwhile, download the file and attach it yourself.',
+      'info',
+    );
+  };
+
+  const download = () => {
+    if (!prepared) return;
+    saveBlob(prepared.file, prepared.filename);
+    showToast(kind === 'pdf' ? 'PDF ready' : 'Excel ready', `${prepared.filename} was downloaded.`, 'success');
   };
 
   const copyMessage = async () => {
@@ -213,7 +226,7 @@ export default function ShareInvoiceDialog({ invoice, onClose }: { invoice: Shar
           >
             <span className="flex items-center gap-2"><Share2 className="h-4 w-4" /> Share to an app…</span>
             <span id="share-sheet-note" className={cn('text-[11px] font-normal', sheetAvailable ? 'text-white/85' : 'text-muted-foreground')}>
-              {sheetAvailable ? 'Send the file straight to Mail, WhatsApp, Messages and more' : 'Works on phones, Windows and Safari. Not available in this browser'}
+              {sheetAvailable ? 'Send the file straight to Mail, WhatsApp, Messages and more' : onlyPdfShares ? canCopyFile ? 'This browser can only share PDF files. Excel is copied to your clipboard instead' : 'This browser can only share PDF files. Switch to PDF to share' : 'Works on phones, Windows and Safari. Not available in this browser'}
             </span>
           </button>
 

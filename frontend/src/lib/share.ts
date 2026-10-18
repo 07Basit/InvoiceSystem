@@ -46,17 +46,32 @@ export function canShareFile(file: File): boolean {
   return typeof navigator !== 'undefined' && typeof navigator.canShare === 'function' && typeof navigator.share === 'function' && navigator.canShare({ files: [file] });
 }
 
-export type ShareOutcome = 'shared' | 'cancelled';
+/** "blocked" = the browser refused to share this file (it only lets some file types through, often not Excel). */
+export type ShareOutcome = 'shared' | 'cancelled' | 'blocked';
 
-/** Opens the system share sheet with the file; "cancelled" when the user closes it without choosing. */
+/**
+ * Opens the system share sheet with the file. "cancelled" when the user closes it without choosing;
+ * "blocked" when the browser refuses the file ("Permission denied": Chrome and Brave only allow some file
+ * types, such as PDF and images, and turn away others like Excel). A plainer share is tried before giving up.
+ */
 export async function shareFile(file: File, message: Pick<ShareMessage, 'subject' | 'text'>): Promise<ShareOutcome> {
-  try {
-    await navigator.share({ files: [file], title: message.subject, text: message.text });
-    return 'shared';
-  } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') return 'cancelled';
-    throw error;
+  const attempts: ShareData[] = [{ files: [file], title: message.subject, text: message.text }, { files: [file] }];
+  for (const data of attempts) {
+    try {
+      await navigator.share(data);
+      return 'shared';
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return 'cancelled';
+      if (error instanceof DOMException && error.name === 'NotAllowedError') continue;
+      throw error;
+    }
   }
+  return 'blocked';
+}
+
+/** Can this browser share a PDF to other apps? (Used to tell "no file sharing at all" from "not this file type".) */
+export function canSharePdf(): boolean {
+  return canShareFile(new File(['%PDF-1.4'], 'probe.pdf', { type: 'application/pdf' }));
 }
 
 /** Saves a blob through a temporary link (works without any popup permission). */

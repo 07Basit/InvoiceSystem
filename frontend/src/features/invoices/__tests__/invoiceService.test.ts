@@ -10,6 +10,7 @@ beforeEach(() => {
   URL.createObjectURL = vi.fn(() => 'blob:mock');
   URL.revokeObjectURL = vi.fn();
   vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias -- the test needs the anchor that was clicked
     clicked = this;
   });
   vi.spyOn(window, 'open').mockImplementation(() => null);

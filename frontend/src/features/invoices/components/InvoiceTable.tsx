@@ -157,7 +157,8 @@ export default function InvoiceTable() {
   const invoices = data?.data ?? [];
   const meta = data?.meta;
   const pageIds = invoices.map((i) => i.id);
-  const allOnPage = pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id));
+  const selectedSet = new Set(selectedIds); // O(1) "is it ticked" for every card
+  const allOnPage = pageIds.length > 0 && pageIds.every((id) => selectedSet.has(id));
 
   if (invoices.length === 0) {
     return (
@@ -178,7 +179,7 @@ export default function InvoiceTable() {
         <InvoiceSelectionStrip
           selected={selectedIds.length}
           pageCount={pageIds.length}
-          pageSelected={pageIds.filter((id) => selectedIds.includes(id)).length}
+          pageSelected={pageIds.filter((id) => selectedSet.has(id)).length}
           totalMatching={meta?.total ?? 0}
           onSelectPage={() => setSelected(pageIds, !allOnPage)}
           onSelectAllMatching={selectAllMatching}
@@ -205,7 +206,7 @@ export default function InvoiceTable() {
             onEdit={() => openEditForm(invoice.id)}
             onDelete={() => askDelete(invoice.id, invoice.invoiceNumber)}
             selectionMode={selectionMode}
-            selected={selectedIds.includes(invoice.id)}
+            selected={selectedSet.has(invoice.id)}
             onToggleSelect={() => toggleSelected(invoice.id)}
           />
         ))}

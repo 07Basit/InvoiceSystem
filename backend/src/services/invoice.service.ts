@@ -344,35 +344,49 @@ export const invoiceService = {
 
   /** Headline numbers for the Invoices page: counts and the total value in the reporting currency. */
   async summary() {
-    const invoices = await prisma.invoice.findMany({
+    // The database adds up invoices that share a day, currency and manual rate (one exchange rate applies to
+    // all of them), so memory stays small however many invoices there are.
+    const groups = await prisma.invoice.groupBy({
+      by: ['invoiceDate', 'currency', 'manualRate', 'manualRateBase'],
       // an "actual" invoice and a party / custom partner are copies of an original, so they are left out of the totals (nothing counted twice)
       where: { deletedAt: null, actualOfId: null, counterpartOfId: null },
-      select: { invoiceDate: true, total: true, currency: true, manualRate: true, manualRateBase: true },
+      _sum: { total: true },
+      _count: { _all: true },
     });
-    const { baseCurrency, convert } = await currencyService.buildConverter(invoices);
+    const rows = groups.map((g) => ({
+      invoiceDate: g.invoiceDate,
+      currency: g.currency,
+      manualRate: g.manualRate,
+      manualRateBase: g.manualRateBase,
+      total: g._sum.total ?? 0,
+      count: g._count._all,
+    }));
+    const { baseCurrency, convert } = await currencyService.buildConverter(rows);
 
     const now = new Date();
+    let total = 0;
     let thisMonth = 0;
     let totalValue = 0;
     let monthValue = 0;
     let notInRevenue = 0;
     const years = new Set<number>();
     const currencies = new Set<string>();
-    for (const inv of invoices) {
-      const d = new Date(inv.invoiceDate);
+    for (const row of rows) {
+      const d = new Date(row.invoiceDate);
       const inThisMonth = d.getUTCFullYear() === now.getUTCFullYear() && d.getUTCMonth() === now.getUTCMonth();
-      if (inThisMonth) thisMonth += 1;
+      total += row.count;
+      if (inThisMonth) thisMonth += row.count;
       years.add(d.getUTCFullYear());
-      currencies.add(inv.currency);
-      const value = convert(inv);
-      if (value === null) notInRevenue += 1;
+      currencies.add(row.currency);
+      const value = convert(row);
+      if (value === null) notInRevenue += row.count;
       else {
         totalValue += value;
         if (inThisMonth) monthValue += value;
       }
     }
     return {
-      total: invoices.length,
+      total,
       thisMonth,
       totalValue,
       monthValue,
@@ -717,8 +731,8 @@ export const invoiceService = {
   /** The values the filter panel can offer: only things that actually appear on some invoice. */
   async filterOptions() {
     const live = { deletedAt: null, isCompanion: false };
-    const [dates, currencies, loading, discharge, finals, countries, exporters, products] = await Promise.all([
-      prisma.invoice.findMany({ where: live, select: { invoiceDate: true } }),
+    const [years, currencies, loading, discharge, finals, countries, exporters, products] = await Promise.all([
+      prisma.$queryRaw<Array<{ year: number }>>`SELECT DISTINCT YEAR(invoiceDate) AS year FROM invoices WHERE deletedAt IS NULL AND isCompanion = 0`,
       prisma.invoice.findMany({ where: live, select: { currency: true }, distinct: ['currency'] }),
       prisma.invoice.findMany({ where: live, select: { portOfLoading: true }, distinct: ['portOfLoading'] }),
       prisma.invoice.findMany({ where: live, select: { portOfDischarge: true }, distinct: ['portOfDischarge'] }),
@@ -737,7 +751,7 @@ export const invoiceService = {
       return [...seen.values()].sort((a, b) => a.localeCompare(b));
     };
     return {
-      years: [...new Set(dates.map((d) => d.invoiceDate.getUTCFullYear()))].sort((a, b) => b - a),
+      years: years.map((r) => Number(r.year)).sort((a, b) => b - a),
       currencies: unique(currencies.map((r) => r.currency), (v) => v.toUpperCase()),
       loadingPorts: unique(loading.map((r) => r.portOfLoading), (v) => v.toUpperCase()),
       dischargePorts: unique([...discharge.map((r) => r.portOfDischarge), ...finals.map((r) => r.finalDestination)], (v) => v.toUpperCase()),
@@ -759,6 +773,41 @@ export const invoiceService = {
     const companionId = invoice.invoiceKind === 'BOTH' ? invoice.counterparts?.[0]?.id : undefined;
     const companion = companionId ? await this.getById(companionId) : null;
     return { invoice, companion };
+  },
+
+  /** Several invoices (each with its hidden custom page, if any) in two queries instead of one set per invoice. */
+  async getManyWithCompanions(ids: string[]) {
+    const include = { importer: true, landingLocation: true, loadingLocation: true, lineItems: true, ...actualLinks } as const;
+    const invoices = await prisma.invoice.findMany({ where: { id: { in: ids }, deletedAt: null }, include });
+    const byId = new Map(invoices.map((inv) => [inv.id, inv]));
+    for (const id of ids) if (!byId.has(id)) throw new AppError('Invoice not found', 404, 'INVOICE_NOT_FOUND');
+
+    const companionIds = new Set(
+      invoices.filter((inv) => inv.invoiceKind === 'BOTH').map((inv) => inv.counterparts?.[0]?.id).filter((c): c is string => !!c),
+    );
+    const companions = companionIds.size ? await prisma.invoice.findMany({ where: { id: { in: [...companionIds] }, deletedAt: null }, include }) : [];
+    const companionById = new Map(companions.map((c) => [c.id, c]));
+    return ids.map((id) => {
+      const invoice = byId.get(id)!;
+      const companionId = invoice.invoiceKind === 'BOTH' ? invoice.counterparts?.[0]?.id : undefined;
+      return { invoice, companion: (companionId && companionById.get(companionId)) || null };
+    });
+  },
+
+  /** Deletes (to the Recycle Bin) all given invoices at once. Returns the ids deleted and the ids that weren't found. */
+  async softDeleteMany(ids: string[]) {
+    const live = await prisma.invoice.findMany({ where: { id: { in: ids }, deletedAt: null }, select: { id: true } });
+    const liveIds = live.map((r) => r.id);
+    const now = new Date();
+    if (liveIds.length) {
+      // a BOTH invoice takes its hidden custom page with it
+      await prisma.$transaction([
+        prisma.invoice.updateMany({ where: { counterpartOfId: { in: liveIds }, isCompanion: true, deletedAt: null }, data: { deletedAt: now } }),
+        prisma.invoice.updateMany({ where: { id: { in: liveIds } }, data: { deletedAt: now } }),
+      ]);
+    }
+    const found = new Set(liveIds);
+    return { deleted: liveIds, missing: ids.filter((id) => !found.has(id)) };
   },
 
   async softDelete(id: string) {

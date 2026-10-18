@@ -28,20 +28,31 @@ export function scopeOfList(list: ProductList | undefined): InvoiceListContext {
   return list ? { importerId: list.importerId, currency: list.currency, locationName: list.locationName ?? undefined } : {};
 }
 
+type ListProduct = { name: string; ratePerKg: string | null; isActive: boolean; importerId: string | null; currency: string | null; locationName: string | null };
+
+const nameKey = (name: string) => name.trim().toLowerCase();
+
+/** The active products of one scope (general, or one importer + currency + location) by name: build once, look up in O(1). */
+export function priceIndex(products: ListProduct[], scope: InvoiceListContext): Map<string, ListProduct> {
+  const index = new Map<string, ListProduct>();
+  for (const p of products) {
+    if (!p.isActive) continue;
+    if ((p.importerId ?? undefined) !== scope.importerId || (p.currency ?? undefined) !== scope.currency || (p.locationName ?? undefined) !== scope.locationName) continue;
+    const key = nameKey(p.name);
+    if (!index.has(key)) index.set(key, p); // the first match wins, as before
+  }
+  return index;
+}
+
 /** What a product list says about a product name: is it in the list, and what is its price? */
-export function priceInList(
-  products: Array<{ name: string; ratePerKg: string | null; isActive: boolean; importerId: string | null; currency: string | null; locationName: string | null }>,
-  scope: InvoiceListContext,
-  name: string,
-): { found: boolean; price: number | null } {
-  const wanted = name.trim().toLowerCase();
-  const match = products.find((p) =>
-    p.isActive
-    && p.name.trim().toLowerCase() === wanted
-    && (p.importerId ?? undefined) === scope.importerId
-    && (p.currency ?? undefined) === scope.currency
-    && (p.locationName ?? undefined) === scope.locationName);
+export function priceFrom(index: Map<string, ListProduct>, name: string): { found: boolean; price: number | null } {
+  const match = index.get(nameKey(name));
   if (!match) return { found: false, price: null };
   const price = match.ratePerKg !== null ? Number(match.ratePerKg) : null;
   return { found: true, price: price !== null && price > 0 ? price : null };
+}
+
+/** One-off lookup. When pricing many lines, build `priceIndex` once and use `priceFrom` (O(L + P) instead of O(L * P)). */
+export function priceInList(products: ListProduct[], scope: InvoiceListContext, name: string): { found: boolean; price: number | null } {
+  return priceFrom(priceIndex(products, scope), name);
 }

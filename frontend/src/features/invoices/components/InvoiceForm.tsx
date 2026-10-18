@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Building2, ExternalLink, FileText, Landmark, PenLine, Package, Plus, ScrollText, Ship, Trash2, Users, type LucideIcon } from 'lucide-react';
 import { DEFAULT_DECLARATION, type CreateInvoiceDto } from 'shared';
@@ -10,7 +10,7 @@ import { useBankProfiles } from '../hooks/useBankProfiles';
 import { useDeclarationProfiles } from '../hooks/useDeclarationProfiles';
 import ProductPicker from './ProductPicker';
 import { useProductLists } from '../hooks/useProductLists';
-import { GENERAL_LIST, listsForImporter, priceInList, scopeOfList } from '../utils/productLists';
+import { GENERAL_LIST, listsForImporter, priceFrom, priceIndex, scopeOfList } from '../utils/productLists';
 import { useProducts } from '../hooks/useProducts';
 import type { Product } from '../services/productService';
 import { useDeleteDraft, useSaveDraft } from '@/features/drafts/hooks/useDrafts';
@@ -86,7 +86,6 @@ const initialInvoice: CreateInvoiceDto = {
 
 function toDateInput(iso: string) { return iso.slice(0, 10); }
 function toIsoDate(v: string) { return new Date(`${v}T00:00:00.000Z`).toISOString(); }
-function parseNumber(v: string) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
 
 function toWords(value: number): string {
   if (!Number.isFinite(value)) return '';
@@ -283,19 +282,20 @@ export default function InvoiceForm() {
   const chooseProductList = (id: string) => {
     setProductListId(id);
     const scope = scopeOfList(importerProductLists.find((l) => l.id === id));
-    const products = productData?.data ?? [];
+    const index = priceIndex(productData?.data ?? [], scope);
     setForm((prev) => ({
       ...prev,
-      lineItems: prev.lineItems.map((item) => (item.descriptionOfGoods.trim() ? { ...item, ratePerKg: priceInList(products, scope, item.descriptionOfGoods).price ?? 0 } : item)),
+      lineItems: prev.lineItems.map((item) => (item.descriptionOfGoods.trim() ? { ...item, ratePerKg: priceFrom(index, item.descriptionOfGoods).price ?? 0 } : item)),
     }));
     form.lineItems.forEach((_, i) => clearFieldError(`lineItems.${i}.ratePerKg`));
   };
 
   /** A line with a product but no price is highlighted, with a note saying why when the chosen list is the reason. */
   const needsPrice = (item: { descriptionOfGoods: string; ratePerKg: number | string }) => item.descriptionOfGoods.trim() !== '' && !Number(item.ratePerKg);
+  const chosenIndex = useMemo(() => priceIndex(productData?.data ?? [], scopeOfList(chosenProductList)), [productData, chosenProductList]);
   const priceNote = (item: { descriptionOfGoods: string; ratePerKg: number | string }) => {
     if (!needsPrice(item)) return '';
-    const { found } = priceInList(productData?.data ?? [], scopeOfList(chosenProductList), item.descriptionOfGoods);
+    const { found } = priceFrom(chosenIndex, item.descriptionOfGoods);
     return found ? 'No price in this list. Enter the rate.' : 'Not in this list. Enter the rate.';
   };
 

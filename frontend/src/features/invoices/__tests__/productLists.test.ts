@@ -58,3 +58,24 @@ describe('priceInList', () => {
     expect(priceInList(products, {}, 'Star Fruit')).toEqual({ found: false, price: null });
   });
 });
+
+describe('priceIndex / priceFrom', () => {
+  const row = (name: string, ratePerKg: string | null, extra = {}) => ({ name, ratePerKg, isActive: true, importerId: 'i1', currency: 'USD', locationName: null as string | null, ...extra });
+  const scope = { importerId: 'i1', currency: 'USD', locationName: undefined };
+
+  it('finds a product by name in one lookup, ignoring case and spaces', async () => {
+    const { priceIndex, priceFrom } = await import('../utils/productLists');
+    const index = priceIndex([row('Banana', '1.5'), row('Mango', null)], scope);
+    expect(priceFrom(index, '  banana ')).toEqual({ found: true, price: 1.5 });
+    expect(priceFrom(index, 'Mango')).toEqual({ found: true, price: null });
+    expect(priceFrom(index, 'Grape')).toEqual({ found: false, price: null });
+  });
+
+  it('leaves out inactive products and other scopes, and the first match wins', async () => {
+    const { priceIndex, priceFrom } = await import('../utils/productLists');
+    const index = priceIndex([row('A', '9', { isActive: false }), row('B', '2', { currency: 'EUR' }), row('C', '3'), row('C', '4')], scope);
+    expect(priceFrom(index, 'A').found).toBe(false);
+    expect(priceFrom(index, 'B').found).toBe(false);
+    expect(priceFrom(index, 'C').price).toBe(3);
+  });
+});

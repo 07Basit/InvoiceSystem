@@ -126,7 +126,7 @@ export interface Invoice {
   updatedAt: string;
 }
 
-export interface InvoiceListItem extends Omit<Invoice, 'lineItems'> {}
+export type InvoiceListItem = Omit<Invoice, 'lineItems'>;
 
 /** Whether "Create actual invoice" can be used, and the text to show on the button. */
 export function actualInvoiceState(invoice: Pick<Invoice, 'actualOfId' | 'actuals'>): { canCreate: boolean; label: string } {

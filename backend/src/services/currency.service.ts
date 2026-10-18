@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma';
 import { logger } from '../utils/logger';
 import { AppError } from '../utils/AppError';
 import { config } from '../config';
+import { lastAtOrBefore } from '../utils/binarySearch';
 import type { UpdateCurrencySettingsDto } from 'shared';
 
 const DEFAULT_BASE = 'USD';
@@ -118,10 +119,7 @@ export const currencyService = {
       });
       let series: DatedRate[] = cached.map((r) => ({ time: r.date.getTime(), rate: Number(r.rate), provider: r.source as RateProvider }));
 
-      const lookup = (t: number) => {
-        for (let i = series.length - 1; i >= 0; i--) if (series[i]!.time <= t) return series[i]!;
-        return undefined;
-      };
+      const lookup = (t: number) => series[lastAtOrBefore(series, t, (r) => r.time)];
       const uncovered = mine.filter((d) => {
         const hit = lookup(d.getTime());
         return !hit || d.getTime() - hit.time > LOOKBACK_DAYS * DAY_MS;
@@ -188,10 +186,7 @@ export const currencyService = {
       }
       const t = utcDay(inv.invoiceDate).getTime();
       const series = history.get(inv.currency) ?? [];
-      let hit: DatedRate | undefined;
-      for (let i = series.length - 1; i >= 0; i--) {
-        if (series[i]!.time <= t) { hit = series[i]; break; }
-      }
+      const hit = series[lastAtOrBefore(series, t, (r) => r.time)];
       return hit && t - hit.time <= LOOKBACK_DAYS * DAY_MS ? { value: amount * hit.rate, rate: hit.rate, source: 'auto', provider: hit.provider } : null;
     };
     const convert: Converter = (inv) => convertDetailed(inv)?.value ?? null;

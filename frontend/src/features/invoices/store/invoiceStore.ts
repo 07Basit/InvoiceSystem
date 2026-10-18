@@ -55,8 +55,14 @@ export const useInvoiceStore = create<InvoiceUIState>((set) => ({
   setPage: (page) => set({ page }),
   setSelectionMode: (on) => set(on ? { selectionMode: true } : { selectionMode: false, selectedIds: [] }),
   toggleSelected: (id) => set((state) => ({ selectedIds: state.selectedIds.includes(id) ? state.selectedIds.filter((x) => x !== id) : [...state.selectedIds, id] })),
-  setSelected: (ids, on) => set((state) => ({
-    selectedIds: on ? [...state.selectedIds, ...ids.filter((id) => !state.selectedIds.includes(id))] : state.selectedIds.filter((id) => !ids.includes(id)),
-  })),
+  // sets make "page of p ids into k ticked" O(p + k) instead of O(p * k); the array keeps the order the user ticked them in
+  setSelected: (ids, on) => set((state) => {
+    if (on) {
+      const have = new Set(state.selectedIds);
+      return { selectedIds: [...state.selectedIds, ...ids.filter((id) => !have.has(id))] };
+    }
+    const drop = new Set(ids);
+    return { selectedIds: state.selectedIds.filter((id) => !drop.has(id)) };
+  }),
   clearSelection: () => set({ selectedIds: [] }),
 }));

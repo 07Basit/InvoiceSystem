@@ -87,8 +87,8 @@ describe('invoiceService.list with several values and the new filters', () => {
 
 describe('invoiceService.filterOptions', () => {
   it('offers each value once, tidied, even when saved in different capitals', async () => {
+    prismaMock.$queryRaw.mockResolvedValueOnce([{ year: 2026 }, { year: 2025 }] as never);
     prismaMock.invoice.findMany
-      .mockResolvedValueOnce([{ invoiceDate: new Date('2026-03-01') }, { invoiceDate: new Date('2025-07-01') }, { invoiceDate: new Date('2026-09-01') }] as never)
       .mockResolvedValueOnce([{ currency: 'cad' }, { currency: 'CAD' }, { currency: 'USD' }] as never)
       .mockResolvedValueOnce([{ portOfLoading: 'bom' }, { portOfLoading: 'BOM' }, { portOfLoading: null }] as never)
       .mockResolvedValueOnce([{ portOfDischarge: 'yul' }] as never)

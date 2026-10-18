@@ -68,13 +68,11 @@ describe('deleteInvoices (bulk delete)', () => {
     const { deleteInvoices } = await import('../controllers/invoice.controller');
     const { events } = await import('../services/notification.events');
     jest.spyOn(events, 'invoiceDeleted').mockResolvedValue(undefined as never);
-    jest.spyOn(invoiceService, 'softDelete').mockImplementation(async (id: string) => {
-      if (id === 'missing') throw new Error('Invoice not found');
-      return {} as never;
-    });
+    const many = jest.spyOn(invoiceService, 'softDeleteMany').mockResolvedValue({ deleted: ['a', 'b'], missing: ['missing'] });
     const json = jest.fn();
     await deleteInvoices({ body: { ids: ['a', 'missing', 'a', 'b'] }, user: { id: 'u1' } } as never, { json } as never, jest.fn());
     await new Promise((r) => setImmediate(r));
+    expect(many).toHaveBeenCalledWith(['a', 'missing', 'b']);
     expect(json).toHaveBeenCalledWith(expect.objectContaining({ success: true, data: { deleted: ['a', 'b'], failed: [{ id: 'missing', message: 'Invoice not found' }] } }));
   });
 });

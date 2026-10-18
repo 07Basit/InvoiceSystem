@@ -95,17 +95,9 @@ export const deleteInvoice = asyncHandler(async (req: Request, res: Response) =>
 /** Delete several invoices at once; invoices that can't be deleted are reported, the rest are still deleted. */
 export const deleteInvoices = asyncHandler(async (req: Request, res: Response) => {
   const { ids } = req.body as BulkInvoiceIdsDto;
-  const deleted: string[] = [];
-  const failed: { id: string; message: string }[] = [];
-  for (const id of new Set(ids)) {
-    try {
-      await invoiceService.softDelete(id);
-      await events.invoiceDeleted(actorOf(req), id);
-      deleted.push(id);
-    } catch (error) {
-      failed.push({ id, message: error instanceof Error ? error.message : 'Could not be deleted' });
-    }
-  }
+  const { deleted, missing } = await invoiceService.softDeleteMany([...new Set(ids)]);
+  for (const id of deleted) await events.invoiceDeleted(actorOf(req), id);
+  const failed = missing.map((id) => ({ id, message: 'Invoice not found' }));
   logger.info('Invoices deleted (soft)', { count: deleted.length, failed: failed.length, action: 'bulk_delete_invoices' });
   res.json({ success: true, data: { deleted, failed }, error: null, meta: null });
 });
@@ -114,8 +106,7 @@ export const deleteInvoices = asyncHandler(async (req: Request, res: Response) =
 export const downloadInvoicesZip = asyncHandler(async (req: Request, res: Response) => {
   const { ids, formats } = req.body as ZipInvoicesDto;
   const wanted = [...new Set(ids)];
-  const invoices = [];
-  for (const id of wanted) invoices.push(await invoiceService.getWithCompanion(id));
+  const invoices = await invoiceService.getManyWithCompanions(wanted);
   const buffer = await zipInvoices(invoices, formats);
   logger.info('Invoice ZIP generated', { count: invoices.length, formats, action: 'download_invoices_zip' });
 
@@ -130,8 +121,7 @@ export const copyInvoicesZip = asyncHandler(async (req: Request, res: Response) 
   if (!nativeShare.supportsFileClipboard()) throw new AppError('Copying files is not available here.', 501, 'NATIVE_SHARE_UNAVAILABLE');
   if (!nativeShare.isLocalRequest(req.socket.remoteAddress, req.headers['x-forwarded-for'])) throw new AppError('Only available from the computer running the server.', 403, 'NATIVE_SHARE_LOCAL_ONLY');
   const { ids, formats, text } = req.body as CopyZipDto;
-  const invoices = [];
-  for (const id of new Set(ids)) invoices.push(await invoiceService.getWithCompanion(id));
+  const invoices = await invoiceService.getManyWithCompanions([...new Set(ids)]);
   const filename = `invoices-${invoices.length}.zip`;
   const path = await nativeShare.writeTempFile(filename, await zipInvoices(invoices, formats));
   await nativeShare.copyFile(path, text);

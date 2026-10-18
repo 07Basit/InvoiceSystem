@@ -207,6 +207,9 @@ model Invoice {
   @@index([counterpartOfId])
   @@index([invoiceDate])
   @@index([deletedAt])
+  // the list (newest first, live, not a hidden page) and the totals (originals only) each read through one index
+  @@index([deletedAt, isCompanion, createdAt])
+  @@index([deletedAt, actualOfId, counterpartOfId])
   @@map("invoices")
 }
 

@@ -32,7 +32,7 @@ const PRODUCTS = [
 async function main() {
   let added = 0;
   for (const name of PRODUCTS) {
-    if (await prisma.product.findUnique({ where: { name } })) continue;
+    if (await prisma.product.findFirst({ where: { name, importerId: null, currency: null, locationName: null } })) continue;
     await prisma.product.create({ data: { name } });
     added++;
   }

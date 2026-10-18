@@ -8,7 +8,7 @@ import { paginationQuerySchema } from './pagination.schema';
 
 /** Printed on every invoice unless the user edits it for that invoice. */
 export const DEFAULT_DECLARATION =
-  'We declare that this Invoice shows the actual price of the goods described and that all particulars are true and correct.';
+  'We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.';
 
 // ---------------------------------------------------------------------------
 // Line Item

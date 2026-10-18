@@ -21,6 +21,8 @@ interface SearchComboboxProps {
   options: ComboOption[];
   /** Listed first (under a "Common" heading) while the search box is empty. */
   common?: ComboOption[];
+  /** Heading above the `common` rows (default "Common") */
+  commonLabel?: string;
   placeholder?: string;
   searchPlaceholder?: string;
   ariaLabel: string;
@@ -65,7 +67,7 @@ function rank(option: ComboOption, q: string): number {
 
 /** Themed, searchable picker: type "inr" and INR is offered. Used for currencies, airports and countries. */
 export default function SearchCombobox({
-  value, onChange, options, common = [], placeholder = 'Select', searchPlaceholder = 'Search…', ariaLabel,
+  value, onChange, options, common = [], commonLabel = 'Common', placeholder = 'Select', searchPlaceholder = 'Search…', ariaLabel,
   disabled, hasError, className, display, leading, align = 'left', labelClassName = 'w-10', loading = false, maxResults = 200,
   allowCustom = false, onCreate, createTarget = 'the list',
 }: SearchComboboxProps) {
@@ -199,7 +201,7 @@ export default function SearchCombobox({
             {!loading && items.length === 0 && <li className="px-3 py-4 text-center text-sm text-muted-foreground">No match for “{query}”</li>}
             {items.map((o, i) => (
               <li key={o.value} role="presentation">
-                {!query && i === 0 && commonCount > 0 && <p className="px-3 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Common</p>}
+                {!query && i === 0 && commonCount > 0 && <p className="px-3 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{commonLabel}</p>}
                 {!query && i === commonCount && commonCount > 0 && <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground border-t mt-1">All</p>}
                 <div
                   id={`${id}-opt-${i}`}

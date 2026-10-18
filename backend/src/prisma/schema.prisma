@@ -27,6 +27,8 @@ model Importer {
   currency         String
   // false = "not needed": kept in the importers list (greyed out) but not offered when creating invoices
   isActive         Boolean           @default(true)
+  productLists     ProductList[]
+  products         Product[]
   landingLocations LandingLocation[]
   loadingLocations LoadingLocation[]
   invoices         Invoice[]
@@ -304,18 +306,39 @@ model BankProfile {
 
 // A product that can be picked on an invoice line. Invoices copy the name, weight and rate, so edits here never change them.
 model Product {
-  id                   String   @id @default(cuid())
-  name                 String   @unique @db.NVarChar(200)
+  id                   String    @id @default(cuid())
+  name                 String    @db.NVarChar(200)
+  // Where this product applies. All empty = the general list; otherwise an importer, optionally narrowed to one
+  // currency and one landing location (kept by name, because an importer's locations are rebuilt when it is edited).
+  importerId           String?
+  importer             Importer? @relation(fields: [importerId], references: [id], onDelete: Cascade)
+  currency             String?   @db.NVarChar(3)
+  locationName         String?   @db.NVarChar(200)
   // Usual values, filled in when the product is picked (optional; editable on the invoice)
-  nettWeightPerPackage Decimal? @db.Decimal(10, 3)
-  ratePerKg            Decimal? @db.Decimal(12, 4)
-  hsCode               String?  @db.NVarChar(30)
+  nettWeightPerPackage Decimal?  @db.Decimal(10, 3)
+  ratePerKg            Decimal?  @db.Decimal(12, 4)
+  hsCode               String?   @db.NVarChar(30)
   // false = marked "not needed": kept here, but not offered on invoices
-  isActive             Boolean  @default(true)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  isActive             Boolean   @default(true)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
+  @@index([importerId])
   @@map("products")
+}
+
+// A named list of products for one importer in one currency, optionally for one landing location (kept by name).
+// Its products are the ones with the same importer, currency and location.
+model ProductList {
+  id           String   @id @default(cuid())
+  importerId   String
+  importer     Importer @relation(fields: [importerId], references: [id], onDelete: Cascade)
+  currency     String   @db.NVarChar(3)
+  locationName String?  @db.NVarChar(200)
+  createdAt    DateTime @default(now())
+
+  @@index([importerId])
+  @@map("product_lists")
 }
 
 // A saved seal & signature image printed on invoices. There can be several; each invoice copies the one it uses.
@@ -332,6 +355,21 @@ model SignProfile {
   updatedAt DateTime @updatedAt
 
   @@map("sign_profiles")
+}
+
+// A saved declaration text printed on invoices. There can be several; each invoice copies the one it uses.
+model DeclarationProfile {
+  id        String   @id @default(cuid())
+  name      String
+  text      String   @db.NVarChar(Max)
+  // The declaration preselected when a new invoice is started (at most one)
+  isDefault Boolean  @default(false)
+  // false = marked "not needed": kept here, but not offered when creating invoices
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("declaration_profiles")
 }
 
 // A form someone saved half-finished ("Save draft"): an invoice or an importer. Private to the person who saved it.

@@ -1,10 +1,13 @@
-import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import { productListService } from './product-list.service';
 import { AppError } from '../utils/AppError';
 import type { ProductDto } from 'shared';
 
 const fields = (dto: ProductDto) => ({
   name: dto.name,
+  importerId: dto.importerId ?? null,
+  currency: dto.currency ?? null,
+  locationName: dto.locationName ?? null,
   nettWeightPerPackage: dto.nettWeightPerPackage ?? null,
   ratePerKg: dto.ratePerKg ?? null,
   hsCode: dto.hsCode || null,
@@ -16,12 +19,25 @@ async function getOrThrow(id: string) {
   return product;
 }
 
-/** The name column is unique (ignoring capitals), so a duplicate surfaces as a friendly 409. */
-function asDuplicate(error: unknown, name: string): never {
-  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-    throw new AppError(`"${name}" is already in your products`, 409, 'PRODUCT_EXISTS');
+/** A name can appear once in each list (the general list, or one importer + currency + location). Capitals are ignored. */
+async function assertNameFree(dto: ProductDto, exceptId?: string) {
+  const twin = await prisma.product.findFirst({
+    where: {
+      name: dto.name,
+      importerId: dto.importerId ?? null,
+      currency: dto.currency ?? null,
+      locationName: dto.locationName ?? null,
+      ...(exceptId ? { NOT: { id: exceptId } } : {}),
+    },
+    select: { id: true },
+  });
+  if (twin) throw new AppError(`"${dto.name}" is already in this list`, 409, 'PRODUCT_EXISTS');
+}
+
+async function assertImporterExists(importerId: string | undefined) {
+  if (importerId && !(await prisma.importer.findUnique({ where: { id: importerId }, select: { id: true } }))) {
+    throw new AppError('Importer not found', 404, 'IMPORTER_NOT_FOUND');
   }
-  throw error;
 }
 
 export const productService = {
@@ -31,20 +47,18 @@ export const productService = {
   },
 
   async create(dto: ProductDto) {
-    try {
-      return await prisma.product.create({ data: fields(dto) });
-    } catch (error) {
-      return asDuplicate(error, dto.name);
-    }
+    await assertImporterExists(dto.importerId);
+    await assertNameFree(dto);
+    // a product added to an importer's list (even from an invoice) makes sure that list exists
+    if (dto.importerId && dto.currency) await productListService.ensure({ importerId: dto.importerId, currency: dto.currency, ...(dto.locationName ? { locationName: dto.locationName } : {}) });
+    return prisma.product.create({ data: fields(dto) });
   },
 
   async update(id: string, dto: ProductDto) {
     await getOrThrow(id);
-    try {
-      return await prisma.product.update({ where: { id }, data: fields(dto) });
-    } catch (error) {
-      return asDuplicate(error, dto.name);
-    }
+    await assertImporterExists(dto.importerId);
+    await assertNameFree(dto, id);
+    return prisma.product.update({ where: { id }, data: fields(dto) });
   },
 
   /** "Not needed" products stay saved but are not offered on new invoices. */

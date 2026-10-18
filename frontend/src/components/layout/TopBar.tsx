@@ -10,6 +10,8 @@ export function pageTitleForPath(pathname: string): string {
   if (pathname.startsWith('/invoices/')) return 'Invoice';
   if (pathname.startsWith('/invoices')) return 'Invoices';
   if (pathname.startsWith('/importers')) return 'Importers';
+  if (pathname.startsWith('/exporter')) return 'Exporter';
+  if (pathname.startsWith('/products')) return 'Products';
   if (pathname.startsWith('/documents')) return 'Documents';
   if (pathname.startsWith('/recycle-bin')) return 'Recycle Bin';
   if (pathname.startsWith('/notifications')) return 'Notifications';

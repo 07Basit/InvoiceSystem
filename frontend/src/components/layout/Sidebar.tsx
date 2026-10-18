@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, FileText, Users, FileEdit, Receipt, TrendingUp, Trash2 } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, FileEdit, Receipt, TrendingUp, Trash2, Building2, Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import SidebarArt, { SidebarGlobe, SidebarSparkles } from './SidebarArt';
 
@@ -7,6 +7,8 @@ const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/invoices', icon: Receipt, label: 'Invoices' },
   { to: '/importers', icon: Users, label: 'Importers' },
+  { to: '/exporter', icon: Building2, label: 'Exporter' },
+  { to: '/products', icon: Package, label: 'Products' },
   { to: '/documents', icon: FileEdit, label: 'Documents' },
 ];
 

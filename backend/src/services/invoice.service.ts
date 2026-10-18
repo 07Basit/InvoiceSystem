@@ -6,6 +6,7 @@ import { logger } from '../utils/logger';
 import { currencyService } from './currency.service';
 import { exporterService } from './exporter.service';
 import { bankService } from './bank.service';
+import { declarationService } from './declaration.service';
 import { signService } from './sign.service';
 import { DEFAULT_DECLARATION } from 'shared';
 import type { CreateInvoiceDto, ListInvoicesQuery, PaginationMeta, UpdateInvoiceDto } from 'shared';
@@ -406,6 +407,9 @@ export const invoiceService = {
     // And the seal & sign
     const signFallback = dto.signImage ? null : await signService.getDefault();
 
+    // And the declaration wording
+    const declarationFallback = dto.declaration ? null : await declarationService.getDefault();
+
     const roundOff = dto.roundOff ?? 0;
     const totals = calculateInvoiceTotals(dto.lineItems, roundOff);
     assertGrossAtLeastNet(dto.totalGrossWeight, totals.totalNetWeight);
@@ -454,7 +458,7 @@ export const invoiceService = {
         total: new Decimal(totals.total),
         amountInWords: dto.amountInWords ?? null,
         notes: dto.notes ?? null,
-        declaration: dto.declaration || DEFAULT_DECLARATION,
+        declaration: dto.declaration || declarationFallback?.text || DEFAULT_DECLARATION,
         lineItems: {
           create: dto.lineItems.map(calculateLine),
         },

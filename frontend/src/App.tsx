@@ -7,6 +7,9 @@ import { useAuthStore } from '@/features/auth/store/authStore';
 
 const LoginPage = lazy(() => import('@/features/auth/pages/LoginPage'));
 const ProfilePage = lazy(() => import('@/features/auth/pages/ProfilePage'));
+const ProductsPage = lazy(() => import('@/features/products/pages/ProductsPage'));
+const ProductListPage = lazy(() => import('@/features/products/pages/ProductListPage'));
+const ExporterPage = lazy(() => import('@/features/exporter/pages/ExporterPage'));
 const InvoicesPage = lazy(() => import('@/features/invoices/pages/InvoicesPage'));
 const InvoiceDetailPage = lazy(() => import('@/features/invoices/pages/InvoiceDetailPage'));
 const ImportersPage = lazy(() => import('@/features/clients/pages/ClientsPage'));
@@ -29,6 +32,9 @@ const router = createBrowserRouter([
           { path: 'invoices', element: <InvoicesPage /> },
           { path: 'invoices/:id', element: <InvoiceDetailPage /> },
           { path: 'importers', element: <ImportersPage /> },
+          { path: 'exporter', element: <ExporterPage /> },
+          { path: 'products', element: <ProductsPage /> },
+          { path: 'products/:listId', element: <ProductListPage /> },
           { path: 'documents', element: <DocumentsPage /> },
           { path: 'recycle-bin', element: <RecycleBinPage /> },
           { path: 'notifications', element: <NotificationsPage /> },

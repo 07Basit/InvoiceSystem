@@ -6,12 +6,13 @@ import { useClients } from '@/features/clients/hooks/useClients';
 import { useCreateInvoice, useInvoice, useUpdateInvoice } from '../hooks/useInvoices';
 import { useExporterProfiles } from '../hooks/useExporterProfiles';
 import { useBankProfiles } from '../hooks/useBankProfiles';
+import { useDeclarationProfiles } from '../hooks/useDeclarationProfiles';
 import ProductPicker from './ProductPicker';
 import type { Product } from '../services/productService';
 import { useDeleteDraft, useSaveDraft } from '@/features/drafts/hooks/useDrafts';
 import { useSignProfiles } from '../hooks/useSignProfiles';
 import type { SignProfile } from '../services/signService';
-import { bankLabel } from '@/features/auth/components/BankProfilesSection';
+import { bankLabel } from '@/features/exporter/components/BankProfilesSection';
 import type { BankProfile } from '../services/bankService';
 import type { ExporterProfile } from '../services/exporterService';
 import SearchCombobox from '@/components/ui/SearchCombobox';
@@ -137,6 +138,8 @@ export default function InvoiceForm() {
   const { data: bankData } = useBankProfiles();
   // "Not needed" accounts are hidden from new invoices (an edited invoice keeps its own copy)
   const bankProfiles = (bankData?.data ?? []).filter((p) => p.isActive);
+  const { data: declarationData } = useDeclarationProfiles();
+  const declarationProfiles = (declarationData?.data ?? []).filter((p) => p.isActive);
   const allExporterProfiles = exporterData?.data ?? [];
   // "Not needed" profiles are hidden from new invoices (an edited invoice's own copy is unaffected)
   const exporterProfiles = allExporterProfiles.filter((p) => p.isActive);
@@ -152,6 +155,7 @@ export default function InvoiceForm() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [bankProfileId, setBankProfileId] = useState('');
   const [signProfileId, setSignProfileId] = useState('');
+  const [declarationProfileId, setDeclarationProfileId] = useState('');
 
   const isEditing = Boolean(editingId);
   const invoice = invoiceData?.data;
@@ -189,7 +193,7 @@ export default function InvoiceForm() {
   }, [invoice, isEditing]);
 
   useEffect(() => {
-    if (!isFormOpen) { setForm(initialInvoice); setErrors({}); setSubmitError(null); setExporterProfileId(''); setBankProfileId(''); setSignProfileId(''); return; }
+    if (!isFormOpen) { setForm(initialInvoice); setErrors({}); setSubmitError(null); setExporterProfileId(''); setBankProfileId(''); setSignProfileId(''); setDeclarationProfileId(''); return; }
     if (!isEditing && draftData) { setForm(draftData); setErrors({}); setSubmitError(null); }
   }, [isFormOpen, isEditing, draftData]);
 
@@ -223,6 +227,22 @@ export default function InvoiceForm() {
     setSignProfileId(start.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFormOpen, isEditing, signData]);
+
+  // And the declaration: a NEW invoice starts from the default (or only) one, unless its wording was already changed.
+  useEffect(() => {
+    if (!isFormOpen || isEditing || declarationProfiles.length === 0) return;
+    const start = declarationProfiles.find((p) => p.isDefault) ?? (declarationProfiles.length === 1 ? declarationProfiles[0] : undefined);
+    if (!start) return;
+    setForm((prev) => (prev.declaration && prev.declaration !== DEFAULT_DECLARATION ? prev : { ...prev, declaration: start.text }));
+    setDeclarationProfileId(start.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFormOpen, isEditing, declarationData]);
+
+  const chooseDeclarationProfile = (id: string) => {
+    setDeclarationProfileId(id);
+    const profile = declarationProfiles.find((p) => p.id === id);
+    if (profile) setForm((prev) => ({ ...prev, declaration: profile.text }));
+  };
 
   const chooseSignProfile = (id: string) => {
     setSignProfileId(id);
@@ -433,7 +453,7 @@ export default function InvoiceForm() {
         <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 bg-gradient-to-b from-[hsl(var(--primary)/0.07)] via-[hsl(var(--primary)/0.02)] to-[hsl(var(--brand-accent)/0.10)]">
           {submitError ? <div className="text-xs text-destructive bg-destructive/5 border border-destructive/30 rounded-md px-3 py-2">{submitError}</div> : null}
 
-          <Section title="Exporter" icon={Building2} tone="teal" action={<ManageLink to="/profile" label="Manage exporter profiles" />}>
+          <Section title="Exporter" icon={Building2} tone="teal" action={<ManageLink to="/exporter" label="Manage exporter profiles" />}>
             <div className="max-w-sm">
               <label className="label">Exporter profile</label>
               <SearchCombobox
@@ -680,7 +700,7 @@ export default function InvoiceForm() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-4">
-              <Section title="Bank Detail" icon={Landmark} tone="teal" action={<ManageLink to="/profile" label="Manage bank accounts" />}>
+              <Section title="Bank Detail" icon={Landmark} tone="teal" action={<ManageLink to="/exporter" label="Manage bank accounts" />}>
                 <div className="max-w-sm">
                   <label className="label">Bank account</label>
                   <SearchCombobox
@@ -703,9 +723,22 @@ export default function InvoiceForm() {
                 <p className="text-[11px] text-muted-foreground">This invoice keeps its own copy of these details. Changing them here does not change the saved account.</p>
               </Section>
 
-              <Section title="Declaration" icon={ScrollText} tone="teal">
+              <Section title="Declaration" icon={ScrollText} tone="teal" action={<ManageLink to="/exporter" label="Manage declarations" />}>
+                <div className="max-w-sm">
+                  <label className="label">Declaration</label>
+                  <SearchCombobox
+                    ariaLabel="Declaration"
+                    value={declarationProfileId}
+                    onChange={chooseDeclarationProfile}
+                    options={declarationProfiles.map((p) => ({ value: p.id, label: p.name, description: p.isDefault ? 'Default' : '' }))}
+                    placeholder={isEditing ? "Keep this invoice's declaration" : declarationProfiles.length ? 'Select a declaration' : 'No declarations yet'}
+                    searchPlaceholder="Search declarations…"
+                    labelClassName="w-auto max-w-[70%] truncate"
+                    className="input"
+                  />
+                </div>
                 <textarea
-                  aria-label="Declaration"
+                  aria-label="Declaration text"
                   rows={4}
                   maxLength={2000}
                   value={form.declaration ?? ''}
@@ -714,14 +747,19 @@ export default function InvoiceForm() {
                 />
                 <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                   <span>Press Enter for a new line. This invoice keeps its own wording.</span>
-                  {(form.declaration ?? '') !== DEFAULT_DECLARATION && (
-                    <button type="button" onClick={() => setForm((p) => ({ ...p, declaration: DEFAULT_DECLARATION }))} className="font-semibold text-[hsl(var(--brand-accent))] hover:underline">Reset to standard text</button>
-                  )}
+                  {(() => {
+                    const saved = declarationProfiles.find((p) => p.id === declarationProfileId)?.text ?? DEFAULT_DECLARATION;
+                    return (form.declaration ?? '') !== saved ? (
+                      <button type="button" onClick={() => setForm((p) => ({ ...p, declaration: saved }))} className="font-semibold text-[hsl(var(--brand-accent))] hover:underline">
+                        {declarationProfileId ? 'Reset to saved text' : 'Reset to standard text'}
+                      </button>
+                    ) : null;
+                  })()}
                 </div>
               </Section>
             </div>
 
-            <Section title="Seal & Sign" icon={PenLine} tone="teal" action={<ManageLink to="/profile" label="Manage seal & sign" />}>
+            <Section title="Seal & Sign" icon={PenLine} tone="teal" action={<ManageLink to="/exporter" label="Manage seal & sign" />}>
               <div className="max-w-sm">
                 <label className="label">Seal &amp; sign</label>
                 <SearchCombobox
@@ -776,6 +814,7 @@ export default function InvoiceForm() {
         <ProductPicker
           ariaLabel={`Description of goods for product ${index + 1}`}
           value={item.descriptionOfGoods}
+          scope={{ importerId: form.importerId || undefined, currency: form.currency || undefined, locationName: selectedImporter?.landingLocations.find((l) => l.id === form.landingLocationId)?.name || undefined }}
           hasError={!!errors[`lineItems.${index}.descriptionOfGoods`]}
           onSelect={(text, product) => { clearFieldError(`lineItems.${index}.descriptionOfGoods`); pickProduct(index, text, product); }}
         />

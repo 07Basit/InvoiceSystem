@@ -4,6 +4,10 @@ import type { ApiResponse, ProductDto } from 'shared';
 export interface Product {
   id: string;
   name: string;
+  /** Where it applies: all empty = the general list; otherwise an importer, optionally one currency and one landing location */
+  importerId: string | null;
+  currency: string | null;
+  locationName: string | null;
   /** Usual values (Decimals arrive as strings); null = none saved */
   nettWeightPerPackage: string | null;
   ratePerKg: string | null;

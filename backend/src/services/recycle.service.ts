@@ -62,6 +62,7 @@ export const recycleService = {
       // Delete line items first (child records), then the invoice. An actual invoice made from it keeps living on its own.
       await prisma.$transaction([
         prisma.invoice.updateMany({ where: { actualOfId: id }, data: { actualOfId: null } }),
+        prisma.invoice.updateMany({ where: { counterpartOfId: id }, data: { counterpartOfId: null } }),
         prisma.lineItem.deleteMany({ where: { invoiceId: id } }),
         prisma.invoice.delete({ where: { id } }),
       ]);
@@ -75,7 +76,7 @@ export const recycleService = {
       await prisma.$transaction([
         prisma.invoice.updateMany({
           where: { importerId: id },
-          data: { landingLocationId: null, loadingLocationId: null, actualOfId: null },
+          data: { landingLocationId: null, loadingLocationId: null, actualOfId: null, counterpartOfId: null },
         }),
         prisma.invoice.deleteMany({ where: { importerId: id } }),
         prisma.landingLocation.deleteMany({ where: { importerId: id } }),

@@ -35,7 +35,13 @@ function calculateLine(item: InvoiceLineInput) {
 const actualLinks = {
   actuals: { where: { deletedAt: null }, select: { id: true, invoiceNumber: true }, take: 1 },
   actualOf: { select: { id: true, invoiceNumber: true } },
+  // the party / custom partner of an invoice (an invoice has at most one): the copy made from it, or the invoice it was copied from
+  counterparts: { where: { deletedAt: null }, select: { id: true, invoiceNumber: true, invoiceKind: true }, take: 1 },
+  counterpartOf: { select: { id: true, invoiceNumber: true, invoiceKind: true } },
 } as const;
+
+/** "SMP-101" -> "SMP-101 (Custom)" or "SMP-101 (Party)". */
+export const counterpartNumber = (number: string, kind: 'PARTY' | 'CUSTOM') => `${number} (${kind === 'CUSTOM' ? 'Custom' : 'Party'})`;
 
 /** "SMP-DEMO-E" -> "ACTUAL SMP-DEMO-E". */
 export const actualNumber = (invoiceNumber: string) => `ACTUAL ${invoiceNumber}`;
@@ -181,6 +187,7 @@ async function whereFor(query: ListInvoicesQuery): Promise<Prisma.InvoiceWhereIn
     ...(idsForMonth ? { id: { in: idsForMonth } } : {}),
     ...(Object.keys(total).length ? { total } : {}),
     ...(query.type === 'regular' ? { actualOfId: null } : query.type === 'actual' ? { actualOfId: { not: null } } : {}),
+    ...(query.kind ? { invoiceKind: query.kind.toUpperCase() } : {}),
     ...(and.length ? { AND: and } : {}),
     ...(search
       ? {
@@ -268,6 +275,7 @@ export const invoiceService = {
     });
     if (!original) throw new AppError('Invoice not found', 404, 'INVOICE_NOT_FOUND');
     if (original.actualOfId) throw new AppError('This already is an actual invoice', 400, 'ALREADY_ACTUAL');
+    if (original.invoiceKind === 'CUSTOM') throw new AppError('A custom invoice cannot have an actual invoice', 400, 'CUSTOM_NO_ACTUAL');
     if (original.actuals.length > 0) throw new AppError('An actual invoice was already created for this invoice', 409, 'ACTUAL_EXISTS');
 
     const invoiceNumber = actualNumber(original.invoiceNumber);
@@ -281,6 +289,48 @@ export const invoiceService = {
         ...fields,
         invoiceNumber,
         actualOfId: original.id,
+        // an actual invoice is not a party / custom partner of anything, and prints the number it was made from
+        counterpartOfId: null,
+        printedNumber: original.printedNumber ?? original.invoiceNumber,
+        lineItems: { create: lineItems.map(({ id: _lineId, invoiceId: _invoiceId, ...line }) => line) },
+      },
+      include: { importer: true, lineItems: true },
+    });
+  },
+
+  /**
+   * Makes the other kind of this invoice: a custom invoice from a party invoice, or a party invoice from a custom one.
+   * It is a full copy named "<number> (Custom)" or "<number> (Party)", prints the same number as the invoice it came from,
+   * and is its partner. An invoice can have only one partner.
+   */
+  async createCounterpart(id: string) {
+    const source = await prisma.invoice.findFirst({
+      where: { id, deletedAt: null },
+      include: { lineItems: true, counterparts: { where: { deletedAt: null }, select: { id: true } } },
+    });
+    if (!source) throw new AppError('Invoice not found', 404, 'INVOICE_NOT_FOUND');
+    if (source.invoiceKind !== 'PARTY' && source.invoiceKind !== 'CUSTOM') {
+      throw new AppError('Only a party or custom invoice can make its partner. Set the invoice type to Party or Custom first.', 400, 'NOT_PARTY_OR_CUSTOM');
+    }
+    if (source.actualOfId) throw new AppError('An actual invoice cannot have a party or custom invoice', 400, 'ACTUAL_NO_COUNTERPART');
+    if (source.counterpartOfId || source.counterparts.length > 0) {
+      throw new AppError('This invoice already has its party / custom partner', 409, 'COUNTERPART_EXISTS');
+    }
+
+    const kind = source.invoiceKind === 'CUSTOM' ? 'PARTY' : 'CUSTOM';
+    const invoiceNumber = counterpartNumber(source.invoiceNumber, kind);
+    if (await prisma.invoice.findUnique({ where: { invoiceNumber }, select: { id: true } })) {
+      throw new AppError(`An invoice named ${invoiceNumber} already exists (it may be in the Recycle Bin)`, 409, 'COUNTERPART_NUMBER_TAKEN');
+    }
+
+    const { id: _id, createdAt: _created, updatedAt: _updated, deletedAt: _deleted, lineItems, counterparts: _counterparts, ...fields } = source;
+    return prisma.invoice.create({
+      data: {
+        ...fields,
+        invoiceNumber,
+        invoiceKind: kind,
+        counterpartOfId: source.id,
+        printedNumber: source.printedNumber ?? source.invoiceNumber,
         lineItems: { create: lineItems.map(({ id: _lineId, invoiceId: _invoiceId, ...line }) => line) },
       },
       include: { importer: true, lineItems: true },
@@ -290,8 +340,8 @@ export const invoiceService = {
   /** Headline numbers for the Invoices page: counts and the total value in the reporting currency. */
   async summary() {
     const invoices = await prisma.invoice.findMany({
-      // an "actual" invoice is a copy of an original, so it is left out of the totals (nothing counted twice)
-      where: { deletedAt: null, actualOfId: null },
+      // an "actual" invoice and a party / custom partner are copies of an original, so they are left out of the totals (nothing counted twice)
+      where: { deletedAt: null, actualOfId: null, counterpartOfId: null },
       select: { invoiceDate: true, total: true, currency: true, manualRate: true, manualRateBase: true },
     });
     const { baseCurrency, convert } = await currencyService.buildConverter(invoices);
@@ -417,6 +467,7 @@ export const invoiceService = {
     return prisma.invoice.create({
       data: {
         invoiceNumber: dto.invoiceNumber,
+        invoiceKind: dto.invoiceKind ?? 'NORMAL',
         invoiceDate: new Date(dto.invoiceDate),
         importerId: dto.importerId,
         landingLocationId: dto.landingLocationId ?? null,

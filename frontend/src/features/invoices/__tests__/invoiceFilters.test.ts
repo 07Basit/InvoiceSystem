@@ -9,8 +9,8 @@ describe('filtersToQuery', () => {
   });
 
   it('joins lists with commas and leaves empty ones out', () => {
-    expect(filtersToQuery(f({ importerIds: ['a', 'b'], currencies: ['CAD'], years: ['2025', '2026'], type: 'actual', minTotal: '100', maxTotal: '', dateFrom: '2026-01-01' }))).toEqual({
-      importerId: 'a,b', currency: 'CAD', year: '2025,2026', type: 'actual', minTotal: 100, dateFrom: '2026-01-01',
+    expect(filtersToQuery(f({ importerIds: ['a', 'b'], currencies: ['CAD'], years: ['2025', '2026'], type: 'actual', kind: 'custom', minTotal: '100', maxTotal: '', dateFrom: '2026-01-01' }))).toEqual({
+      importerId: 'a,b', currency: 'CAD', year: '2025,2026', type: 'actual', kind: 'custom', minTotal: 100, dateFrom: '2026-01-01',
     });
   });
 
@@ -62,5 +62,20 @@ describe('chips', () => {
     expect(removeChip(all, chips.find((c) => c.key === 'dates')!)).toMatchObject({ dateFrom: '', dateTo: '', currencies: ['CAD'] });
     expect(removeChip(all, chips.find((c) => c.key === 'amount')!)).toMatchObject({ minTotal: '', maxTotal: '' });
     expect(removeChip(all, chips.find((c) => c.key === 'type')!).type).toBe('all');
+  });
+});
+
+describe('party / custom filter', () => {
+  it('is sent, counted and shown as a chip, and can be removed', () => {
+    const custom = f({ kind: 'custom' });
+    expect(filtersToQuery(custom)).toEqual({ kind: 'custom' });
+    expect(countActive(custom)).toBe(1);
+    const chip = filterChips(custom, (id) => id)[0]!;
+    expect(chip.label).toBe('Custom invoices');
+    expect(removeChip(custom, chip).kind).toBe('all');
+    expect(filterChips(f({ kind: 'party' }), (id) => id)[0]!.label).toBe('Party invoices');
+    expect(filterChips(f({ kind: 'normal' }), (id) => id)[0]!.label).toBe('Normal invoices');
+    expect(filtersToQuery(f({ kind: 'normal' }))).toEqual({ kind: 'normal' });
+    expect(filtersToQuery(f({ kind: 'all' }))).toEqual({});
   });
 });

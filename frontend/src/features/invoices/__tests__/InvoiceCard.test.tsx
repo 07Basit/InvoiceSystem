@@ -83,4 +83,51 @@ describe('InvoiceCard', () => {
     const button = screen.getByRole('button', { name: 'This is already the actual invoice' });
     expect(button).toBeDisabled();
   });
+
+  const handlers = () => ({ onOpen: vi.fn(), onPdf: vi.fn(), onExcel: vi.fn(), onPrint: vi.fn(), onShare: vi.fn(), onCreateActual: vi.fn(), onEdit: vi.fn(), onDelete: vi.fn() });
+
+  it('shows a Party or Custom badge, and none on a normal invoice', () => {
+    const { unmount } = render(<InvoiceCard invoice={{ ...invoice, invoiceKind: 'CUSTOM' }} {...handlers()} />);
+    expect(screen.getByText('Custom')).toBeInTheDocument();
+    unmount();
+    const second = render(<InvoiceCard invoice={{ ...invoice, invoiceKind: 'PARTY' }} {...handlers()} />);
+    expect(screen.getByText('Party')).toBeInTheDocument();
+    second.unmount();
+    render(<InvoiceCard invoice={{ ...invoice, invoiceKind: 'NORMAL' }} {...handlers()} />);
+    expect(screen.queryByText('Party')).not.toBeInTheDocument();
+    expect(screen.queryByText('Custom')).not.toBeInTheDocument();
+  });
+
+  it('a party invoice offers a custom invoice, and a custom invoice offers a party invoice', async () => {
+    const onCreateCounterpart = vi.fn();
+    const h = handlers();
+    const { unmount } = render(<InvoiceCard invoice={{ ...invoice, invoiceKind: 'PARTY' }} {...h} onCreateCounterpart={onCreateCounterpart} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Create custom invoice' }));
+    expect(onCreateCounterpart).toHaveBeenCalledTimes(1);
+    expect(h.onOpen).not.toHaveBeenCalled();
+    unmount();
+    render(<InvoiceCard invoice={{ ...invoice, invoiceKind: 'CUSTOM' }} {...h} onCreateCounterpart={onCreateCounterpart} />);
+    expect(screen.getByRole('button', { name: 'Create party invoice' })).toBeEnabled();
+  });
+
+  it('a normal invoice has no party / custom button, only the actual one', () => {
+    render(<InvoiceCard invoice={{ ...invoice, invoiceKind: 'NORMAL' }} {...handlers()} onCreateCounterpart={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: /custom invoice|party invoice/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create actual invoice' })).toBeInTheDocument();
+  });
+
+  it('an actual invoice has no party / custom button', () => {
+    render(<InvoiceCard invoice={{ ...invoice, invoiceKind: 'PARTY', actualOfId: 'orig', actualOf: { id: 'orig', invoiceNumber: 'INV-1' } }} {...handlers()} onCreateCounterpart={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: /custom invoice|party invoice/i })).not.toBeInTheDocument();
+  });
+
+  it('a custom invoice has no actual invoice button', () => {
+    render(<InvoiceCard invoice={{ ...invoice, invoiceKind: 'CUSTOM' }} {...handlers()} onCreateCounterpart={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: /actual invoice/i })).not.toBeInTheDocument();
+  });
+
+  it('greys out the party / custom button once the partner exists', () => {
+    render(<InvoiceCard invoice={{ ...invoice, invoiceKind: 'PARTY', counterparts: [{ id: 'x', invoiceNumber: 'A (Custom)', invoiceKind: 'CUSTOM' }] }} {...handlers()} onCreateCounterpart={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Custom invoice already created' })).toBeDisabled();
+  });
 });

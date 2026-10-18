@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import { filterChips, removeChip, type InvoiceFilterValues } from '../utils/invoiceFilters';
+import { filterChips, noFilters, removeChip, type InvoiceFilterValues } from '../utils/invoiceFilters';
 import { formatCountry } from '@/lib/format';
 
 interface ActiveFilterChipsProps {
@@ -21,7 +21,7 @@ export default function ActiveFilterChips({ filters, onChange, importerName }: A
           <button type="button" onClick={() => onChange(removeChip(filters, chip))} aria-label={`Remove filter ${chip.label}`} className="rounded-full p-0.5 hover:bg-[hsl(var(--brand-accent))]/20"><X className="h-3 w-3" /></button>
         </span>
       ))}
-      <button type="button" onClick={() => onChange({ ...filters, ...Object.fromEntries(Object.entries(filters).map(([k, v]) => [k, Array.isArray(v) ? [] : k === 'type' ? 'all' : ''])) })} className="ml-1 shrink-0 rounded-full border border-dashed px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground">Clear all</button>
+      <button type="button" onClick={() => onChange(noFilters)} className="ml-1 shrink-0 rounded-full border border-dashed px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground">Clear all</button>
     </div>
   );
 }

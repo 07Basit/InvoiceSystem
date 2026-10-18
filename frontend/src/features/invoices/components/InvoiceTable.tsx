@@ -14,7 +14,7 @@ import InvoiceSelectionStrip from './InvoiceSelectionStrip';
 import InvoiceSelectionBar, { type DownloadFormat } from './InvoiceSelectionBar';
 import { invoiceService } from '../services/invoiceService';
 import { saveBlob } from '@/lib/share';
-import { useBulkDeleteInvoices, useCreateActualInvoice, useDeleteInvoice } from '../hooks/useInvoices';
+import { useBulkDeleteInvoices, useCreateActualInvoice, useCreateCounterpartInvoice, useDeleteInvoice } from '../hooks/useInvoices';
 import { filtersToQuery, isEmptyFilters } from '../utils/invoiceFilters';
 import { useConfirm } from '@/components/ui/confirm';
 import { useToast } from '@/components/ui/toast';
@@ -51,6 +51,7 @@ export default function InvoiceTable() {
   const [sharing, setSharing] = useState<ShareableInvoice | null>(null);
   const confirm = useConfirm();
   const createActualMutation = useCreateActualInvoice();
+  const createCounterpartMutation = useCreateCounterpartInvoice();
   const { showToast } = useToast();
   const askCreateActual = async (id: string, invoiceNumber: string) => {
     const ok = await confirm({
@@ -64,6 +65,21 @@ export default function InvoiceTable() {
       showToast('Actual invoice created', `ACTUAL ${invoiceNumber} is ready.`, 'success');
     } catch (error) {
       showToast("Couldn't create the actual invoice", error instanceof Error ? error.message : 'Please try again.', 'error');
+    }
+  };
+  const askCreateCounterpart = async (id: string, invoiceNumber: string, kind: 'NORMAL' | 'PARTY' | 'CUSTOM' | undefined) => {
+    const target = kind === 'CUSTOM' ? 'party' : 'custom';
+    const ok = await confirm({
+      title: `Create the ${target} invoice for ${invoiceNumber}?`,
+      message: `A full copy is created as a ${target} invoice with all the same details. Each invoice can have only one ${kind === 'CUSTOM' ? 'party' : 'custom'} partner.`,
+      confirmLabel: `Create ${target} invoice`,
+    });
+    if (!ok) return;
+    try {
+      await createCounterpartMutation.mutateAsync(id);
+      showToast(`${target === 'custom' ? 'Custom' : 'Party'} invoice created`, `${invoiceNumber} (${target === 'custom' ? 'Custom' : 'Party'}) is ready.`, 'success');
+    } catch (error) {
+      showToast(`Couldn't create the ${target} invoice`, error instanceof Error ? error.message : 'Please try again.', 'error');
     }
   };
   const askDelete = async (id: string, invoiceNumber: string) => {
@@ -182,6 +198,8 @@ export default function InvoiceTable() {
             onShare={() => setSharing(toShareable(invoice))}
             onCreateActual={() => askCreateActual(invoice.id, invoice.invoiceNumber)}
             creatingActual={createActualMutation.isPending}
+            onCreateCounterpart={() => askCreateCounterpart(invoice.id, invoice.invoiceNumber, invoice.invoiceKind)}
+            creatingCounterpart={createCounterpartMutation.isPending}
             onPdf={() => documents.downloadPdf(invoice.id)}
             onExcel={() => documents.downloadExcel(invoice.id)}
             onEdit={() => openEditForm(invoice.id)}

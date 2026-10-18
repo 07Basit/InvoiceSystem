@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
-import { CalendarDays, Download, Eye, FileDown, Package, Pencil, PlaneLanding, PlaneTakeoff, Printer, Share2, Trash2, FileCheck2 } from 'lucide-react';
+import { CalendarDays, Download, Eye, FileDown, Package, Pencil, PlaneLanding, PlaneTakeoff, Printer, Share2, Trash2, FileCheck2, ArrowLeftRight } from 'lucide-react';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import Tooltip from '@/components/ui/Tooltip';
 import { formatCountry, formatPortCode } from '@/lib/format';
-import { actualInvoiceState, type InvoiceListItem } from '../services/invoiceService';
+import { actualInvoiceState, canHaveActual, counterpartState, type InvoiceListItem } from '../services/invoiceService';
 
 interface InvoiceCardProps {
   invoice: InvoiceListItem;
@@ -13,6 +13,9 @@ interface InvoiceCardProps {
   onPrint: () => void;
   onShare: () => void;
   onCreateActual: () => void;
+  /** Makes the other kind of this invoice (custom from party, party from custom); the button is left out when not given */
+  onCreateCounterpart?: () => void;
+  creatingCounterpart?: boolean;
   /** Making the actual invoice right now */
   creatingActual?: boolean;
   /** A document action is already running */
@@ -42,11 +45,12 @@ function ActionButton({ label, onClick, children, danger, disabled, greyed }: { 
   );
 }
 
-export default function InvoiceCard({ invoice, onOpen, onPdf, onExcel, onPrint, onShare, onCreateActual, creatingActual, documentsBusy, onEdit, onDelete, deleting, selectionMode, selected, onToggleSelect }: InvoiceCardProps) {
+export default function InvoiceCard({ invoice, onOpen, onPdf, onExcel, onPrint, onShare, onCreateActual, creatingActual, onCreateCounterpart, creatingCounterpart, documentsBusy, onEdit, onDelete, deleting, selectionMode, selected, onToggleSelect }: InvoiceCardProps) {
   const importerName = invoice.importerName ?? invoice.importer.name; // the invoice's own copy
   const { portOfLoading, portOfDischarge, finalDestination, countryOfOrigin, countryOfDestination } = invoice;
   const hasRoute = !!(portOfLoading || portOfDischarge || finalDestination);
   const actual = actualInvoiceState(invoice);
+  const counterpart = counterpartState(invoice);
   const showFinal = !!finalDestination && finalDestination !== portOfDischarge;
 
   return (
@@ -61,7 +65,14 @@ export default function InvoiceCard({ invoice, onOpen, onPdf, onExcel, onPrint, 
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-mono text-base font-bold truncate">{invoice.invoiceNumber}</p>
+          <p className="flex items-center gap-2 font-mono text-base font-bold">
+            <span className="truncate">{invoice.invoiceNumber}</span>
+            {(invoice.invoiceKind === 'PARTY' || invoice.invoiceKind === 'CUSTOM') && (
+              <span className={cn('shrink-0 rounded-full border px-2 py-0.5 font-sans text-[10px] font-semibold uppercase tracking-wide', invoice.invoiceKind === 'CUSTOM' ? 'border-sky-200 bg-sky-50 text-sky-700' : 'bg-muted text-muted-foreground')}>
+                {invoice.invoiceKind === 'CUSTOM' ? 'Custom' : 'Party'}
+              </span>
+            )}
+          </p>
           <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
             <CalendarDays className="h-3.5 w-3.5" /> {formatDate(invoice.invoiceDate)}
           </p>
@@ -122,7 +133,12 @@ export default function InvoiceCard({ invoice, onOpen, onPdf, onExcel, onPrint, 
           <ActionButton label="Download PDF" onClick={onPdf} disabled={!!documentsBusy}><FileDown className="h-3.5 w-3.5" /></ActionButton>
           <ActionButton label="Download Excel" onClick={onExcel} disabled={!!documentsBusy}><Download className="h-3.5 w-3.5" /></ActionButton>
           <ActionButton label="Share invoice" onClick={onShare}><Share2 className="h-3.5 w-3.5" /></ActionButton>
-          <ActionButton label={actual.label} onClick={onCreateActual} disabled={!actual.canCreate || !!creatingActual} greyed={!actual.canCreate}><FileCheck2 className="h-3.5 w-3.5" /></ActionButton>
+          {canHaveActual(invoice) && (
+            <ActionButton label={actual.label} onClick={onCreateActual} disabled={!actual.canCreate || !!creatingActual} greyed={!actual.canCreate}><FileCheck2 className="h-3.5 w-3.5" /></ActionButton>
+          )}
+          {onCreateCounterpart && counterpart.available && (
+            <ActionButton label={counterpart.label} onClick={onCreateCounterpart} disabled={!counterpart.canCreate || !!creatingCounterpart} greyed={!counterpart.canCreate}><ArrowLeftRight className="h-3.5 w-3.5" /></ActionButton>
+          )}
           <ActionButton label="Edit invoice" onClick={onEdit}><Pencil className="h-3.5 w-3.5" /></ActionButton>
           <ActionButton label="Delete invoice" onClick={onDelete} danger disabled={!!deleting}><Trash2 className="h-3.5 w-3.5 text-destructive" /></ActionButton>
         </div>

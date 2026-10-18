@@ -169,6 +169,15 @@ model Invoice {
   actualOfId                 String?
   actualOf                   Invoice?         @relation("ActualInvoice", fields: [actualOfId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   actuals                    Invoice[]        @relation("ActualInvoice")
+  // NORMAL (the default), PARTY or CUSTOM. A party invoice and a custom invoice can each make the other with "Create custom / party invoice",
+  // a full copy of the opposite kind that points back to this one (its counterpart). A normal invoice has no partner.
+  invoiceKind                String           @default("NORMAL") @db.NVarChar(10)
+  counterpartOfId            String?
+  counterpartOf              Invoice?         @relation("CounterpartInvoice", fields: [counterpartOfId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  counterparts               Invoice[]        @relation("CounterpartInvoice")
+  // The number printed inside the documents of a copy (actual or counterpart): the number of the invoice it was made from,
+  // saved when the copy is made so it never changes afterwards. Empty = the invoice's own number.
+  printedNumber              String?
   lineItems                  LineItem[]
   totalBoxes                 Int              @default(0)
   totalNetWeight             Decimal          @default(0) @db.Decimal(12, 2)
@@ -192,6 +201,7 @@ model Invoice {
   @@index([loadingLocationId])
   @@index([invoiceNumber])
   @@index([actualOfId])
+  @@index([counterpartOfId])
   @@index([invoiceDate])
   @@index([deletedAt])
   @@map("invoices")

@@ -129,7 +129,7 @@ export async function renderInvoiceExcel(doc: InvoiceDocument): Promise<Buffer> 
   ws.mergeCells('A2:E2');
   ws.mergeCells('F2:I2');
   ws.getCell('A1').value = 'INVOICE';
-  ws.getCell('A2').value = 'COMMERCIAL INVOICE';
+  ws.getCell('A2').value = doc.kindLabel ? `COMMERCIAL INVOICE  |  ${doc.kindLabel}` : 'COMMERCIAL INVOICE';
   ws.getCell('F1').value = `No. ${doc.invoiceNumber}`;
   ws.getCell('F2').value = `Date ${doc.invoiceDate}   |   Currency ${doc.currency}`;
   for (const ref of ['A1', 'A2', 'F1', 'F2']) {

@@ -19,7 +19,7 @@ export const getDashboardStats = asyncHandler(async (_req: Request, res: Respons
     }),
     prisma.invoice.findMany({
       // an "actual" invoice is a copy of an original, so it is left out of every total (nothing counted twice)
-      where: { deletedAt: null, actualOfId: null },
+      where: { deletedAt: null, actualOfId: null, counterpartOfId: null },
       select: { importerId: true, invoiceDate: true, total: true, currency: true, manualRate: true, manualRateBase: true },
     }),
     prisma.invoice.findMany({

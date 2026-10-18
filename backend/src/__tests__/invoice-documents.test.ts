@@ -175,3 +175,27 @@ describe('blank fields stay blank in both documents', () => {
     await expect(renderInvoicePdf(buildInvoiceDocument(blank))).resolves.toBeInstanceOf(Uint8Array);
   });
 });
+
+describe('actual invoices print the number of the original invoice', () => {
+  it('shows the original number inside the document, but keeps its own file name', () => {
+    const doc = buildInvoiceDocument(invoice({ invoiceNumber: 'ACTUAL SMP-1', actualOf: { invoiceNumber: 'SMP-1' } }));
+    expect(doc.invoiceNumber).toBe('SMP-1');
+    expect(doc.references.find((f) => f.label === 'Invoice No.')?.value).toBe('SMP-1');
+    expect(doc.fileName).toBe('ACTUAL_SMP-1');
+  });
+
+  it('leaves a normal invoice as it is', () => {
+    const doc = buildInvoiceDocument(invoice({ invoiceNumber: 'SMP-2', actualOf: null }));
+    expect(doc.invoiceNumber).toBe('SMP-2');
+    expect(doc.fileName).toBe('SMP-2');
+  });
+
+  it('puts the original number in the Excel and PDF titles', async () => {
+    const doc = buildInvoiceDocument(invoice({ invoiceNumber: 'ACTUAL SMP-1', actualOf: { invoiceNumber: 'SMP-1' } }));
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load((await renderInvoiceExcel(doc)) as never);
+    expect(wb.title).toBe('Invoice SMP-1');
+    const pdf = await PDFDocument.load(await renderInvoicePdf(doc));
+    expect(pdf.getTitle()).toBe('Invoice SMP-1');
+  });
+});

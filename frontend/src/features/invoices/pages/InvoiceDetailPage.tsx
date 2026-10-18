@@ -1,13 +1,13 @@
 import { useState, type ReactNode } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
-  Building2, CalendarDays, Download, FileDown, FileText, Package, Landmark, Pencil, Printer, Share2, FileCheck2, Receipt, Ship, ScrollText, Stamp, Truck, User,
+  Building2, CalendarDays, Download, FileDown, FileText, Package, Landmark, Pencil, Printer, Share2, FileCheck2, ArrowLeftRight, Receipt, Ship, ScrollText, Stamp, Truck, User,
 } from 'lucide-react';
-import { useCreateActualInvoice, useInvoice } from '../hooks/useInvoices';
+import { useCreateActualInvoice, useCreateCounterpartInvoice, useInvoice } from '../hooks/useInvoices';
 import { useConfirm } from '@/components/ui/confirm';
 import { useToast } from '@/components/ui/toast';
 import { useInvoiceStore } from '../store/invoiceStore';
-import { actualInvoiceState, type Invoice } from '../services/invoiceService';
+import { actualInvoiceState, canHaveActual, counterpartState, printedNumberOf, type Invoice } from '../services/invoiceService';
 import { useInvoiceDocuments } from '../hooks/useInvoiceDocuments';
 import ShareInvoiceDialog, { toShareable } from '../components/ShareInvoiceDialog';
 import InvoiceForm from '../components/InvoiceForm';
@@ -83,6 +83,7 @@ export default function InvoiceDetailPage() {
   const confirm = useConfirm();
   const { showToast } = useToast();
   const createActualMutation = useCreateActualInvoice();
+  const createCounterpartMutation = useCreateCounterpartInvoice();
 
   if (isLoading) return <div className="flex justify-center py-16"><LoadingSpinner /></div>;
   if (isError || !data?.data) return <div className="text-center py-16 text-destructive">Invoice not found.</div>;
@@ -105,6 +106,23 @@ export default function InvoiceDetailPage() {
       showToast("Couldn't create the actual invoice", error instanceof Error ? error.message : 'Please try again.', 'error');
     }
   };
+  const partnerState = counterpartState(invoice);
+  const partner = invoice.counterpartOf ?? invoice.counterparts?.[0] ?? null;
+  const askCreateCounterpart = async () => {
+    const target = partnerState.target.toLowerCase();
+    const ok = await confirm({
+      title: `Create the ${target} invoice for ${invoice.invoiceNumber}?`,
+      message: `A full copy is created as a ${target} invoice with all the same details. Each invoice can have only one ${invoice.invoiceKind === 'CUSTOM' ? 'party' : 'custom'} partner.`,
+      confirmLabel: `Create ${target} invoice`,
+    });
+    if (!ok) return;
+    try {
+      await createCounterpartMutation.mutateAsync(invoice.id);
+      showToast(`${partnerState.target} invoice created`, `${invoice.invoiceNumber} (${partnerState.target}) is ready.`, 'success');
+    } catch (error) {
+      showToast(`Couldn't create the ${target} invoice`, error instanceof Error ? error.message : 'Please try again.', 'error');
+    }
+  };
   const cur = invoice.currency;
   const { importer } = invoice;
   const p = parties(invoice);
@@ -118,12 +136,18 @@ export default function InvoiceDetailPage() {
         <div className="overflow-hidden rounded-xl border bg-card bg-gradient-to-r from-[hsl(var(--primary)/0.08)] to-[hsl(var(--brand-accent)/0.14)] shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3 px-4 pb-3 pt-3 sm:px-5 [background-image:radial-gradient(hsl(var(--primary)/0.12)_0.7px,transparent_1px)] [background-size:16px_16px]">
             <div className="min-w-0">
-              <h1 className="text-xl font-bold font-mono break-all sm:text-2xl">{invoice.invoiceNumber}</h1>
+              <h1 className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xl font-bold font-mono break-all sm:text-2xl">
+                {invoice.invoiceNumber}
+                {(invoice.invoiceKind === 'PARTY' || invoice.invoiceKind === 'CUSTOM') && (
+                  <span className={cn('rounded-full border px-2.5 py-0.5 font-sans text-xs font-semibold uppercase tracking-wide', invoice.invoiceKind === 'CUSTOM' ? 'border-sky-200 bg-sky-50 text-sky-700' : 'bg-background/70 text-muted-foreground')}>{invoice.invoiceKind === 'CUSTOM' ? 'Custom' : 'Party'}</span>
+                )}
+              </h1>
               <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs text-muted-foreground sm:text-sm">
                 <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> Invoice Date {formatDate(invoice.invoiceDate)}</span>
                 <span className="hidden sm:inline">Created {formatDate(invoice.createdAt)}</span>
                 <span className="hidden sm:inline">Updated {formatDate(invoice.updatedAt)}</span>
                 {originalOfThis ? <Link to={`/invoices/${originalOfThis.id}`} className="font-semibold text-[hsl(var(--brand-accent))] hover:underline">Actual of {originalOfThis.invoiceNumber}</Link> : null}
+                {partner ? <Link to={`/invoices/${partner.id}`} className="font-semibold text-[hsl(var(--brand-accent))] hover:underline">{partner.invoiceKind === 'CUSTOM' ? 'Custom' : 'Party'} invoice: {partner.invoiceNumber}</Link> : null}
                 {actualOfThis ? <Link to={`/invoices/${actualOfThis.id}`} className="font-semibold text-[hsl(var(--brand-accent))] hover:underline">Actual invoice: {actualOfThis.invoiceNumber}</Link> : null}
               </p>
             </div>
@@ -132,7 +156,8 @@ export default function InvoiceDetailPage() {
               <HeaderAction label="Download PDF" text="PDF" icon={FileDown} onClick={() => documents.downloadPdf(invoice.id)} disabled={documents.isBusy} />
               <HeaderAction label="Download Excel" text="Excel" icon={Download} onClick={() => documents.downloadExcel(invoice.id)} disabled={documents.isBusy} />
               <HeaderAction label="Share invoice" text="Share" icon={Share2} onClick={() => setShareOpen(true)} />
-              <HeaderAction label={actual.label} text="Actual" icon={FileCheck2} onClick={askCreateActual} disabled={!actual.canCreate || createActualMutation.isPending} greyed={!actual.canCreate} />
+              {canHaveActual(invoice) && <HeaderAction label={actual.label} text="Actual" icon={FileCheck2} onClick={askCreateActual} disabled={!actual.canCreate || createActualMutation.isPending} greyed={!actual.canCreate} />}
+              {partnerState.available && <HeaderAction label={partnerState.label} text={partnerState.target} icon={ArrowLeftRight} onClick={askCreateCounterpart} disabled={!partnerState.canCreate || createCounterpartMutation.isPending} greyed={!partnerState.canCreate} />}
               <HeaderAction label="Edit invoice" text="Edit" icon={Pencil} primary onClick={() => openEditForm(invoice.id)} />
             </div>
           </div>
@@ -183,7 +208,7 @@ export default function InvoiceDetailPage() {
 
       <Section title="Shipping Details" icon={User}>
         <Grid>
-          <Item label="Invoice No" value={invoice.invoiceNumber} />
+          <Item label="Invoice No" value={printedNumberOf(invoice)} />
           <Item label="Invoice Date" value={formatDate(invoice.invoiceDate)} />
           <Item label="Exporter's Ref." value={invoice.exportersRef} />
           <Item label="Other Reference(s)" value={invoice.otherReferences} />

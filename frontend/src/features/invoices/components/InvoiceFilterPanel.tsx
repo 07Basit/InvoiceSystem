@@ -6,7 +6,7 @@ import NumberInput from '@/components/ui/NumberInput';
 import { formatCountry } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { InvoiceFilterOptions } from '../services/invoiceService';
-import { MONTH_NAMES, QUICK_DATES, activeQuickDate, countActive, isEmptyFilters, quickRange, type InvoiceFilterValues, type InvoiceType } from '../utils/invoiceFilters';
+import { MONTH_NAMES, QUICK_DATES, activeQuickDate, countActive, isEmptyFilters, noFilters, quickRange, type InvoiceFilterValues, type InvoiceKindFilter, type InvoiceType } from '../utils/invoiceFilters';
 import FilterChipGroup, { type ChipOption } from './FilterChipGroup';
 
 interface InvoiceFilterPanelProps {
@@ -40,6 +40,13 @@ const TYPES: { id: InvoiceType; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'regular', label: 'Regular only' },
   { id: 'actual', label: 'Actual only' },
+];
+
+const KINDS: { id: InvoiceKindFilter; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'normal', label: 'Normal' },
+  { id: 'party', label: 'Party' },
+  { id: 'custom', label: 'Custom' },
 ];
 
 const asOptions = (values: string[] | undefined, label: (v: string) => string = (v) => v): ChipOption[] => (values ?? []).map((value) => ({ value, label: label(value) }));
@@ -87,7 +94,7 @@ export default function InvoiceFilterPanel({ open, onClose, filters, onChange, o
         <div className="flex items-center justify-between gap-3 border-b bg-gradient-to-r from-[hsl(var(--primary)/0.08)] to-[hsl(var(--brand-accent)/0.14)] px-5 py-4">
           <h2 className="flex items-center gap-2 text-base font-semibold"><SlidersHorizontal className="h-4 w-4" /> Filters {countActive(filters) > 0 && <span className="rounded-full bg-[hsl(var(--brand-accent))] px-2 text-xs font-semibold text-white">{countActive(filters)}</span>}</h2>
           <div className="flex items-center gap-1">
-            <button type="button" onClick={() => onChange({ ...filters, ...Object.fromEntries(Object.entries(filters).map(([k, v]) => [k, Array.isArray(v) ? [] : k === 'type' ? 'all' : ''])) })} disabled={isEmptyFilters(filters)} className="rounded-md px-2 py-1 text-sm font-medium text-muted-foreground hover:text-foreground disabled:opacity-40">Clear all</button>
+            <button type="button" onClick={() => onChange(noFilters)} disabled={isEmptyFilters(filters)} className="rounded-md px-2 py-1 text-sm font-medium text-muted-foreground hover:text-foreground disabled:opacity-40">Clear all</button>
             <button type="button" onClick={onClose} aria-label="Close filters" className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"><X className="h-4 w-4" /></button>
           </div>
         </div>
@@ -155,6 +162,23 @@ export default function InvoiceFilterPanel({ open, onClose, filters, onChange, o
 
           <Section title="Exporter" count={filters.exporters.length}>
             <FilterChipGroup ariaLabel="Exporters" selected={filters.exporters} onChange={(v) => set('exporters', v)} options={asOptions(options?.exporters)} emptyText="No exporters on invoices yet." />
+          </Section>
+
+          <Section title="Normal / Party / Custom" count={filters.kind !== 'all' ? 1 : 0}>
+            <div role="radiogroup" aria-label="Normal, party or custom" className="flex flex-wrap gap-1.5">
+              {KINDS.map(({ id, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="radio"
+                  aria-checked={filters.kind === id}
+                  onClick={() => set('kind', id)}
+                  className={cn('rounded-full border px-3 py-1.5 text-xs transition-colors', filters.kind === id ? 'border-[hsl(var(--brand-accent))]/60 bg-[hsl(var(--brand-accent))]/10 font-semibold text-[hsl(var(--brand-accent))]' : 'bg-background hover:bg-accent')}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </Section>
 
           <Section title="Invoice type" count={filters.type !== 'all' ? 1 : 0}>

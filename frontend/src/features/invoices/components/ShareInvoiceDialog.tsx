@@ -24,10 +24,11 @@ const MIME: Record<Kind, string> = {
 };
 
 /** The fields the dialog needs, taken from a list item or a full invoice. */
-export function toShareable(invoice: ShareInvoiceInfo & { id: string; importerName?: string | null; importer?: { name: string } }): ShareableInvoice {
+export function toShareable(invoice: ShareInvoiceInfo & { id: string; importerName?: string | null; importer?: { name: string }; actualOf?: { invoiceNumber: string } | null; printedNumber?: string | null }): ShareableInvoice {
   return {
     id: invoice.id,
-    invoiceNumber: invoice.invoiceNumber,
+    // an actual invoice is sent under the number of the invoice it was made from
+    invoiceNumber: invoice.printedNumber || invoice.actualOf?.invoiceNumber || invoice.invoiceNumber,
     invoiceDate: invoice.invoiceDate,
     currency: invoice.currency,
     total: invoice.total,

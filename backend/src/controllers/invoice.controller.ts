@@ -50,6 +50,14 @@ export const createActualInvoice = asyncHandler(async (req: Request, res: Respon
   res.status(201).json({ success: true, data: invoice, error: null, meta: null });
 });
 
+/** Makes the other kind of an invoice (custom from party, party from custom). */
+export const createCounterpartInvoice = asyncHandler(async (req: Request, res: Response) => {
+  const invoice = await invoiceService.createCounterpart(String(req.params['id']));
+  await events.invoiceCreated(actorOf(req), invoice.id);
+  logger.info('Party / custom invoice created', { invoiceId: invoice.id, originalId: String(req.params['id']), action: 'create_counterpart_invoice' });
+  res.status(201).json({ success: true, data: invoice, error: null, meta: null });
+});
+
 export const updateInvoice = asyncHandler(async (req: Request, res: Response) => {
   const dto = req.body as UpdateInvoiceDto;
   const id = String(req.params['id']);

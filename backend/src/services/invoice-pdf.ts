@@ -293,7 +293,7 @@ export async function renderInvoicePdf(doc: InvoiceDocument): Promise<Uint8Array
   w.page.drawRectangle({ x: 0, y: PAGE_H - 72, width: PAGE_W, height: 72, color: TEAL });
   w.page.drawRectangle({ x: 0, y: PAGE_H - 76, width: PAGE_W, height: 4, color: ORANGE });
   w.text('INVOICE', MARGIN, PAGE_H - 24, 26, { font: w.bold, color: WHITE });
-  w.text('COMMERCIAL INVOICE', MARGIN, PAGE_H - 54, 7.5, { color: rgb(0.7, 0.85, 0.85) });
+  w.text(doc.kindLabel ? `COMMERCIAL INVOICE  |  ${doc.kindLabel}` : 'COMMERCIAL INVOICE', MARGIN, PAGE_H - 54, 7.5, { color: rgb(0.7, 0.85, 0.85) });
   w.text(`No. ${doc.invoiceNumber}`, PAGE_W - MARGIN - 220, PAGE_H - 22, 12, { font: w.bold, color: WHITE, align: 'right', boxWidth: 220 });
   w.text(`Date ${doc.invoiceDate}`, PAGE_W - MARGIN - 220, PAGE_H - 40, 9.5, { color: WHITE, align: 'right', boxWidth: 220 });
   w.text(`Currency ${doc.currency}`, PAGE_W - MARGIN - 220, PAGE_H - 55, 9.5, { color: WHITE, align: 'right', boxWidth: 220 });

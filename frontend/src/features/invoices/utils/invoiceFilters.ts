@@ -1,6 +1,8 @@
 import type { ListInvoicesInput } from 'shared';
 
 export type InvoiceType = 'all' | 'regular' | 'actual';
+/** Normal, party or custom invoices (all of them when 'all') */
+export type InvoiceKindFilter = 'all' | 'normal' | 'party' | 'custom';
 
 /** Everything the invoice list can be narrowed by. Lists mean "any of these". */
 export interface InvoiceFilterValues {
@@ -20,11 +22,12 @@ export interface InvoiceFilterValues {
   products: string[];
   exporters: string[];
   type: InvoiceType;
+  kind: InvoiceKindFilter;
 }
 
 export const noFilters: InvoiceFilterValues = {
   importerIds: [], currencies: [], years: [], months: [], dateFrom: '', dateTo: '', minTotal: '', maxTotal: '',
-  loadingPorts: [], dischargePorts: [], countries: [], products: [], exporters: [], type: 'all',
+  loadingPorts: [], dischargePorts: [], countries: [], products: [], exporters: [], type: 'all', kind: 'all',
 };
 
 const LIST_KEYS = ['importerIds', 'currencies', 'years', 'months', 'loadingPorts', 'dischargePorts', 'countries', 'products', 'exporters'] as const;
@@ -48,6 +51,7 @@ export function filtersToQuery(filters: InvoiceFilterValues): Partial<ListInvoic
     ['product', joined(filters.products)],
     ['exporter', joined(filters.exporters)],
     ['type', filters.type !== 'all' ? filters.type : undefined],
+    ['kind', filters.kind !== 'all' ? filters.kind : undefined],
   ];
   return Object.fromEntries(entries.filter(([, value]) => value !== undefined)) as Partial<ListInvoicesInput>;
 }
@@ -58,6 +62,7 @@ export function countActive(filters: InvoiceFilterValues): number {
   if (filters.dateFrom || filters.dateTo) count++;
   if (filters.minTotal.trim() || filters.maxTotal.trim()) count++;
   if (filters.type !== 'all') count++;
+  if (filters.kind !== 'all') count++;
   return count;
 }
 
@@ -127,6 +132,7 @@ export function filterChips(filters: InvoiceFilterValues, importerName: (id: str
   filters.products.forEach((p) => chips.push({ key: 'products', value: p, label: p }));
   filters.exporters.forEach((e) => chips.push({ key: 'exporters', value: e, label: e }));
   if (filters.type !== 'all') chips.push({ key: 'type', label: filters.type === 'actual' ? 'Actual only' : 'Regular only' });
+  if (filters.kind !== 'all') chips.push({ key: 'kind', label: filters.kind === 'custom' ? 'Custom invoices' : filters.kind === 'party' ? 'Party invoices' : 'Normal invoices' });
   return chips;
 }
 
@@ -136,6 +142,7 @@ export function removeChip(filters: InvoiceFilterValues, chip: FilterChip): Invo
     case 'dates': return { ...filters, dateFrom: '', dateTo: '' };
     case 'amount': return { ...filters, minTotal: '', maxTotal: '' };
     case 'type': return { ...filters, type: 'all' };
+    case 'kind': return { ...filters, kind: 'all' };
     default: {
       const key = chip.key as (typeof LIST_KEYS)[number];
       return { ...filters, [key]: filters[key].filter((v) => v !== chip.value) };

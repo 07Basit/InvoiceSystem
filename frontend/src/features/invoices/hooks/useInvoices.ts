@@ -41,6 +41,15 @@ export function useCreateActualInvoice() {
   });
 }
 
+/** Makes the party / custom partner of an invoice. */
+export function useCreateCounterpartInvoice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => invoiceService.createCounterpart(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: invoiceKeys.all }),
+  });
+}
+
 export function useCreateInvoice() {
   const qc = useQueryClient();
   return useMutation({

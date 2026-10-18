@@ -100,6 +100,14 @@ export interface Invoice {
   actualOf?: { id: string; invoiceNumber: string } | null;
   /** The actual invoice made from this one, if there is one (at most one) */
   actuals?: { id: string; invoiceNumber: string }[];
+  /** NORMAL (the default), PARTY or CUSTOM. Only party and custom invoices have a partner. */
+  invoiceKind?: 'NORMAL' | 'PARTY' | 'CUSTOM';
+  /** Set on a party / custom partner: the invoice it was copied from; and the partner made from this invoice, if any (at most one) */
+  counterpartOfId?: string | null;
+  counterpartOf?: { id: string; invoiceNumber: string; invoiceKind: 'PARTY' | 'CUSTOM' } | null;
+  counterparts?: { id: string; invoiceNumber: string; invoiceKind: 'PARTY' | 'CUSTOM' }[];
+  /** The number printed inside a copy's documents (the number of the invoice it was made from) */
+  printedNumber?: string | null;
   lineItems: InvoiceLineItem[];
   totalBoxes: number;
   totalNetWeight: number;
@@ -123,6 +131,26 @@ export function actualInvoiceState(invoice: Pick<Invoice, 'actualOfId' | 'actual
   if (invoice.actualOfId) return { canCreate: false, label: 'This is already the actual invoice' };
   if (invoice.actuals && invoice.actuals.length > 0) return { canCreate: false, label: 'Actual invoice already created' };
   return { canCreate: true, label: 'Create actual invoice' };
+}
+
+/** The number to show for an invoice inside its documents and forms: copies carry the number of the invoice they were made from. */
+export const printedNumberOf = (invoice: Pick<Invoice, 'invoiceNumber' | 'printedNumber' | 'actualOf'>) =>
+  invoice.printedNumber || invoice.actualOf?.invoiceNumber || invoice.invoiceNumber;
+
+/** A custom invoice never has an actual invoice. */
+export const canHaveActual = (invoice: Pick<Invoice, 'invoiceKind'>) => invoice.invoiceKind !== 'CUSTOM';
+
+/**
+ * The party / custom switch: a party invoice makes a custom one and a custom invoice makes a party one, each with at most one
+ * partner. A normal invoice and an actual invoice have no such button (`available` is false).
+ */
+export function counterpartState(invoice: Pick<Invoice, 'invoiceKind' | 'actualOfId' | 'counterpartOfId' | 'counterpartOf' | 'counterparts'>): { available: boolean; canCreate: boolean; label: string; target: 'Party' | 'Custom' } {
+  const target = invoice.invoiceKind === 'CUSTOM' ? 'Party' : 'Custom';
+  // a normal invoice has no partner, and an actual invoice cannot have one either
+  if ((invoice.invoiceKind !== 'PARTY' && invoice.invoiceKind !== 'CUSTOM') || invoice.actualOfId) return { available: false, canCreate: false, label: '', target };
+  const partner = invoice.counterpartOf ?? invoice.counterparts?.[0];
+  if (invoice.counterpartOfId || partner) return { available: true, canCreate: false, label: `${partner?.invoiceKind === 'CUSTOM' ? 'Custom' : 'Party'} invoice already created`, target };
+  return { available: true, canCreate: true, label: `Create ${target.toLowerCase()} invoice`, target };
 }
 
 export interface InvoiceFilterOptions {
@@ -160,6 +188,12 @@ export const invoiceService = {
   /** Copies this invoice into "ACTUAL <number>" with all the same content. */
   async createActual(id: string) {
     const { data } = await apiClient.post<ApiResponse<Invoice>>(`/invoices/${id}/actual`);
+    return data;
+  },
+
+  /** Copies this invoice into its other kind (custom from party, party from custom) with all the same content. */
+  async createCounterpart(id: string) {
+    const { data } = await apiClient.post<ApiResponse<Invoice>>(`/invoices/${id}/counterpart`);
     return data;
   },
 

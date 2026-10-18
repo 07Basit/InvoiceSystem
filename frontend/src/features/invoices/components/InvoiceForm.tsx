@@ -35,6 +35,7 @@ type FieldErrors = Record<string, string>;
 const initialInvoice: CreateInvoiceDto = {
   importerId: '',
   invoiceNumber: '',
+  invoiceKind: 'NORMAL',
   invoiceDate: new Date().toISOString(),
   exportersRef: '',
   otherReferences: '',
@@ -133,6 +134,8 @@ const exporterFields = (p: ExporterProfile) => ({ exporterName: p.name, exporter
 export default function InvoiceForm() {
   const { isFormOpen, editingId, draftId, draftData, closeForm } = useInvoiceStore();
   const { data: invoiceData } = useInvoice(editingId ?? '');
+  // An actual invoice is shown under the number of the invoice it was made from. Its own number (ACTUAL ...) stays as saved and can't be edited.
+  const originalNumber = editingId && invoiceData?.data ? (invoiceData.data.printedNumber || invoiceData.data.actualOf?.invoiceNumber || undefined) : undefined;
   const { data: importersData } = useClients({ limit: 100, sort: 'name' });
   const { data: exporterData } = useExporterProfiles();
   const { data: signData } = useSignProfiles();
@@ -173,7 +176,7 @@ export default function InvoiceForm() {
   useEffect(() => {
     if (!invoice || !isEditing) return;
     setForm({
-      importerId: invoice.importerId, invoiceNumber: invoice.invoiceNumber, invoiceDate: invoice.invoiceDate,
+      importerId: invoice.importerId, invoiceNumber: invoice.invoiceNumber, invoiceKind: invoice.invoiceKind ?? 'NORMAL', invoiceDate: invoice.invoiceDate,
       exportersRef: invoice.exportersRef ?? '', otherReferences: invoice.otherReferences ?? '', awbNumber: invoice.awbNumber ?? '', buyersOrder: invoice.buyersOrder ?? '',
       preCarriageBy: invoice.preCarriageBy ?? 'TRUCK BY ROAD', placeOfReceiptByPreCarrier: invoice.placeOfReceiptByPreCarrier ?? 'N/A',
       vesselFlightNo: invoice.vesselFlightNo ?? 'By Air', loadingLocationId: invoice.loadingLocationId ?? undefined,
@@ -435,7 +438,7 @@ export default function InvoiceForm() {
     try {
       if (isEditing && editingId) {
         await updateMutation.mutateAsync({ id: editingId, dto: payload });
-        showToast('Invoice updated', `${payload.invoiceNumber} updated.`, 'success');
+        showToast('Invoice updated', `${originalNumber ?? payload.invoiceNumber} updated.`, 'success');
       } else {
         await createMutation.mutateAsync(payload);
         showToast('Invoice created', `${payload.invoiceNumber} created.`, 'success');
@@ -467,8 +470,8 @@ export default function InvoiceForm() {
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--primary))]">
                   {isEditing ? 'Edit Invoice' : draftId ? 'Edit Draft Invoice' : 'New Invoice'}
                 </p>
-                <h2 className={cn('truncate text-lg font-bold leading-tight', !form.invoiceNumber.trim() && 'font-medium text-muted-foreground')}>
-                  {form.invoiceNumber.trim() || 'Invoice no. not set'}
+                <h2 className={cn('truncate text-lg font-bold leading-tight', !(originalNumber ?? form.invoiceNumber).trim() && 'font-medium text-muted-foreground')}>
+                  {(originalNumber ?? form.invoiceNumber).trim() || 'Invoice no. not set'}
                 </h2>
                 <p className="truncate text-xs text-muted-foreground" title={form.importerName ?? ''}>
                   {(form.importerName ?? '').trim() || 'Choose an importer to begin'}
@@ -545,7 +548,29 @@ export default function InvoiceForm() {
           <Section title="Invoice Details" icon={FileText} tone="teal">
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-2">
-                <Field label="Invoice No" value={form.invoiceNumber} error={errors.invoiceNumber} onChange={(v) => { clearFieldError('invoiceNumber'); setForm((p) => ({ ...p, invoiceNumber: v })); }} />
+                <Field label="Invoice No" value={originalNumber ?? form.invoiceNumber} readOnly={!!originalNumber} error={errors.invoiceNumber} onChange={(v) => { clearFieldError('invoiceNumber'); setForm((p) => ({ ...p, invoiceNumber: v })); }} />
+                <div>
+                  <p className="label">Invoice type</p>
+                  <div role="radiogroup" aria-label="Invoice type" className="flex gap-2">
+                    {(['NORMAL', 'PARTY', 'CUSTOM'] as const).map((kind) => (
+                      <button
+                        key={kind}
+                        type="button"
+                        role="radio"
+                        aria-checked={(form.invoiceKind ?? 'NORMAL') === kind}
+                        disabled={isEditing}
+                        onClick={() => setForm((p) => ({ ...p, invoiceKind: kind }))}
+                        className={cn(
+                          'flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed',
+                          (form.invoiceKind ?? 'NORMAL') === kind ? 'border-[hsl(var(--brand-accent))] bg-[hsl(var(--brand-accent)/0.1)] text-[hsl(var(--brand-accent))]' : 'hover:bg-accent disabled:opacity-50',
+                        )}
+                      >
+                        {kind === 'NORMAL' ? 'Normal' : kind === 'PARTY' ? 'Party' : 'Custom'}
+                      </button>
+                    ))}
+                  </div>
+                  {isEditing && <p className="mt-1 text-[11px] text-muted-foreground">Fixed when the invoice is created.{form.invoiceKind === 'NORMAL' ? '' : ` Use the button on the invoice to make its ${form.invoiceKind === 'CUSTOM' ? 'party' : 'custom'} partner.`}</p>}
+                </div>
                 <div>
                   <label className="label">Invoice Date</label>
                   <DatePicker ariaLabel="Invoice Date" value={toDateInput(form.invoiceDate)} hasError={!!errors.invoiceDate} onChange={(v) => { clearFieldError('invoiceDate'); setForm((p) => ({ ...p, invoiceDate: toIsoDate(v) })); }} />

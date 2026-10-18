@@ -68,4 +68,16 @@ describe('invoiceService.createActual', () => {
     await expect(invoiceService.createActual('inv1')).rejects.toMatchObject({ code: 'ACTUAL_NUMBER_TAKEN' });
     expect(prismaMock.invoice.create).not.toHaveBeenCalled();
   });
+
+  it('refuses an actual invoice for a custom invoice, but not for a party or normal one', async () => {
+    prismaMock.invoice.findFirst.mockResolvedValueOnce(original({ invoiceKind: 'CUSTOM' }) as never);
+    await expect(invoiceService.createActual('inv1')).rejects.toMatchObject({ statusCode: 400, code: 'CUSTOM_NO_ACTUAL' });
+    expect(prismaMock.invoice.create).not.toHaveBeenCalled();
+    for (const kind of ['PARTY', 'NORMAL']) {
+      prismaMock.invoice.findFirst.mockResolvedValueOnce(original({ invoiceKind: kind }) as never);
+      prismaMock.invoice.findUnique.mockResolvedValueOnce(null);
+      prismaMock.invoice.create.mockResolvedValueOnce({ id: 'inv2' } as never);
+      await expect(invoiceService.createActual('inv1')).resolves.toBeDefined();
+    }
+  });
 });

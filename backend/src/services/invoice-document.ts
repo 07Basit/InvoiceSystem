@@ -38,6 +38,8 @@ export interface DocSign {
 
 export interface InvoiceDocument {
   invoiceNumber: string;
+  /** "PARTY" or "CUSTOM" shown under the invoice title; empty for a normal invoice */
+  kindLabel: string;
   invoiceDate: string;
   currency: string;
   exporter: DocParty;
@@ -59,6 +61,12 @@ export interface InvoiceDocument {
 type Num = number | { toString(): string };
 export interface InvoiceSource {
   invoiceNumber: string;
+  /** For an actual invoice: the invoice it was made from. The documents show that invoice's number, not "ACTUAL ...". */
+  actualOf?: { invoiceNumber: string } | null;
+  /** The number printed inside the documents of a copy (saved when the copy was made). */
+  printedNumber?: string | null;
+  /** NORMAL, PARTY or CUSTOM */
+  invoiceKind?: string | null;
   invoiceDate: Date;
   currency: string;
   exporterName: string | null;
@@ -193,6 +201,9 @@ export function safeFileName(invoiceNumber: string): string {
   return text(invoiceNumber).replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^[._-]+|[._-]+$/g, '') || 'invoice';
 }
 
+/** The number printed inside the invoice: a copy (actual, party or custom partner) carries the number of the invoice it was made from. */
+export const printedInvoiceNumber = (invoice: Pick<InvoiceSource, 'invoiceNumber' | 'actualOf' | 'printedNumber'>) => invoice.printedNumber || invoice.actualOf?.invoiceNumber || invoice.invoiceNumber;
+
 export function buildInvoiceDocument(invoice: InvoiceSource): InvoiceDocument {
   const lines: DocLine[] = invoice.lineItems.map((item, index) => ({
     no: index + 1,
@@ -207,14 +218,15 @@ export function buildInvoiceDocument(invoice: InvoiceSource): InvoiceDocument {
   }));
 
   return {
-    invoiceNumber: invoice.invoiceNumber,
+    invoiceNumber: printedInvoiceNumber(invoice),
+    kindLabel: invoice.invoiceKind === 'CUSTOM' ? 'CUSTOM' : invoice.invoiceKind === 'PARTY' ? 'PARTY' : '',
     invoiceDate: formatDate(invoice.invoiceDate),
     currency: invoice.currency,
     exporter: party(text(invoice.exporterName), invoice.exporterAddress, invoice.exporterContact, invoice.exporterEmail),
     importer: party(text(invoice.importerName) || invoice.importer.name, invoice.importerAddress, invoice.importerContact, invoice.importerEmail),
     buyer: show(invoice.buyerName),
     references: [
-      { label: 'Invoice No.', value: show(invoice.invoiceNumber) },
+      { label: 'Invoice No.', value: show(printedInvoiceNumber(invoice)) },
       { label: 'Invoice Date', value: formatDate(invoice.invoiceDate) },
       { label: "Exporter's Ref.", value: show(invoice.exportersRef) },
       { label: "Buyer's Order No. & Date", value: show(invoice.buyersOrder) },

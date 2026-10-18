@@ -11,6 +11,7 @@ import { ApiClientError } from '@/services/api';
 import ExporterProfilesSection from '../components/ExporterProfilesSection';
 import BankProfilesSection from '../components/BankProfilesSection';
 import SignProfilesSection from '../components/SignProfilesSection';
+import ProductsSection from '../components/ProductsSection';
 
 const dateTime = (iso: string | null | undefined) =>
   iso ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso)) : '';
@@ -160,6 +161,9 @@ export default function ProfilePage() {
 
       {/* Seal & sign */}
       <SignProfilesSection />
+
+      {/* Products */}
+      <ProductsSection />
 
       {/* Password */}
       <Card title="Change password" description="At least 8 characters, with a letter and a number. Other devices are signed out when you change it.">

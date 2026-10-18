@@ -39,7 +39,16 @@ interface SearchComboboxProps {
   loading?: boolean;
   /** Most rows rendered at once; keeps very long lists (airports) fast. */
   maxResults?: number;
+  /** Lets the person use text that is not in the list: a "Use “…”" row appears while they type. */
+  allowCustom?: boolean;
+  /** With allowCustom: also offer "Add “…” to the list"; called with the typed text, which then becomes the value. */
+  onCreate?: (text: string) => void;
+  /** Wording for the add row, e.g. "products" gives "Add “mango” to products". */
+  createTarget?: string;
 }
+
+const USE = '\u0000use:';
+const ADD = '\u0000add:';
 
 /** Lower is better; Infinity means no match. */
 function rank(option: ComboOption, q: string): number {
@@ -58,6 +67,7 @@ function rank(option: ComboOption, q: string): number {
 export default function SearchCombobox({
   value, onChange, options, common = [], placeholder = 'Select', searchPlaceholder = 'Search…', ariaLabel,
   disabled, hasError, className, display, leading, align = 'left', labelClassName = 'w-10', loading = false, maxResults = 200,
+  allowCustom = false, onCreate, createTarget = 'the list',
 }: SearchComboboxProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -81,12 +91,17 @@ export default function SearchCombobox({
         .filter((x) => x.r !== Infinity)
         .sort((a, b) => a.r - b.r || a.o.label.localeCompare(b.o.label))
         .map((x) => x.o);
-      return { items: ranked.slice(0, maxResults), commonCount: 0, total: ranked.length };
+      const typed = query.trim();
+      const exact = options.some((o) => o.label.toLowerCase() === q || o.value.toLowerCase() === q);
+      const custom: ComboOption[] = allowCustom && !exact
+        ? [{ value: `${USE}${typed}`, label: `Use “${typed}”`, description: 'as typed' }, ...(onCreate ? [{ value: `${ADD}${typed}`, label: `Add “${typed}”`, description: `to ${createTarget}` }] : [])]
+        : [];
+      return { items: [...ranked.slice(0, maxResults), ...custom], commonCount: 0, total: ranked.length + custom.length };
     }
     const commonValues = new Set(common.map((c) => c.value));
     const all = [...common, ...options.filter((o) => !commonValues.has(o.value))];
     return { items: all.slice(0, maxResults), commonCount: common.length, total: all.length };
-  }, [query, options, common, maxResults]);
+  }, [query, options, common, maxResults, allowCustom, onCreate, createTarget]);
 
   const close = () => { setOpen(false); setQuery(''); };
 
@@ -98,7 +113,9 @@ export default function SearchCombobox({
   };
 
   const choose = (next: string) => {
-    onChange(next);
+    if (next.startsWith(USE)) onChange(next.slice(USE.length));
+    else if (next.startsWith(ADD)) { const text = next.slice(ADD.length); onCreate?.(text); onChange(text); }
+    else onChange(next);
     close();
   };
 
@@ -171,7 +188,7 @@ export default function SearchCombobox({
               placeholder={searchPlaceholder}
               aria-label={`Search ${ariaLabel}`}
               aria-controls={`${id}-list`}
-              aria-activedescendant={items[active] ? `${id}-opt-${items[active]!.value}` : undefined}
+              aria-activedescendant={items[active] ? `${id}-opt-${active}` : undefined}
               autoComplete="off"
               className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
@@ -185,7 +202,7 @@ export default function SearchCombobox({
                 {!query && i === 0 && commonCount > 0 && <p className="px-3 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Common</p>}
                 {!query && i === commonCount && commonCount > 0 && <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground border-t mt-1">All</p>}
                 <div
-                  id={`${id}-opt-${o.value}`}
+                  id={`${id}-opt-${i}`}
                   role="option"
                   aria-selected={o.value === value}
                   data-active={i === active}

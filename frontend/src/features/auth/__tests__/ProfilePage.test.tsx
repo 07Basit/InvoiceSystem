@@ -5,6 +5,7 @@ import ProfilePage from '../pages/ProfilePage';
 import { authService } from '../services/authService';
 import { signService, type SignProfile } from '@/features/invoices/services/signService';
 import { bankService, type BankProfile } from '@/features/invoices/services/bankService';
+import { productService } from '@/features/invoices/services/productService';
 import { exporterService, type ExporterProfile } from '@/features/invoices/services/exporterService';
 import { useAuthStore } from '../store/authStore';
 import { renderRoutes, setAuth, testUser } from '@/__tests__/utils';
@@ -20,6 +21,9 @@ vi.mock('@/features/invoices/services/bankService', () => ({
 }));
 vi.mock('@/features/invoices/services/signService', () => ({
   signService: { list: vi.fn(), create: vi.fn(), update: vi.fn(), setDefault: vi.fn(), setActive: vi.fn(), remove: vi.fn() },
+}));
+vi.mock('@/features/invoices/services/productService', () => ({
+  productService: { list: vi.fn(), create: vi.fn(), update: vi.fn(), setActive: vi.fn(), remove: vi.fn() },
 }));
 const api = vi.mocked(authService);
 const exporters = vi.mocked(exporterService);
@@ -52,6 +56,7 @@ beforeEach(() => {
   exporters.list.mockResolvedValue(listOf());
   banks.list.mockResolvedValue(bankList());
   signs.list.mockResolvedValue(signList());
+  vi.mocked(productService).list.mockResolvedValue({ success: true, data: [], error: null, meta: null });
   setAuth('authenticated');
 });
 

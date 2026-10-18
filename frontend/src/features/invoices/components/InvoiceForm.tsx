@@ -6,6 +6,8 @@ import { useClients } from '@/features/clients/hooks/useClients';
 import { useCreateInvoice, useInvoice, useUpdateInvoice } from '../hooks/useInvoices';
 import { useExporterProfiles } from '../hooks/useExporterProfiles';
 import { useBankProfiles } from '../hooks/useBankProfiles';
+import ProductPicker from './ProductPicker';
+import type { Product } from '../services/productService';
 import { useDeleteDraft, useSaveDraft } from '@/features/drafts/hooks/useDrafts';
 import { useSignProfiles } from '../hooks/useSignProfiles';
 import type { SignProfile } from '../services/signService';
@@ -769,10 +771,37 @@ export default function InvoiceForm() {
       </>
     );
     if (field === 'marks') return (<><input aria-label={`Marks and container no for product ${index + 1}`} value={item.marksAndNos ?? ''} onChange={(e) => { clearFieldError(`lineItems.${index}.marksAndNos`); updateLine(index, { marksAndNos: e.target.value, containerNo: e.target.value }); }} placeholder="Marks & Nos / Container No" className={cls} />{err('marksAndNos')}</>);
-    if (field === 'description') return (<><input aria-label={`Description of goods for product ${index + 1}`} value={item.descriptionOfGoods} onChange={(e) => { clearFieldError(`lineItems.${index}.descriptionOfGoods`); updateLine(index, { descriptionOfGoods: e.target.value }); }} className={cls} />{err('descriptionOfGoods')}</>);
+    if (field === 'description') return (
+      <>
+        <ProductPicker
+          ariaLabel={`Description of goods for product ${index + 1}`}
+          value={item.descriptionOfGoods}
+          hasError={!!errors[`lineItems.${index}.descriptionOfGoods`]}
+          onSelect={(text, product) => { clearFieldError(`lineItems.${index}.descriptionOfGoods`); pickProduct(index, text, product); }}
+        />
+        {err('descriptionOfGoods')}
+      </>
+    );
     if (field === 'weight') return num('netWeightPerPackage', 'Nett weight per package', { decimals: 3 });
     if (field === 'boxes') return num('numberOfBoxes', 'Number of boxes', { integer: true });
     return num('ratePerKg', 'Rate per kg', { decimals: 4 });
+  }
+
+  /** Sets the product name on a line and fills the usual weight and rate (and HS code) where they are still empty. */
+  function pickProduct(index: number, text: string, product: Product | undefined) {
+    setForm((p) => {
+      const lineItems = p.lineItems.map((item, i) => {
+        if (i !== index) return item;
+        const filled = { ...item, descriptionOfGoods: text };
+        if (product?.nettWeightPerPackage != null && !Number(item.netWeightPerPackage)) filled.netWeightPerPackage = Number(product.nettWeightPerPackage);
+        if (product?.ratePerKg != null && !Number(item.ratePerKg)) filled.ratePerKg = Number(product.ratePerKg);
+        return filled;
+      });
+      return { ...p, lineItems, ...(product?.hsCode && !p.hsCode ? { hsCode: product.hsCode } : {}) };
+    });
+    if (product?.hsCode) clearFieldError('hsCode');
+    if (product?.nettWeightPerPackage != null) clearFieldError(`lineItems.${index}.netWeightPerPackage`);
+    if (product?.ratePerKg != null) clearFieldError(`lineItems.${index}.ratePerKg`);
   }
 
   function updateLine(index: number, patch: Partial<CreateInvoiceDto['lineItems'][number]>) {

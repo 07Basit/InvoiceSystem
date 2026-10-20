@@ -17,7 +17,7 @@ const importer = { id: 'imp1', name: 'KJ', address: null, contact: null, email: 
 describe('invoiceService.create for a BOTH invoice', () => {
   beforeEach(() => {
     prismaMock.importer.findFirst.mockResolvedValue(importer as never);
-    prismaMock.invoice.findUnique.mockResolvedValue(null);
+    prismaMock.invoice.count.mockResolvedValue(0);
   });
 
   it('saves the party page as the invoice and the custom page as a hidden companion that points back at it', async () => {
@@ -37,7 +37,7 @@ describe('invoiceService.create for a BOTH invoice', () => {
   });
 
   it('refuses when the custom page number is already used', async () => {
-    prismaMock.invoice.findUnique.mockResolvedValue({ id: 'x' } as never);
+    prismaMock.invoice.count.mockResolvedValue(1);
     await expect(invoiceService.create({ ...body, importerId: 'imp1', invoiceNumber: 'SMP-1', invoiceKind: 'BOTH', customVersion: body } as never)).rejects.toMatchObject({ statusCode: 409, code: 'COUNTERPART_NUMBER_TAKEN' });
     expect(prismaMock.invoice.create).not.toHaveBeenCalled();
   });

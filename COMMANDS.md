@@ -4,7 +4,7 @@
 
 - Node.js 22+
 - pnpm 10+
-- Docker Desktop running (required for SQL Server)
+- Docker Desktop running (required for PostgreSQL)
 
 ## Initial Setup
 
@@ -15,11 +15,11 @@ Copy-Item backend\.env.example backend\.env -Force
 Copy-Item frontend\.env.example frontend\.env -Force
 ```
 
-## Start Database (SQL Server)
+## Start Database (PostgreSQL)
 
 ```powershell
 cd "c:\Users\508826\OneDrive - Aker Solutions\Desktop\Manage System"
-docker compose up -d sqlserver
+docker compose up -d postgres
 docker compose ps
 ```
 
@@ -124,10 +124,10 @@ pnpm --filter frontend preview
 
 Press Ctrl+C in the running terminal.
 
-### Stop SQL Server container
+### Stop PostgreSQL container
 
 ```powershell
-docker compose stop sqlserver
+docker compose stop postgres
 ```
 
 ## Netlify Build (Monorepo)

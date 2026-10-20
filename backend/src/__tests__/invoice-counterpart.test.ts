@@ -22,7 +22,7 @@ describe('counterpartNumber', () => {
 describe('invoiceService.createCounterpart', () => {
   it('makes a custom invoice from a party invoice: a full copy that points back and prints the same number', async () => {
     prismaMock.invoice.findFirst.mockResolvedValue(source() as never);
-    prismaMock.invoice.findUnique.mockResolvedValue(null);
+    prismaMock.invoice.count.mockResolvedValue(0);
     prismaMock.invoice.create.mockResolvedValue({ id: 'inv2' } as never);
     await invoiceService.createCounterpart('inv1');
     const { data } = prismaMock.invoice.create.mock.calls[0]![0] as { data: Record<string, unknown> };
@@ -33,7 +33,7 @@ describe('invoiceService.createCounterpart', () => {
 
   it('makes a party invoice from a custom one', async () => {
     prismaMock.invoice.findFirst.mockResolvedValue(source({ invoiceNumber: 'SMP-9', invoiceKind: 'CUSTOM' }) as never);
-    prismaMock.invoice.findUnique.mockResolvedValue(null);
+    prismaMock.invoice.count.mockResolvedValue(0);
     prismaMock.invoice.create.mockResolvedValue({ id: 'inv2' } as never);
     await invoiceService.createCounterpart('inv1');
     const { data } = prismaMock.invoice.create.mock.calls[0]![0] as { data: Record<string, unknown> };
@@ -48,7 +48,7 @@ describe('invoiceService.createCounterpart', () => {
 
   it('keeps printing the original number when a copy is copied again', async () => {
     prismaMock.invoice.findFirst.mockResolvedValue(source({ invoiceNumber: 'SMP-101 (Custom)', printedNumber: 'SMP-101', counterpartOfId: null }) as never);
-    prismaMock.invoice.findUnique.mockResolvedValue(null);
+    prismaMock.invoice.count.mockResolvedValue(0);
     prismaMock.invoice.create.mockResolvedValue({ id: 'inv2' } as never);
     await invoiceService.createCounterpart('inv1');
     const { data } = prismaMock.invoice.create.mock.calls[0]![0] as { data: Record<string, unknown> };
@@ -73,7 +73,7 @@ describe('invoiceService.createCounterpart', () => {
     prismaMock.invoice.findFirst.mockResolvedValueOnce(null);
     await expect(invoiceService.createCounterpart('nope')).rejects.toMatchObject({ statusCode: 404 });
     prismaMock.invoice.findFirst.mockResolvedValueOnce(source() as never);
-    prismaMock.invoice.findUnique.mockResolvedValue({ id: 'taken' } as never);
+    prismaMock.invoice.count.mockResolvedValue(1);
     await expect(invoiceService.createCounterpart('inv1')).rejects.toMatchObject({ statusCode: 409, code: 'COUNTERPART_NUMBER_TAKEN' });
   });
 });

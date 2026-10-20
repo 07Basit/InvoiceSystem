@@ -21,7 +21,7 @@ describe('actualNumber', () => {
 describe('invoiceService.createActual', () => {
   it('copies every field and line item into "ACTUAL <number>", linked to the original', async () => {
     prismaMock.invoice.findFirst.mockResolvedValue(original() as never);
-    prismaMock.invoice.findUnique.mockResolvedValue(null);
+    prismaMock.invoice.count.mockResolvedValue(0);
     prismaMock.invoice.create.mockResolvedValue({ id: 'inv2' } as never);
 
     await invoiceService.createActual('inv1');
@@ -39,7 +39,7 @@ describe('invoiceService.createActual', () => {
 
   it('only looks at invoices that are not deleted', async () => {
     prismaMock.invoice.findFirst.mockResolvedValue(original() as never);
-    prismaMock.invoice.findUnique.mockResolvedValue(null);
+    prismaMock.invoice.count.mockResolvedValue(0);
     prismaMock.invoice.create.mockResolvedValue({ id: 'inv2' } as never);
     await invoiceService.createActual('inv1');
     expect(prismaMock.invoice.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'inv1', deletedAt: null } }));
@@ -64,7 +64,7 @@ describe('invoiceService.createActual', () => {
 
   it('explains when that name is already taken (for example by one in the Recycle Bin)', async () => {
     prismaMock.invoice.findFirst.mockResolvedValue(original() as never);
-    prismaMock.invoice.findUnique.mockResolvedValue({ id: 'old' } as never);
+    prismaMock.invoice.count.mockResolvedValue(1);
     await expect(invoiceService.createActual('inv1')).rejects.toMatchObject({ code: 'ACTUAL_NUMBER_TAKEN' });
     expect(prismaMock.invoice.create).not.toHaveBeenCalled();
   });
@@ -75,7 +75,7 @@ describe('invoiceService.createActual', () => {
     expect(prismaMock.invoice.create).not.toHaveBeenCalled();
     for (const kind of ['PARTY', 'NORMAL']) {
       prismaMock.invoice.findFirst.mockResolvedValueOnce(original({ invoiceKind: kind }) as never);
-      prismaMock.invoice.findUnique.mockResolvedValueOnce(null);
+      prismaMock.invoice.count.mockResolvedValueOnce(0);
       prismaMock.invoice.create.mockResolvedValueOnce({ id: 'inv2' } as never);
       await expect(invoiceService.createActual('inv1')).resolves.toBeDefined();
     }

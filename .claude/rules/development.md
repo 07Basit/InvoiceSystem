@@ -8,7 +8,7 @@ description: "Use when setting up the project, scaffolding new features, running
 
 ### Prerequisites
 - Node.js 20+ (use `.nvmrc` or `.node-version` to pin)
-- SQL Server 2022 (via Docker, see docker-compose.yml)
+- PostgreSQL 16 (via Docker, see docker-compose.yml)
 - `pnpm` as the package manager (workspace monorepo)
 
 ### Initial Setup

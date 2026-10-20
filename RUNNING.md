@@ -6,7 +6,7 @@ Steps and commands for a fresh machine (macOS or Linux; on Windows use PowerShel
 
 - Node.js 20 or newer (`node -v`)
 - pnpm 10 (`npm i -g pnpm@10`, or prefix commands with `npx pnpm@10`)
-- Docker Desktop, running (for SQL Server)
+- Docker Desktop, running (for PostgreSQL)
 
 ## 2. Install dependencies
 
@@ -23,7 +23,7 @@ cp frontend/.env.example frontend/.env
 
 Open `backend/.env` and set:
 
-- `DATABASE_URL`: the SQL Server connection string. Its password must match `MSSQL_SA_PASSWORD` below.
+- `DATABASE_URL`: the PostgreSQL connection string. Its user, password and database name must match `POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB` in the root `.env` (step 4). A password with special characters must be URL-encoded.
 - `JWT_SECRET`: generate one with `openssl rand -hex 32`.
 - `EXCHANGERATE_API_KEY`: optional, for currencies the ECB does not publish.
 
@@ -31,11 +31,11 @@ Open `backend/.env` and set:
 
 ## 4. Start the database
 
-Docker Compose reads `MSSQL_SA_PASSWORD` from the environment or a root `.env` file.
+Docker Compose reads the database settings from a root `.env` file.
 
 ```bash
-export MSSQL_SA_PASSWORD='choose-a-strong-password'
-docker compose up -d sqlserver
+cp .env.example .env      # then set POSTGRES_PASSWORD to a strong password
+docker compose up -d postgres
 docker compose ps
 ```
 
@@ -87,12 +87,22 @@ pnpm test
 | `pnpm --filter frontend preview` | Serve the built frontend |
 | `pnpm test:coverage` | Tests with coverage |
 | `pnpm db:studio` | Database browser at http://localhost:5555 |
-| `docker compose stop sqlserver` | Stop the database |
-| `docker compose down` | Remove the container (data stays in the `sqlserver_data` volume) |
+| `docker compose stop postgres` | Stop the database |
+| `docker compose down` | Remove the container (data stays in the `postgres_data` volume) |
 
 ## Troubleshooting
 
-- **Cannot connect to the database**: check `docker compose ps` shows `healthy` and the password in `DATABASE_URL` matches `MSSQL_SA_PASSWORD`.
+- **Cannot connect to the database**: check `docker compose ps` shows `healthy` and the password in `DATABASE_URL` matches `POSTGRES_PASSWORD`.
 - **"Login failed"**: create a user with `pnpm db:create-user`.
 - **Port already in use**: stop the other process on 5173 or 3000, or change `PORT` in `backend/.env`.
 - **Prisma client errors after pulling changes**: run `pnpm db:generate && pnpm db:migrate`.
+
+## Production database
+
+Any PostgreSQL 14 or newer works (Neon, Supabase, Render, Azure Database for PostgreSQL, or your own server). Put its connection string in the backend's `DATABASE_URL` and create the tables once with:
+
+```bash
+cd backend && npx prisma migrate deploy
+```
+
+Use a connection string that requires SSL (for most hosts it ends with `?sslmode=require`).

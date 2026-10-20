@@ -6,12 +6,12 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlserver"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 // DocumentType values: WORD | PDF
-// SQL Server does not support native enums — validated via Zod in application layer
+// No native database enums are used: allowed values are validated with Zod in the application layer
 
 // ---------------------------------------------------------------------------
 // Importer + Locations
@@ -20,7 +20,7 @@ datasource db {
 model Importer {
   id               String            @id @default(cuid())
   name             String
-  address          String            @db.NVarChar(Max)
+  address          String
   contact          String?
   email            String?
   buyerName        String?
@@ -150,7 +150,7 @@ model Invoice {
   importerEmail              String?
   countryOfOrigin            String?
   countryOfDestination       String?
-  descriptionOfGoods         String?          @db.NVarChar(Max)
+  descriptionOfGoods         String?
   hsCode                     String?
   termsOfDelivery            String?
   termsOfPayment             String?
@@ -164,14 +164,14 @@ model Invoice {
   bankIfscCode               String?
   bankSwiftCode              String?
   signName                   String?
-  signImage                  String?          @db.NVarChar(Max)
+  signImage                  String?
   // An "actual" invoice is a full copy of an original, named "ACTUAL <number>". It points back to that original.
   actualOfId                 String?
   actualOf                   Invoice?         @relation("ActualInvoice", fields: [actualOfId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   actuals                    Invoice[]        @relation("ActualInvoice")
   // NORMAL (the default), PARTY or CUSTOM. A party invoice and a custom invoice can each make the other with "Create custom / party invoice",
   // a full copy of the opposite kind that points back to this one (its counterpart). A normal invoice has no partner.
-  invoiceKind                String           @default("NORMAL") @db.NVarChar(10)
+  invoiceKind                String           @default("NORMAL") @db.VarChar(10)
   counterpartOfId            String?
   counterpartOf              Invoice?         @relation("CounterpartInvoice", fields: [counterpartOfId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   counterparts               Invoice[]        @relation("CounterpartInvoice")
@@ -188,9 +188,9 @@ model Invoice {
   subTotal                   Decimal          @default(0) @db.Decimal(12, 2)
   roundOff                   Decimal          @default(0) @db.Decimal(12, 2)
   total                      Decimal          @default(0) @db.Decimal(12, 2)
-  amountInWords              String?          @db.NVarChar(Max)
-  notes                      String?          @db.NVarChar(Max)
-  declaration                String?          @db.NVarChar(2000)
+  amountInWords              String?
+  notes                      String?
+  declaration                String?          @db.VarChar(2000)
   // Exchange rate typed in by the user when no automatic rate exists: units of `manualRateBase` per 1 `currency`.
   manualRate                 Decimal?         @db.Decimal(18, 8)
   manualRateBase             String?
@@ -223,7 +223,7 @@ model LineItem {
   invoice             Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   marksAndNos         String?
   containerNo         String?
-  descriptionOfGoods  String  @db.NVarChar(Max)
+  descriptionOfGoods  String
   netWeightPerPackage Decimal @db.Decimal(12, 2)
   numberOfBoxes       Int
   totalNetWeight      Decimal @db.Decimal(12, 2)
@@ -243,7 +243,7 @@ model Document {
   id        String    @id @default(cuid())
   title     String
   type      String    @default("WORD")
-  content   String?   @db.NVarChar(Max)
+  content   String?
   fileUrl   String?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -288,9 +288,9 @@ model Notification {
   type      String // success | info | warning | error
   category  String // invoice | importer | currency | system
   title     String
-  message   String?   @db.NVarChar(Max)
+  message   String?
   // JSON array of { label, value } pairs shown on the notification page
-  details   String?   @db.NVarChar(Max)
+  details   String?
   // where "Open" should take the person, e.g. /invoices/abc, and the button text
   link      String?
   linkLabel String?
@@ -323,17 +323,17 @@ model BankProfile {
 // A product that can be picked on an invoice line. Invoices copy the name, weight and rate, so edits here never change them.
 model Product {
   id                   String    @id @default(cuid())
-  name                 String    @db.NVarChar(200)
+  name                 String    @db.VarChar(200)
   // Where this product applies. All empty = the general list; otherwise an importer, optionally narrowed to one
   // currency and one landing location (kept by name, because an importer's locations are rebuilt when it is edited).
   importerId           String?
   importer             Importer? @relation(fields: [importerId], references: [id], onDelete: Cascade)
-  currency             String?   @db.NVarChar(3)
-  locationName         String?   @db.NVarChar(200)
+  currency             String?   @db.VarChar(3)
+  locationName         String?   @db.VarChar(200)
   // Usual values, filled in when the product is picked (optional; editable on the invoice)
   nettWeightPerPackage Decimal?  @db.Decimal(10, 3)
   ratePerKg            Decimal?  @db.Decimal(12, 4)
-  hsCode               String?   @db.NVarChar(30)
+  hsCode               String?   @db.VarChar(30)
   // false = marked "not needed": kept here, but not offered on invoices
   isActive             Boolean   @default(true)
   createdAt            DateTime  @default(now())
@@ -349,8 +349,8 @@ model ProductList {
   id           String   @id @default(cuid())
   importerId   String
   importer     Importer @relation(fields: [importerId], references: [id], onDelete: Cascade)
-  currency     String   @db.NVarChar(3)
-  locationName String?  @db.NVarChar(200)
+  currency     String   @db.VarChar(3)
+  locationName String?  @db.VarChar(200)
   createdAt    DateTime @default(now())
 
   @@index([importerId])
@@ -362,7 +362,7 @@ model SignProfile {
   id        String   @id @default(cuid())
   name      String
   // PNG or JPEG as a data URL (resized in the browser before upload)
-  image     String   @db.NVarChar(Max)
+  image     String
   // The sign preselected when a new invoice is started (at most one)
   isDefault Boolean  @default(false)
   // false = marked "not needed": kept here, but not offered when creating invoices
@@ -377,7 +377,7 @@ model SignProfile {
 model DeclarationProfile {
   id        String   @id @default(cuid())
   name      String
-  text      String   @db.NVarChar(Max)
+  text      String
   // The declaration preselected when a new invoice is started (at most one)
   isDefault Boolean  @default(false)
   // false = marked "not needed": kept here, but not offered when creating invoices
@@ -397,7 +397,7 @@ model Draft {
   // shown in the drafts list: the invoice number or the importer name typed so far
   title     String?
   // the form's values as JSON
-  data      String   @db.NVarChar(Max)
+  data      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

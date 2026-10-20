@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { AppError } from '../utils/AppError';
 import type { CreateImporterDto, ListImportersQuery, PaginationMeta, UpdateImporterDto } from 'shared';
+import { containsCi } from '../utils/caseInsensitive';
 
 const importerInclude = {
   landingLocations: true,
@@ -22,18 +23,18 @@ export const importerService = {
     const terms = (search ?? '').split(/\s+/).filter(Boolean);
     const matchesTerm = (term: string): Prisma.ImporterWhereInput => ({
       OR: [
-        { name: { contains: term } },
-        { buyerName: { contains: term } },
-        { contact: { contains: term } },
-        { email: { contains: term } },
-        { address: { contains: term } },
-        { currency: { contains: term } },
+        { name: containsCi(term) },
+        { buyerName: containsCi(term) },
+        { contact: containsCi(term) },
+        { email: containsCi(term) },
+        { address: containsCi(term) },
+        { currency: containsCi(term) },
         { landingLocations: { some: { OR: [
-          { name: { contains: term } }, { portOfDischarge: { contains: term } },
-          { finalDestination: { contains: term } }, { countryOfDestination: { contains: term } },
+          { name: containsCi(term) }, { portOfDischarge: containsCi(term) },
+          { finalDestination: containsCi(term) }, { countryOfDestination: containsCi(term) },
         ] } } },
         { loadingLocations: { some: { OR: [
-          { name: { contains: term } }, { portOfLoading: { contains: term } }, { countryOfOrigin: { contains: term } },
+          { name: containsCi(term) }, { portOfLoading: containsCi(term) }, { countryOfOrigin: containsCi(term) },
         ] } } },
       ],
     });

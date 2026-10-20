@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { Prisma } from '@prisma/client';
 import { AppError } from '../utils/AppError';
 import { logger } from '../utils/logger';
 import { config } from '../config';
@@ -27,6 +28,14 @@ export const errorHandler = (
       meta: null,
     };
     res.status(err.statusCode).json(response);
+    return;
+  }
+
+  // a unique rule of the database was hit that no check caught first: say so plainly instead of a server error
+  if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+    logger.warn('Unique value already exists', { target: err.meta?.['target'], path: req.path, method: req.method });
+    const response: ApiResponse<null> = { success: false, data: null, error: { code: 'ALREADY_EXISTS', message: 'That value already exists.' }, meta: null };
+    res.status(409).json(response);
     return;
   }
 

@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma';
 import { productListService } from './product-list.service';
 import { AppError } from '../utils/AppError';
 import type { ProductDto } from 'shared';
+import { ci } from '../utils/caseInsensitive';
 
 const fields = (dto: ProductDto) => ({
   name: dto.name,
@@ -23,10 +24,10 @@ async function getOrThrow(id: string) {
 async function assertNameFree(dto: ProductDto, exceptId?: string) {
   const twin = await prisma.product.findFirst({
     where: {
-      name: dto.name,
+      name: ci(dto.name),
       importerId: dto.importerId ?? null,
       currency: dto.currency ?? null,
-      locationName: dto.locationName ?? null,
+      locationName: dto.locationName ? ci(dto.locationName) : null,
       ...(exceptId ? { NOT: { id: exceptId } } : {}),
     },
     select: { id: true },

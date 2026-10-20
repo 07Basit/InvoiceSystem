@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { AppError } from '../utils/AppError';
 import { PaginationMeta } from 'shared';
 import type { CreateDocumentDto, UpdateDocumentDto, ListDocumentsQuery } from 'shared';
+import { containsCi } from '../utils/caseInsensitive';
 
 export const documentService = {
   async list(query: ListDocumentsQuery): Promise<{ data: unknown[]; meta: PaginationMeta }> {
@@ -17,7 +18,7 @@ export const documentService = {
       deletedAt: null,
       ...(type && { type }),
       ...(search && {
-        OR: [{ title: { contains: search } }],
+        OR: [{ title: containsCi(search) }],
       }),
     };
 

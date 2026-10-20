@@ -63,11 +63,12 @@ describe('invoiceService.list with several values and the new filters', () => {
   it('filters by route, product and exporter', async () => {
     await list({ loadingPort: ['BOM'], dischargePort: ['YUL'], country: ['Canada'], product: ['Banana'], exporter: ['Blue Ocean Exports'] });
     const and = whereOf()['AND'] as Array<Record<string, any>>;
-    expect(and).toContainEqual({ portOfLoading: { in: ['BOM'] } });
-    expect(and).toContainEqual({ OR: [{ portOfDischarge: { in: ['YUL'] } }, { finalDestination: { in: ['YUL'] } }] });
-    expect(and).toContainEqual({ countryOfDestination: { in: ['Canada'] } });
-    expect(and).toContainEqual({ lineItems: { some: { descriptionOfGoods: { in: ['Banana'] } } } });
-    expect(and).toContainEqual({ exporterName: { in: ['Blue Ocean Exports'] } });
+    const eq = (value: string) => ({ equals: value, mode: 'insensitive' });
+    expect(and).toContainEqual({ OR: [{ portOfLoading: eq('BOM') }] });
+    expect(and).toContainEqual({ OR: [{ portOfDischarge: eq('YUL') }, { finalDestination: eq('YUL') }] });
+    expect(and).toContainEqual({ OR: [{ countryOfDestination: eq('Canada') }] });
+    expect(and).toContainEqual({ lineItems: { some: { OR: [{ descriptionOfGoods: eq('Banana') }] } } });
+    expect(and).toContainEqual({ OR: [{ exporterName: eq('Blue Ocean Exports') }] });
   });
 
   it('splits regular invoices from actual copies', async () => {

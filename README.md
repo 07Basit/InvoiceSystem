@@ -24,7 +24,7 @@ To run it, see [RUNNING.md](RUNNING.md).
 |---|---|
 | Frontend | React 18, Vite 6, TypeScript, Tailwind CSS, TanStack Query, Zustand |
 | Backend | Node.js 20+, Express 5, TypeScript, Prisma, Winston |
-| Database | SQL Server 2022 (Docker) |
+| Database | PostgreSQL 16 (Docker for development) |
 | Validation | Zod schemas shared by frontend and backend |
 | Documents | pdf-lib, ExcelJS, JSZip |
 | Tests | Jest + ts-jest (backend), Vitest + React Testing Library (frontend) |
@@ -37,7 +37,7 @@ InvoiceSystem/
 ├── backend/    Express API, Prisma schema and migrations, document generation
 ├── frontend/   React app (feature folders under src/features)
 ├── shared/     Zod schemas and types used by both
-├── docker-compose.yml   SQL Server
+├── docker-compose.yml   PostgreSQL
 └── RUNNING.md  Steps and commands to run everything
 ```
 
@@ -50,7 +50,7 @@ Backend request flow: route → Zod validation → controller → service → Pr
 - The top importers use a bounded min-heap (`backend/src/utils/topN.ts`).
 - Bulk delete and ZIP load/update all invoices in a constant number of queries.
 - The frontend uses a `Set` for "is this invoice selected" and a `Map` for product price lookup.
-- Search uses `LIKE '%text%'`, which cannot use an index. It is fine for thousands of invoices. For far more, add SQL Server Full-Text Search, which the default Docker image does not include.
+- Search uses case-insensitive `ILIKE '%text%'`, which cannot use a normal index. It is fine for thousands of invoices. For far more, add a `pg_trgm` index or PostgreSQL full-text search.
 
 ## Testing
 

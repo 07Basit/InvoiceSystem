@@ -10,6 +10,7 @@ import { declarationService } from './declaration.service';
 import { signService } from './sign.service';
 import { DEFAULT_DECLARATION } from 'shared';
 import type { CreateInvoiceDto, ListInvoicesQuery, PaginationMeta, UpdateInvoiceDto } from 'shared';
+import { anyOfCi, ci, containsCi } from '../utils/caseInsensitive';
 
 type InvoiceLineInput = CreateInvoiceDto['lineItems'][number];
 
@@ -117,6 +118,10 @@ function asList<T>(value: T | T[] | undefined | null): T[] {
   return (Array.isArray(value) ? value : [value]).filter((v) => v !== '' && v !== undefined && v !== null);
 }
 
+/** Invoice numbers are unique whatever their capitals ("rg 1" and "RG 1" are the same number). */
+const invoiceNumberTaken = async (invoiceNumber: string, exceptId?: string) =>
+  (await prisma.invoice.count({ where: { invoiceNumber: ci(invoiceNumber), ...(exceptId ? { NOT: { id: exceptId } } : {}) } })) > 0;
+
 /** One value stays a plain match; several become "any of these". */
 const oneOrIn = <T>(list: T[]) => (list.length === 1 ? list[0]! : { in: list });
 
@@ -143,12 +148,12 @@ async function whereFor(query: ListInvoicesQuery): Promise<Prisma.InvoiceWhereIn
   if (years.length === 1 && months.length <= 1) {
     invoiceDate = yearRange(years[0]!, months[0]);
   } else if (years.length === 0 && months.length === 1) {
-    const rows = await prisma.$queryRaw<Array<{ id: string }>>`SELECT id FROM invoices WHERE deletedAt IS NULL AND MONTH(invoiceDate) = ${months[0]}`;
+    const rows = await prisma.$queryRaw<Array<{ id: string }>>`SELECT id FROM invoices WHERE "deletedAt" IS NULL AND EXTRACT(MONTH FROM "invoiceDate") = ${months[0]}`;
     idsForMonth = rows.map((r) => r.id);
   } else {
     if (years.length > 0) and.push({ OR: years.map((y) => ({ invoiceDate: yearRange(y) })) });
     if (months.length > 0) {
-      const rows = await prisma.$queryRaw<Array<{ id: string }>>`SELECT id FROM invoices WHERE deletedAt IS NULL AND MONTH(invoiceDate) IN (${Prisma.join(months)})`;
+      const rows = await prisma.$queryRaw<Array<{ id: string }>>`SELECT id FROM invoices WHERE "deletedAt" IS NULL AND EXTRACT(MONTH FROM "invoiceDate") IN (${Prisma.join(months)})`;
       and.push({ id: { in: rows.map((r) => r.id) } });
     }
   }
@@ -167,12 +172,12 @@ async function whereFor(query: ListInvoicesQuery): Promise<Prisma.InvoiceWhereIn
   const countries = asList(query.country);
   const products = asList(query.product);
   const exporters = asList(query.exporter);
-  if (loading.length) and.push({ portOfLoading: { in: loading } });
+  if (loading.length) and.push(anyOfCi('portOfLoading', loading));
   // "to" a port: the port of discharge or the final destination
-  if (discharge.length) and.push({ OR: [{ portOfDischarge: { in: discharge } }, { finalDestination: { in: discharge } }] });
-  if (countries.length) and.push({ countryOfDestination: { in: countries } });
-  if (products.length) and.push({ lineItems: { some: { descriptionOfGoods: { in: products } } } });
-  if (exporters.length) and.push({ exporterName: { in: exporters } });
+  if (discharge.length) and.push({ OR: [...anyOfCi('portOfDischarge', discharge).OR, ...anyOfCi('finalDestination', discharge).OR] });
+  if (countries.length) and.push(anyOfCi('countryOfDestination', countries));
+  if (products.length) and.push({ lineItems: { some: anyOfCi('descriptionOfGoods', products) } });
+  if (exporters.length) and.push(anyOfCi('exporterName', exporters));
 
   const total = {
     ...(query.minTotal !== undefined && query.minTotal !== null ? { gte: Number(query.minTotal) } : {}),
@@ -194,10 +199,10 @@ async function whereFor(query: ListInvoicesQuery): Promise<Prisma.InvoiceWhereIn
     ...(search
       ? {
           OR: [
-            { invoiceNumber: { contains: search } },
-            { importer: { name: { contains: search } } },
-            { importerName: { contains: search } },
-            { buyerName: { contains: search } },
+            { invoiceNumber: containsCi(search) },
+            { importer: { name: containsCi(search) } },
+            { importerName: containsCi(search) },
+            { buyerName: containsCi(search) },
           ],
         }
       : {}),
@@ -281,7 +286,7 @@ export const invoiceService = {
     if (original.actuals.length > 0) throw new AppError('An actual invoice was already created for this invoice', 409, 'ACTUAL_EXISTS');
 
     const invoiceNumber = actualNumber(original.invoiceNumber);
-    if (await prisma.invoice.findUnique({ where: { invoiceNumber }, select: { id: true } })) {
+    if (await invoiceNumberTaken(invoiceNumber)) {
       throw new AppError(`An invoice named ${invoiceNumber} already exists (it may be in the Recycle Bin)`, 409, 'ACTUAL_NUMBER_TAKEN');
     }
 
@@ -324,7 +329,7 @@ export const invoiceService = {
 
     const kind = source.invoiceKind === 'CUSTOM' ? 'PARTY' : 'CUSTOM';
     const invoiceNumber = counterpartNumber(source.invoiceNumber, kind);
-    if (await prisma.invoice.findUnique({ where: { invoiceNumber }, select: { id: true } })) {
+    if (await invoiceNumberTaken(invoiceNumber)) {
       throw new AppError(`An invoice named ${invoiceNumber} already exists (it may be in the Recycle Bin)`, 409, 'COUNTERPART_NUMBER_TAKEN');
     }
 
@@ -445,7 +450,7 @@ export const invoiceService = {
     const { customVersion, ...partyDto } = dto;
     if (!customVersion) throw new AppError('A party and custom invoice needs the content of its custom page', 400, 'CUSTOM_VERSION_REQUIRED');
     const companionNumber = counterpartNumber(dto.invoiceNumber, 'CUSTOM');
-    if (await prisma.invoice.findUnique({ where: { invoiceNumber: companionNumber }, select: { id: true } })) {
+    if (await invoiceNumberTaken(companionNumber)) {
       throw new AppError(`An invoice named ${companionNumber} already exists (it may be in the Recycle Bin)`, 409, 'COUNTERPART_NUMBER_TAKEN');
     }
 
@@ -465,6 +470,9 @@ export const invoiceService = {
 
   /** One invoice row; `extra` is for the hidden custom page of a BOTH invoice. */
   async createRow(dto: Omit<CreateInvoiceDto, 'customVersion'>, extra: { counterpartOfId?: string; isCompanion?: boolean; printedNumber?: string } = {}) {
+    if (await invoiceNumberTaken(dto.invoiceNumber)) {
+      throw new AppError(`An invoice numbered ${dto.invoiceNumber} already exists (it may be in the Recycle Bin)`, 409, 'INVOICE_NUMBER_TAKEN');
+    }
     const importer = await prisma.importer.findFirst({
       where: { id: dto.importerId, deletedAt: null },
       include: { landingLocations: true, loadingLocations: true },
@@ -594,6 +602,9 @@ export const invoiceService = {
 
   async updateRow(id: string, dto: Omit<UpdateInvoiceDto, 'customVersion'>) {
     const current = await this.getById(id);
+    if (dto.invoiceNumber !== undefined && dto.invoiceNumber.toLowerCase() !== current.invoiceNumber.toLowerCase() && (await invoiceNumberTaken(dto.invoiceNumber, id))) {
+      throw new AppError(`An invoice numbered ${dto.invoiceNumber} already exists (it may be in the Recycle Bin)`, 409, 'INVOICE_NUMBER_TAKEN');
+    }
 
     const importerId = dto.importerId ?? current.importerId;
     const importerChanged = importerId !== current.importerId;
@@ -732,7 +743,7 @@ export const invoiceService = {
   async filterOptions() {
     const live = { deletedAt: null, isCompanion: false };
     const [years, currencies, loading, discharge, finals, countries, exporters, products] = await Promise.all([
-      prisma.$queryRaw<Array<{ year: number }>>`SELECT DISTINCT YEAR(invoiceDate) AS year FROM invoices WHERE deletedAt IS NULL AND isCompanion = 0`,
+      prisma.$queryRaw<Array<{ year: number }>>`SELECT DISTINCT EXTRACT(YEAR FROM "invoiceDate")::int AS year FROM invoices WHERE "deletedAt" IS NULL AND "isCompanion" = false`,
       prisma.invoice.findMany({ where: live, select: { currency: true }, distinct: ['currency'] }),
       prisma.invoice.findMany({ where: live, select: { portOfLoading: true }, distinct: ['portOfLoading'] }),
       prisma.invoice.findMany({ where: live, select: { portOfDischarge: true }, distinct: ['portOfDischarge'] }),

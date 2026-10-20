@@ -6,17 +6,17 @@ Changes and improvements worth making, in rough priority order. Each item says w
 
 | Item | Why | Size |
 |---|---|---|
-| Stop storing a full signature image on every invoice | Signatures are about 101 KB of the 118 KB an invoice takes. At 100,000 invoices the database would be about 11.8 GB, over the 10 GB cap of SQL Server Express. | S |
+| Stop storing a full signature image on every invoice | Signatures are about 101 KB of the 118 KB an invoice takes. At 100,000 invoices the database would be about 11.8 GB, which makes backups slow and free hosting plans too small. | S |
 | Option A: shrink the image on upload (about 15 KB) | Keeps the per-invoice snapshot, cuts growth about 5x. | S |
 | Option B: store each signature once and point to it | Smallest database (about 1.7 GB at 100,000 invoices), but editing a signature would change old invoices unless versions are kept. | M |
 | Move uploaded files and images out of the database | Keeps the database small and backups fast. | M |
-| Plan for the Express 10 GB limit | Move to Standard edition or Azure SQL before the database nears 5 GB. | S |
+| Choose a production PostgreSQL plan with room | Free tiers are small (often around 0.5 GB). Pick a host and plan that fits the expected size, and watch the database size. | S |
 
 ## 2. Performance
 
 | Item | Why | Size |
 |---|---|---|
-| Full-text search for invoices | `LIKE '%text%'` scans every row. Fine for thousands, slow for hundreds of thousands. Needs an image with Full-Text Search installed. | M |
+| Faster text search for invoices | `ILIKE '%text%'` scans every row. Fine for thousands, slow for hundreds of thousands. Add a `pg_trgm` index or PostgreSQL full-text search. | M |
 | Index the product filter | The "product" filter joins on a text column with no index. Store a short searchable product code or hash. | M |
 | Cache the dashboard | Cache the converted totals for a minute and clear it when an invoice changes. | S |
 | Stream large ZIP downloads | The whole ZIP is built in memory. Stream it, and cap the memory used. | M |
@@ -29,6 +29,7 @@ Changes and improvements worth making, in rough priority order. Each item says w
 | Item | Why | Size |
 |---|---|---|
 | Wrap multi-step writes in one transaction | Creating a Both invoice makes two rows and cleans up by hand if the second fails. | S |
+| Unique invoice numbers ignoring capitals, in the database | The app refuses "rg 1" when "RG 1" exists, but only with a check before saving. Add a unique index on `lower("invoiceNumber")` so two simultaneous saves cannot slip through. | S |
 | Make the invoice number unique per year or series | A global unique number makes copies and recycled numbers awkward. | M |
 | Audit trail | Record who changed which field and when. The notification table is a start. | M |
 | Roles and permissions | Today every user can do everything. Add admin, editor and viewer. | M |
@@ -57,7 +58,7 @@ Changes and improvements worth making, in rough priority order. Each item says w
 |---|---|---|
 | ESLint for the backend | Only the frontend is linted today; the backend relies on type checks. | S |
 | End-to-end tests (Playwright) | Cover create invoice, download PDF, bulk delete and login. | M |
-| Tests against a real database | The unit tests mock Prisma, so SQL such as `GROUP BY` and the raw `MONTH()` query is not exercised. Run a small suite against a throwaway SQL Server container. | M |
+| Tests against a real database | The unit tests mock Prisma, so SQL such as `GROUP BY` and the raw `EXTRACT(MONTH ...)` query is not exercised. Run a small suite against a throwaway PostgreSQL container. | M |
 | Continuous integration | Run typecheck, lint, tests and build on every push and pull request. | S |
 | Split the biggest components | `InvoiceForm.tsx` is about 1,100 lines. Break out the page, line-item table and totals. | M |
 | Production Dockerfiles and deployment guide | Only the database runs in Docker today. | M |

@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma';
 import { AppError } from '../utils/AppError';
 import type { ProductListDto } from 'shared';
+import { ci } from '../utils/caseInsensitive';
 
 async function getOrThrow(id: string) {
   const list = await prisma.productList.findUnique({ where: { id } });
@@ -8,7 +9,8 @@ async function getOrThrow(id: string) {
   return list;
 }
 
-const sameList = (dto: ProductListDto) => ({ importerId: dto.importerId, currency: dto.currency, locationName: dto.locationName ?? null });
+const sameList = (dto: ProductListDto) => ({ importerId: dto.importerId, currency: dto.currency, locationName: dto.locationName ? ci(dto.locationName) : null });
+const newList = (dto: ProductListDto) => ({ importerId: dto.importerId, currency: dto.currency, locationName: dto.locationName ?? null });
 
 export const productListService = {
   /** Newest first. */
@@ -22,13 +24,13 @@ export const productListService = {
     }
     const twin = await prisma.productList.findFirst({ where: sameList(dto), select: { id: true } });
     if (twin) throw new AppError('This list already exists', 409, 'PRODUCT_LIST_EXISTS');
-    return prisma.productList.create({ data: sameList(dto) });
+    return prisma.productList.create({ data: newList(dto) });
   },
 
   /** Makes sure the list exists (used when a product is added to it from an invoice); never fails for an existing one. */
   async ensure(dto: ProductListDto) {
     const existing = await prisma.productList.findFirst({ where: sameList(dto), select: { id: true } });
-    if (!existing) await prisma.productList.create({ data: sameList(dto) });
+    if (!existing) await prisma.productList.create({ data: newList(dto) });
   },
 
   /** Deleting a list deletes its products too. Invoices keep their own copy of product names. */

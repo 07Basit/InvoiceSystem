@@ -53,7 +53,7 @@ describe('productService', () => {
   it('allows the same name in another list, but not twice in the same one', async () => {
     prismaMock.product.findFirst.mockResolvedValueOnce(row() as never);
     await expect(productService.create({ name: 'Alphonso Mango' })).rejects.toMatchObject({ statusCode: 409, code: 'PRODUCT_EXISTS' });
-    expect(prismaMock.product.findFirst).toHaveBeenCalledWith({ where: { name: 'Alphonso Mango', importerId: null, currency: null, locationName: null }, select: { id: true } });
+    expect(prismaMock.product.findFirst).toHaveBeenCalledWith({ where: { name: { equals: 'Alphonso Mango', mode: 'insensitive' }, importerId: null, currency: null, locationName: null }, select: { id: true } });
     prismaMock.importer.findUnique.mockResolvedValue({ id: 'i1' } as never);
     prismaMock.product.findFirst.mockResolvedValueOnce(null);
     prismaMock.product.create.mockResolvedValue(row() as never);

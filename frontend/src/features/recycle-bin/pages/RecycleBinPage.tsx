@@ -48,6 +48,37 @@ function ConfirmDialog({ target, onConfirm, onCancel }: { target: ConfirmTarget;
   );
 }
 
+function RowActions({ onRestore, onDelete, disabled, className }: { onRestore: () => void; onDelete: () => void; disabled: boolean; className?: string }) {
+  return (
+    <div className={className ?? 'flex items-center justify-end gap-2'}>
+      <button
+        onClick={onRestore}
+        disabled={disabled}
+        className="flex items-center justify-center gap-1.5 text-xs py-1.5 px-3 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-colors disabled:opacity-50"
+      >
+        <RotateCcw className="h-3.5 w-3.5" />
+        Restore
+      </button>
+      <button
+        onClick={onDelete}
+        className="flex items-center justify-center gap-1.5 text-xs py-1.5 px-3 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
+      >
+        <X className="h-3.5 w-3.5" />
+        Delete
+      </button>
+    </div>
+  );
+}
+
+function DeletedAgo({ at }: { at: string }) {
+  return (
+    <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm text-muted-foreground">
+      <Clock className="h-3 w-3" />
+      {timeAgo(at)}
+    </span>
+  );
+}
+
 export default function RecycleBinPage() {
   const { data, isLoading } = useRecycleBin();
   const restore = useRestoreRecord();
@@ -87,14 +118,14 @@ export default function RecycleBinPage() {
         </div>
       ) : (
         <>
-          <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit">
+          <div className="flex w-full gap-1 rounded-lg bg-muted p-1 sm:w-fit">
             {(['invoices', 'importers'] as const).map((tab) => {
               const count = tab === 'invoices' ? invoices.length : importers.length;
               return (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                  className={`flex flex-1 items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all sm:flex-none ${
                     activeTab === tab
                       ? 'bg-background shadow-sm text-foreground'
                       : 'text-muted-foreground hover:text-foreground'
@@ -117,7 +148,28 @@ export default function RecycleBinPage() {
               {invoices.length === 0 ? (
                 <div className="py-12 text-center text-sm text-muted-foreground">No deleted invoices</div>
               ) : (
-                <table className="table-enterprise">
+                <>
+                <div className="divide-y md:hidden">
+                  {invoices.map((inv) => (
+                    <div key={inv.id} className="space-y-2 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="min-w-0 break-words font-mono text-sm font-medium">{inv.invoiceNumber}</p>
+                        <p className="shrink-0 text-sm font-medium">{inv.currency} {Number(inv.total).toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 text-muted-foreground">
+                        <p className="min-w-0 truncate text-sm">{inv.importerName ?? inv.importer.name}</p>
+                        <DeletedAgo at={inv.deletedAt} />
+                      </div>
+                      <RowActions
+                        className="grid grid-cols-2 gap-2 pt-1"
+                        disabled={restore.isPending}
+                        onRestore={() => restore.mutate({ type: 'invoice', id: inv.id })}
+                        onDelete={() => setConfirm({ type: 'invoice', id: inv.id, label: inv.invoiceNumber })}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <table className="table-enterprise hidden md:table">
                   <thead>
                     <tr>
                       <th>Invoice #</th>
@@ -135,35 +187,19 @@ export default function RecycleBinPage() {
                         <td className="font-medium">
                           {inv.currency} {Number(inv.total).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                         </td>
+                        <td><DeletedAgo at={inv.deletedAt} /></td>
                         <td>
-                          <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                            <Clock className="h-3 w-3" />
-                            {timeAgo(inv.deletedAt)}
-                          </span>
-                        </td>
-                        <td>
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => restore.mutate({ type: 'invoice', id: inv.id })}
-                              disabled={restore.isPending}
-                              className="flex items-center gap-1.5 text-xs py-1.5 px-3 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-colors disabled:opacity-50"
-                            >
-                              <RotateCcw className="h-3.5 w-3.5" />
-                              Restore
-                            </button>
-                            <button
-                              onClick={() => setConfirm({ type: 'invoice', id: inv.id, label: inv.invoiceNumber })}
-                              className="flex items-center gap-1.5 text-xs py-1.5 px-3 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                              Delete
-                            </button>
-                          </div>
+                          <RowActions
+                            disabled={restore.isPending}
+                            onRestore={() => restore.mutate({ type: 'invoice', id: inv.id })}
+                            onDelete={() => setConfirm({ type: 'invoice', id: inv.id, label: inv.invoiceNumber })}
+                          />
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                </>
               )}
             </div>
           )}
@@ -173,7 +209,26 @@ export default function RecycleBinPage() {
               {importers.length === 0 ? (
                 <div className="py-12 text-center text-sm text-muted-foreground">No deleted importers</div>
               ) : (
-                <table className="table-enterprise">
+                <>
+                <div className="divide-y md:hidden">
+                  {importers.map((imp) => (
+                    <div key={imp.id} className="space-y-2 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="min-w-0 break-words font-medium">{imp.name}</p>
+                        <DeletedAgo at={imp.deletedAt} />
+                      </div>
+                      {imp.buyerName ? <p className="text-sm text-muted-foreground">{imp.buyerName}</p> : null}
+                      {imp.contact ? <p className="text-sm text-muted-foreground">{imp.contact}</p> : null}
+                      <RowActions
+                        className="grid grid-cols-2 gap-2 pt-1"
+                        disabled={restore.isPending}
+                        onRestore={() => restore.mutate({ type: 'importer', id: imp.id })}
+                        onDelete={() => setConfirm({ type: 'importer', id: imp.id, label: imp.name })}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <table className="table-enterprise hidden md:table">
                   <thead>
                     <tr>
                       <th>Name</th>
@@ -189,35 +244,19 @@ export default function RecycleBinPage() {
                         <td className="font-medium">{imp.name}</td>
                         <td className="text-muted-foreground">{imp.buyerName}</td>
                         <td className="text-muted-foreground text-sm">{imp.contact}</td>
+                        <td><DeletedAgo at={imp.deletedAt} /></td>
                         <td>
-                          <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                            <Clock className="h-3 w-3" />
-                            {timeAgo(imp.deletedAt)}
-                          </span>
-                        </td>
-                        <td>
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => restore.mutate({ type: 'importer', id: imp.id })}
-                              disabled={restore.isPending}
-                              className="flex items-center gap-1.5 text-xs py-1.5 px-3 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-colors disabled:opacity-50"
-                            >
-                              <RotateCcw className="h-3.5 w-3.5" />
-                              Restore
-                            </button>
-                            <button
-                              onClick={() => setConfirm({ type: 'importer', id: imp.id, label: imp.name })}
-                              className="flex items-center gap-1.5 text-xs py-1.5 px-3 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                              Delete
-                            </button>
-                          </div>
+                          <RowActions
+                            disabled={restore.isPending}
+                            onRestore={() => restore.mutate({ type: 'importer', id: imp.id })}
+                            onDelete={() => setConfirm({ type: 'importer', id: imp.id, label: imp.name })}
+                          />
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                </>
               )}
             </div>
           )}

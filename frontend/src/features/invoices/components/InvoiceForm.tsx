@@ -662,34 +662,34 @@ export default function InvoiceForm() {
               <div className="grid grid-cols-2 gap-2">
                 <Field label="Invoice No" value={originalNumber ?? form.invoiceNumber} readOnly={!!originalNumber || page === 'custom'} error={errors.invoiceNumber} onChange={(v) => { clearFieldError('invoiceNumber'); setForm((p) => ({ ...p, invoiceNumber: v })); }} />
                 <div>
-                  <p className="label">Invoice type</p>
-                  <div role="radiogroup" aria-label="Invoice type" className="flex gap-2">
-                    {(['NORMAL', 'PARTY', 'CUSTOM', 'BOTH'] as const).map((kind) => (
-                      <button
-                        key={kind}
-                        type="button"
-                        role="radio"
-                        aria-checked={(form.invoiceKind ?? 'NORMAL') === kind}
-                        disabled={isEditing || page === 'custom'}
-                        onClick={() => { setForm((p) => ({ ...p, invoiceKind: kind })); if (kind !== 'BOTH') setOtherForm(null); }}
-                        className={cn(
-                          'flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed',
-                          (form.invoiceKind ?? 'NORMAL') === kind ? 'border-[hsl(var(--brand-accent))] bg-[hsl(var(--brand-accent)/0.1)] text-[hsl(var(--brand-accent))]' : 'hover:bg-accent disabled:opacity-50',
-                        )}
-                      >
-                        {kind === 'NORMAL' ? 'Normal' : kind === 'PARTY' ? 'Party' : kind === 'CUSTOM' ? 'Custom' : 'Both'}
-                      </button>
-                    ))}
-                  </div>
-                  {isEditing && <p className="mt-1 text-[11px] text-muted-foreground">Fixed when the invoice is created.{form.invoiceKind === 'NORMAL' || bothMode ? '' : ` Use the button on the invoice to make its ${form.invoiceKind === 'CUSTOM' ? 'party' : 'custom'} partner.`}</p>}
-                  {!isEditing && form.invoiceKind === 'BOTH' && <p className="mt-1 text-[11px] text-muted-foreground">Fill the party page, then open the custom page with the tab at the top. It starts with the same values.</p>}
-                  {page === 'custom' && <p className="mt-1 text-[11px] text-muted-foreground">The invoice type is set on the party page.</p>}
-                </div>
-                <div>
                   <label className="label">Invoice Date</label>
                   <DatePicker ariaLabel="Invoice Date" value={toDateInput(form.invoiceDate)} hasError={!!errors.invoiceDate} onChange={(v) => { clearFieldError('invoiceDate'); setForm((p) => ({ ...p, invoiceDate: toIsoDate(v) })); }} />
                   {errors.invoiceDate ? <p className="err">{errors.invoiceDate}</p> : null}
                 </div>
+              </div>
+              <div>
+                <p className="label">Invoice type</p>
+                <div role="radiogroup" aria-label="Invoice type" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {(['NORMAL', 'PARTY', 'CUSTOM', 'BOTH'] as const).map((kind) => (
+                    <button
+                      key={kind}
+                      type="button"
+                      role="radio"
+                      aria-checked={(form.invoiceKind ?? 'NORMAL') === kind}
+                      disabled={isEditing || page === 'custom'}
+                      onClick={() => { setForm((p) => ({ ...p, invoiceKind: kind })); if (kind !== 'BOTH') setOtherForm(null); }}
+                      className={cn(
+                        'rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed',
+                        (form.invoiceKind ?? 'NORMAL') === kind ? 'border-[hsl(var(--brand-accent))] bg-[hsl(var(--brand-accent)/0.1)] text-[hsl(var(--brand-accent))]' : 'hover:bg-accent disabled:opacity-50',
+                      )}
+                    >
+                      {kind === 'NORMAL' ? 'Normal' : kind === 'PARTY' ? 'Party' : kind === 'CUSTOM' ? 'Custom' : 'Both'}
+                    </button>
+                  ))}
+                </div>
+                {isEditing && <p className="mt-1 text-[11px] text-muted-foreground">Fixed when the invoice is created.{form.invoiceKind === 'NORMAL' || bothMode ? '' : ` Use the button on the invoice to make its ${form.invoiceKind === 'CUSTOM' ? 'party' : 'custom'} partner.`}</p>}
+                {!isEditing && form.invoiceKind === 'BOTH' && <p className="mt-1 text-[11px] text-muted-foreground">Fill the party page, then open the custom page with the tab at the top. It starts with the same values.</p>}
+                {page === 'custom' && <p className="mt-1 text-[11px] text-muted-foreground">The invoice type is set on the party page.</p>}
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <Field label="Exporter's Ref." value={form.exportersRef ?? ''} error={errors.exportersRef} onChange={(v) => { clearFieldError('exportersRef'); setForm((p) => ({ ...p, exportersRef: v })); }} />
@@ -710,7 +710,7 @@ export default function InvoiceForm() {
 
           <Section title="Shipping Details" icon={Ship} tone="orange">
             <div className="space-y-3">
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
                 <Field label="Pre-Carriage by" value={form.preCarriageBy ?? ''} error={errors.preCarriageBy} onChange={(v) => { clearFieldError('preCarriageBy'); setForm((p) => ({ ...p, preCarriageBy: v })); }} />
                 <Field label="Place of Receipt by Pre-Carrier" value={form.placeOfReceiptByPreCarrier ?? ''} error={errors.placeOfReceiptByPreCarrier} onChange={(v) => { clearFieldError('placeOfReceiptByPreCarrier'); setForm((p) => ({ ...p, placeOfReceiptByPreCarrier: v })); }} />
                 <Field label="Vessel Flight No." value={form.vesselFlightNo ?? ''} error={errors.vesselFlightNo} onChange={(v) => { clearFieldError('vesselFlightNo'); setForm((p) => ({ ...p, vesselFlightNo: v })); }} />
@@ -718,7 +718,7 @@ export default function InvoiceForm() {
               <LocationGroup title="Loading" hint="Origin">
                 <LocationPicker label="Loading location" ariaLabel="Loading location" value={form.loadingLocationId ?? ''} onChange={chooseLoading} importerChosen={!!form.importerId}
                   options={(selectedImporter?.loadingLocations ?? []).map((l) => ({ value: l.id, label: l.name || l.portOfLoading, description: [l.portOfLoading, l.countryOfOrigin].filter(Boolean).join(' · ') }))} />
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <AirportSelect variant="form" label="Port of Loading" value={form.portOfLoading ?? ''} error={errors.portOfLoading} onChange={(v) => { clearFieldError('portOfLoading'); setForm((p) => ({ ...p, portOfLoading: v })); }} />
                   <CountrySelect variant="form" label="Country of Origin" value={form.countryOfOrigin ?? ''} error={errors.countryOfOrigin} onChange={(v) => { clearFieldError('countryOfOrigin'); setForm((p) => ({ ...p, countryOfOrigin: v })); }} />
                 </div>
@@ -726,17 +726,17 @@ export default function InvoiceForm() {
               <LocationGroup title="Landing" hint="Destination">
                 <LocationPicker label="Landing location" ariaLabel="Landing location" value={form.landingLocationId ?? ''} onChange={chooseLanding} importerChosen={!!form.importerId}
                   options={(selectedImporter?.landingLocations ?? []).map((l) => ({ value: l.id, label: l.name || l.portOfDischarge, description: [l.portOfDischarge, l.finalDestination, l.countryOfDestination].filter(Boolean).join(' · ') }))} />
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
                   <AirportSelect variant="form" label="Port of Discharge" value={form.portOfDischarge ?? ''} error={errors.portOfDischarge} onChange={(v) => { clearFieldError('portOfDischarge'); setForm((p) => ({ ...p, portOfDischarge: v })); }} />
                   <AirportSelect variant="form" label="Final Destination" value={form.finalDestination ?? ''} error={errors.finalDestination} onChange={(v) => { clearFieldError('finalDestination'); setForm((p) => ({ ...p, finalDestination: v, termsOfDelivery: cnfTerms(v) })); }} />
                   <CountrySelect variant="form" label="Country of Destination" value={form.countryOfDestination ?? ''} error={errors.countryOfDestination} onChange={(v) => { clearFieldError('countryOfDestination'); setForm((p) => ({ ...p, countryOfDestination: v })); }} />
                 </div>
               </LocationGroup>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <Field label="Description of Goods" value={form.descriptionOfGoods ?? ''} error={errors.descriptionOfGoods} onChange={(v) => { clearFieldError('descriptionOfGoods'); setForm((p) => ({ ...p, descriptionOfGoods: v })); }} />
                 <Field label="HS Code" value={form.hsCode ?? ''} error={errors.hsCode} onChange={(v) => { clearFieldError('hsCode'); setForm((p) => ({ ...p, hsCode: v })); }} />
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <Field label="Terms of Delivery (CNF + destination code)" readOnly value={form.termsOfDelivery ?? ''} onChange={() => {}} />
                 <Field label="Terms of Payment" value={form.termsOfPayment ?? ''} error={errors.termsOfPayment} onChange={(v) => { clearFieldError('termsOfPayment'); setForm((p) => ({ ...p, termsOfPayment: v })); }} />
               </div>

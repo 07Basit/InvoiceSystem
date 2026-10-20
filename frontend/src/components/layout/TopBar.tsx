@@ -29,21 +29,21 @@ export default function TopBar({ onOpenMobileSidebar }: TopBarProps) {
   const { pathname } = useLocation();
   return (
     <header className="h-16 border-b bg-card/80 backdrop-blur-sm flex items-center justify-between px-4 sm:px-6 shrink-0 sticky top-0 z-40">
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         <button
           onClick={onOpenMobileSidebar}
-          className="btn-icon lg:hidden"
+          className="btn-icon shrink-0 lg:hidden"
           aria-label="Open sidebar"
         >
           <Menu className="h-4 w-4" />
         </button>
-        <div className="hidden min-w-0 leading-tight sm:block">
+        <div className="min-w-0 leading-tight">
           <p className="truncate text-sm font-semibold">{pageTitleForPath(pathname)}</p>
-          <p className="text-[11px] text-muted-foreground">{todayLabel()}</p>
+          <p className="truncate text-[11px] text-muted-foreground">{todayLabel()}</p>
         </div>
         <QuickCreateMenu />
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
         <NotificationBell />
         <UserMenu />
       </div>

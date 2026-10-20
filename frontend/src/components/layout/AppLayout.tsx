@@ -11,12 +11,14 @@ export default function AppLayout() {
   useImportBrowserDrafts(); // drafts saved in this browser before they lived in the database
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    // Pinned to the visible screen (not 100vh, which is taller than a phone's visible area while its address bar is showing),
+    // and clipped rather than hidden so nothing can scroll the page behind the top bar: only <main> scrolls.
+    <div className="fixed inset-0 flex bg-background overflow-clip">
       <Sidebar
         isMobileOpen={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
       />
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-clip">
         <TopBar onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)} />
         <main ref={mainRef} className="flex-1 overflow-y-auto p-4 sm:p-6">
           <Outlet />

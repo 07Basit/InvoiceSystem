@@ -339,3 +339,183 @@
 }
 .toast-enter { animation: toast-in 0.18s ease-out; }
 @media (prefers-reduced-motion: reduce) { .toast-enter { animation: none; } }
+
+
+/* ---- loader scene (invoice, plane, coins, waves) ---- */
+@keyframes loader-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
+}
+.loader-bar { animation: loader-slide 1.4s ease-in-out infinite; }
+
+/* a line of the invoice is written, held, then wiped for the next round */
+@keyframes ld-write {
+  0% { transform: scaleX(0); }
+  18%, 78% { transform: scaleX(1); }
+  92%, 100% { transform: scaleX(0); }
+}
+.ld-line { transform-box: fill-box; transform-origin: 0 50%; animation: ld-write 3.6s ease-in-out infinite; }
+.ld-line-1 { animation-delay: 0s; }
+.ld-line-2 { animation-delay: 0.25s; }
+.ld-line-3 { animation-delay: 0.5s; }
+.ld-line-4 { animation-delay: 0.8s; }
+
+/* the "paid" stamp pops in once the lines are written */
+@keyframes ld-stamp {
+  0%, 52% { transform: scale(0) rotate(-25deg); opacity: 0; }
+  62% { transform: scale(1.25) rotate(8deg); opacity: 1; }
+  70%, 82% { transform: scale(1) rotate(0deg); opacity: 1; }
+  92%, 100% { transform: scale(0.6) rotate(0deg); opacity: 0; }
+}
+.ld-stamp { transform-box: fill-box; transform-origin: center; animation: ld-stamp 3.6s ease-in-out infinite; }
+
+/* the whole invoice breathes a little */
+@keyframes ld-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+.ld-card { animation: ld-float 3.6s ease-in-out infinite; }
+
+/* a plane flies the dotted route; its path is set inline so the scene can be scaled */
+@keyframes ld-fly {
+  0% { offset-distance: 0%; opacity: 0; }
+  8% { opacity: 1; }
+  92% { opacity: 1; }
+  100% { offset-distance: 100%; opacity: 0; }
+}
+.ld-plane { offset-rotate: auto; offset-anchor: 50% 50%; animation: ld-fly 4.2s ease-in-out infinite; }
+
+@keyframes ld-coin {
+  0% { transform: translateY(0) scale(0.6); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translateY(-46px) scale(1); opacity: 0; }
+}
+.ld-coin { transform-box: fill-box; transform-origin: center; animation: ld-coin 2.8s ease-out infinite; }
+.ld-coin-2 { animation-delay: 0.9s; }
+.ld-coin-3 { animation-delay: 1.8s; }
+
+@keyframes ld-wave {
+  from { transform: translateX(0); }
+  to { transform: translateX(-240px); }
+}
+.ld-wave-1 { animation: ld-wave 7s linear infinite; }
+.ld-wave-2 { animation: ld-wave 4.5s linear infinite; }
+
+/* ---- scenes for the other pages ---- */
+.ld-bar { transform-box: fill-box; transform-origin: 50% 100%; animation: ld-grow 3.6s ease-in-out infinite; }
+.ld-bar-2 { animation-delay: 0.12s; } .ld-bar-3 { animation-delay: 0.24s; } .ld-bar-4 { animation-delay: 0.36s; } .ld-bar-5 { animation-delay: 0.48s; }
+@keyframes ld-grow {
+  0% { transform: scaleY(0); }
+  25%, 82% { transform: scaleY(1); }
+  95%, 100% { transform: scaleY(0); }
+}
+.ld-draw { stroke-dasharray: 170; animation: ld-draw 3.6s ease-in-out infinite; }
+@keyframes ld-draw {
+  0%, 18% { stroke-dashoffset: 170; }
+  55%, 85% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: 170; }
+}
+.ld-pulse { transform-box: fill-box; transform-origin: center; animation: ld-pulse 1.4s ease-in-out infinite; }
+@keyframes ld-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.5); opacity: 0.6; }
+}
+
+/* a stack of invoices is shuffled */
+.ld-shuffle { animation: ld-shuffle 3.2s ease-in-out infinite; }
+.ld-shuffle-2 { animation-delay: 0.35s; } .ld-shuffle-1 { animation-delay: 0.7s; }
+@keyframes ld-shuffle {
+  0%, 55%, 100% { transform: translate(0, 0) rotate(0deg); }
+  20% { transform: translate(34px, -8px) rotate(7deg); }
+  38% { transform: translate(0, 0) rotate(0deg); }
+}
+
+/* a scanner passes over the open invoice */
+.ld-scan { animation: ld-scan 2.4s ease-in-out infinite alternate; }
+@keyframes ld-scan {
+  from { transform: translateY(0); }
+  to { transform: translateY(86px); }
+}
+
+/* the globe turns: the meridians squeeze in and out */
+.ld-meridian { transform-box: fill-box; transform-origin: center; animation: ld-meridian 3.3s ease-in-out infinite; }
+@keyframes ld-meridian {
+  0%, 100% { transform: scaleX(1); }
+  50% { transform: scaleX(0.08); }
+}
+.ld-pin { transform-box: fill-box; transform-origin: 50% 100%; animation: ld-pin 2.4s ease-in-out infinite; }
+@keyframes ld-pin {
+  0%, 10% { transform: translateY(-14px) scale(0); opacity: 0; }
+  28% { transform: translateY(0) scale(1.2); opacity: 1; }
+  38%, 80% { transform: translateY(0) scale(1); opacity: 1; }
+  95%, 100% { transform: translateY(0) scale(0); opacity: 0; }
+}
+
+/* the ship rides the waves */
+.ld-bob { transform-box: fill-box; transform-origin: 50% 100%; animation: ld-bob 3.4s ease-in-out infinite; }
+@keyframes ld-bob {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-4px) rotate(2deg); }
+}
+.ld-drift { animation: ld-drift 9s ease-in-out infinite alternate; }
+@keyframes ld-drift {
+  from { transform: translateX(-12px); }
+  to { transform: translateX(110px); }
+}
+
+/* crates are stacked */
+.ld-drop { animation: ld-drop 3.6s cubic-bezier(0.3, 0.9, 0.4, 1) infinite; }
+@keyframes ld-drop {
+  0% { transform: translateY(-80px); opacity: 0; }
+  12% { opacity: 1; }
+  24% { transform: translateY(0); }
+  28% { transform: translateY(-5px); }
+  33%, 84% { transform: translateY(0); opacity: 1; }
+  95%, 100% { transform: translateY(0); opacity: 0; }
+}
+
+/* papers drop into the bin and its lid lifts to let them in */
+.ld-paper { animation: ld-paper 2.7s ease-in infinite; }
+@keyframes ld-paper {
+  0% { transform: translateY(0) rotate(-8deg); opacity: 0; }
+  10% { opacity: 1; }
+  60% { transform: translateY(50px) rotate(6deg); opacity: 1; }
+  78%, 100% { transform: translateY(78px) rotate(0deg); opacity: 0; }
+}
+.ld-lid { transform-box: fill-box; transform-origin: 0% 100%; animation: ld-lid 2.7s ease-in-out infinite; }
+@keyframes ld-lid {
+  0%, 100% { transform: rotate(0deg); }
+  35%, 70% { transform: rotate(-24deg); }
+}
+
+/* the bell rings */
+.ld-ring { transform-box: fill-box; transform-origin: 50% 0%; animation: ld-ring 1.8s ease-in-out infinite; }
+@keyframes ld-ring {
+  0%, 60%, 100% { transform: rotate(0deg); }
+  10% { transform: rotate(16deg); } 20% { transform: rotate(-14deg); } 30% { transform: rotate(10deg); } 40% { transform: rotate(-7deg); } 50% { transform: rotate(3deg); }
+}
+.ld-clapper { transform-box: fill-box; transform-origin: 50% 0%; animation: ld-clapper 1.8s ease-in-out infinite; }
+@keyframes ld-clapper {
+  0%, 60%, 100% { transform: translateX(0); }
+  10% { transform: translateX(-5px); } 20% { transform: translateX(5px); } 30% { transform: translateX(-3px); } 40% { transform: translateX(2px); }
+}
+.ld-ping { transform-box: fill-box; transform-origin: center; animation: ld-ping 1.8s ease-out infinite; }
+.ld-ping-2 { animation-delay: 0.15s; }
+@keyframes ld-ping {
+  0%, 55% { transform: scale(0.6); opacity: 0; }
+  70% { opacity: 1; }
+  100% { transform: scale(1.25); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loader-bar { animation: none; width: 100%; opacity: 0.6; }
+  .ld-line, .ld-card, .ld-coin, .ld-wave-1, .ld-wave-2, .ld-bar, .ld-draw, .ld-pulse, .ld-shuffle, .ld-scan, .ld-meridian, .ld-pin,
+  .ld-bob, .ld-drift, .ld-drop, .ld-paper, .ld-lid, .ld-ring, .ld-clapper, .ld-ping { animation: none; }
+  .ld-draw { stroke-dashoffset: 0; }
+  .ld-paper { opacity: 0.9; }
+  .ld-ping { opacity: 0.7; }
+  .ld-meridian { transform: scaleX(0.55); }
+  .ld-stamp { animation: none; transform: scale(1); opacity: 1; }
+  .ld-plane { animation: none; offset-distance: 45%; opacity: 1; }
+  .ld-coin { opacity: 0.8; }
+}

@@ -22,7 +22,7 @@ export default function NotificationDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [needsRead, id]);
 
-  if (isLoading) return <div className="flex justify-center py-16"><LoadingSpinner /></div>;
+  if (isLoading) return <div className="flex justify-center py-16"><LoadingSpinner variant="notifications" /></div>;
   if (isError || !n) {
     return (
       <div className="mx-auto max-w-2xl space-y-4 py-16 text-center">

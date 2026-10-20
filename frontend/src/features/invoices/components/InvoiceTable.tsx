@@ -151,7 +151,7 @@ export default function InvoiceTable() {
     }
   };
 
-  if (isLoading) return <div className="flex justify-center py-16"><LoadingSpinner /></div>;
+  if (isLoading) return <div className="flex justify-center py-16"><LoadingSpinner variant="invoices" /></div>;
   if (isError) return <div className="text-center py-16 text-destructive">Failed to load invoices.</div>;
 
   const invoices = data?.data ?? [];

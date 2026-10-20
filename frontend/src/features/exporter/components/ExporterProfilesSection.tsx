@@ -8,6 +8,7 @@ import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm';
 import Tooltip from '@/components/ui/Tooltip';
 import { ApiClientError } from '@/services/api';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 interface FormState { name: string; address: string; contact: string; email: string }
 const empty: FormState = { name: '', address: '', contact: '', email: '' };
@@ -123,7 +124,7 @@ export default function ExporterProfilesSection() {
           </form>
         )}
 
-        {isLoading && <p className="text-sm text-muted-foreground">Loading exporter profiles…</p>}
+        {isLoading && <div className="flex justify-center py-8"><LoadingSpinner variant="exporter" message="Loading exporter profiles…" /></div>}
         {isError && <p className="text-sm text-destructive">Failed to load exporter profiles.</p>}
         {!isLoading && !isError && profiles.length === 0 && editing === null && (
           <div className="text-center py-6">

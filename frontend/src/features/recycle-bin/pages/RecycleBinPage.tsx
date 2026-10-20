@@ -86,7 +86,7 @@ export default function RecycleBinPage() {
   const [confirm, setConfirm] = useState<ConfirmTarget>(null);
   const [activeTab, setActiveTab] = useState<'invoices' | 'importers'>('invoices');
 
-  if (isLoading) return <LoadingSpinner message="Loading recycle bin..." />;
+  if (isLoading) return <div className="flex justify-center py-16"><LoadingSpinner variant="recycle" /></div>;
 
   const invoices = data?.invoices ?? [];
   const importers = data?.importers ?? [];

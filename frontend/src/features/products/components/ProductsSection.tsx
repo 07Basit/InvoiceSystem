@@ -8,6 +8,7 @@ import { useConfirm } from '@/components/ui/confirm';
 import Tooltip from '@/components/ui/Tooltip';
 import SearchCombobox from '@/components/ui/SearchCombobox';
 import { cn } from '@/lib/utils';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 interface FormState { name: string; ratePerKg: string }
 const empty: FormState = { name: '', ratePerKg: '' };
@@ -227,7 +228,7 @@ export default function ProductsSection({ scope = {}, scopeLabel = 'General list
 
         {editing === 'new' && formEl}
 
-        {isLoading && <p className="text-sm text-muted-foreground">Loading products…</p>}
+        {isLoading && <div className="flex justify-center py-8"><LoadingSpinner variant="products" message="Loading products…" /></div>}
         {isError && <p className="text-sm text-destructive">Failed to load products.</p>}
         {!isLoading && !isError && products.length === 0 && editing === null && (
           <div className="text-center py-6">

@@ -8,6 +8,7 @@ import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm';
 import Tooltip from '@/components/ui/Tooltip';
 import { cn } from '@/lib/utils';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 /** Create and manage the seal & sign images that invoices pick from. */
 export default function SignProfilesSection() {
@@ -146,7 +147,7 @@ export default function SignProfilesSection() {
           </form>
         )}
 
-        {isLoading && <p className="text-sm text-muted-foreground">Loading seals &amp; signs…</p>}
+        {isLoading && <div className="flex justify-center py-8"><LoadingSpinner variant="exporter" message="Loading seals &amp; signs…" /></div>}
         {isError && <p className="text-sm text-destructive">Failed to load seals &amp; signs.</p>}
         {!isLoading && !isError && profiles.length === 0 && editing === null && (
           <div className="text-center py-6">

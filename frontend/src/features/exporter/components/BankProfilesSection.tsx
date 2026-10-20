@@ -7,6 +7,7 @@ import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm';
 import Tooltip from '@/components/ui/Tooltip';
 import { cn } from '@/lib/utils';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 interface FormState { bankName: string; accountNumber: string; ifscCode: string; swiftCode: string }
 const empty: FormState = { bankName: '', accountNumber: '', ifscCode: '', swiftCode: '' };
@@ -121,7 +122,7 @@ export default function BankProfilesSection() {
           </form>
         )}
 
-        {isLoading && <p className="text-sm text-muted-foreground">Loading bank accounts…</p>}
+        {isLoading && <div className="flex justify-center py-8"><LoadingSpinner variant="exporter" message="Loading bank accounts…" /></div>}
         {isError && <p className="text-sm text-destructive">Failed to load bank accounts.</p>}
         {!isLoading && !isError && profiles.length === 0 && editing === null && (
           <div className="text-center py-6">

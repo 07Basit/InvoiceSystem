@@ -320,7 +320,7 @@ export default function ClientsPage() {
         />
       )}
 
-      {isLoading && <div className="flex justify-center py-16"><LoadingSpinner /></div>}
+      {isLoading && <div className="flex justify-center py-16"><LoadingSpinner variant="importers" /></div>}
 
       {!isLoading && isError && (
         <div className="border border-destructive/30 bg-destructive/5 rounded-md p-4 flex items-center justify-between">

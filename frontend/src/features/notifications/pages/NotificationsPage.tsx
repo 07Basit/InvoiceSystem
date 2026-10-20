@@ -108,7 +108,7 @@ export default function NotificationsPage() {
         </div>
       </div>
 
-      {isLoading && <div className="flex justify-center py-16"><LoadingSpinner /></div>}
+      {isLoading && <div className="flex justify-center py-16"><LoadingSpinner variant="notifications" /></div>}
 
       {isError && (
         <div className="flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/5 p-4">

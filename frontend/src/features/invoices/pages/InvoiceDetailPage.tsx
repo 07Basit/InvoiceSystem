@@ -85,7 +85,7 @@ export default function InvoiceDetailPage() {
   const createActualMutation = useCreateActualInvoice();
   const createCounterpartMutation = useCreateCounterpartInvoice();
 
-  if (isLoading) return <div className="flex justify-center py-16"><LoadingSpinner /></div>;
+  if (isLoading) return <div className="flex justify-center py-16"><LoadingSpinner variant="invoice" /></div>;
   if (isError || !data?.data) return <div className="text-center py-16 text-destructive">Invoice not found.</div>;
 
   const invoice = data.data;

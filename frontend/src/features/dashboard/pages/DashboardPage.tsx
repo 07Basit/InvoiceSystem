@@ -138,7 +138,7 @@ export default function DashboardPage() {
   const [infoOpen, setInfoOpen] = useState(false);
   const stats = data?.data;
 
-  if (isLoading) return <div className="flex justify-center py-16"><LoadingSpinner /></div>;
+  if (isLoading) return <div className="flex justify-center py-16"><LoadingSpinner variant="dashboard" /></div>;
 
   const currency = stats?.currency ?? 'USD';
   const overview = stats?.overview;

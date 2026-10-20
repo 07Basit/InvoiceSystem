@@ -25,7 +25,7 @@ export default function ProductListPage() {
   const list = (listData?.data ?? []).find((l) => l.id === listId);
   const importer = list ? (importersData?.data ?? []).find((i) => i.id === list.importerId) : undefined;
 
-  if (!isGeneral && isLoading) return <div className="flex justify-center py-16"><LoadingSpinner /></div>;
+  if (!isGeneral && isLoading) return <div className="flex justify-center py-16"><LoadingSpinner variant="products" /></div>;
   if (!isGeneral && !list) {
     return (
       <div className="max-w-3xl mx-auto space-y-4">

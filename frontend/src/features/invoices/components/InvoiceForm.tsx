@@ -782,35 +782,9 @@ export default function InvoiceForm() {
                 </p>
               </div>
               <div className="space-y-2">
-                {/* Phones: one stacked card per product */}
-                <div className="space-y-3 sm:hidden">
-                  {form.lineItems.map((item, index) => (
-                    <div key={`card-${index}`} className={cn('rounded-md border p-3 space-y-2', needsPrice(item) && 'border-yellow-300 bg-yellow-100/70')}>
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs font-semibold">Product {index + 1}</p>
-                        {form.lineItems.length > 1 ? (
-                          <button type="button" aria-label={`Remove product ${index + 1}`} onClick={() => removeLine(index)} className="p-1 hover:bg-destructive/10 rounded-md"><Trash2 className="h-3.5 w-3.5 text-destructive" /></button>
-                        ) : null}
-                      </div>
-                      <div><label className="label">Marks & Nos / Container No.</label>{lineField(index, 'marks')}</div>
-                      <div><label className="label">Description of Goods</label>{lineField(index, 'description')}</div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div><label className="label">Nett wt per package</label>{lineField(index, 'weight')}</div>
-                        <div><label className="label">No of boxes</label>{lineField(index, 'boxes')}</div>
-                        <div><label className="label">Rate per KG</label>{lineField(index, 'rate')}</div>
-                        <div><label className="label">Total nett wt</label><p className="text-sm py-1.5">{formatNumber(lineDetails[index]?.totalNetWeight ?? 0)} KGS</p></div>
-                      </div>
-                      <div className="flex justify-between border-t pt-2 text-sm">
-                        <span className="text-muted-foreground">Total per box: {form.currency} {formatNumber(lineDetails[index]?.totalPerBox ?? 0)}</span>
-                        <span className="font-semibold">{form.currency} {formatNumber(lineDetails[index]?.amount ?? 0)}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Larger screens: table */}
-                <div className="hidden sm:block overflow-x-auto border rounded-md">
-                  <table className="w-full text-xs">
+                {/* One product per row on every screen; on a phone the table scrolls sideways */}
+                <div className="overflow-x-auto border rounded-md">
+                  <table className="w-full min-w-[960px] text-xs">
                     <thead className="bg-muted/40">
                       <tr>
                         <th className="text-left p-2 whitespace-nowrap">Marks & Nos / Container No.</th>

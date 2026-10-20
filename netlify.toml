@@ -4,12 +4,12 @@
   publish = "frontend/dist"
 
 # Login uses an httpOnly SameSite=Strict cookie, so the browser must see the API on the SAME domain as the
-# site. Once the backend is deployed, uncomment this (it must stay ABOVE the SPA rule) and set its URL:
-# [[redirects]]
-#   from = "/api/*"
-#   to = "https://YOUR-BACKEND-HOST/api/:splat"
-#   status = 200
-#   force = true
+# site. Netlify forwards /api/* to the backend on Render. This must stay ABOVE the SPA rule.
+[[redirects]]
+  from = "/api/*"
+  to = "https://invoice-system-api-zqln.onrender.com/api/:splat"
+  status = 200
+  force = true
 
 [[redirects]]
   from = "/*"

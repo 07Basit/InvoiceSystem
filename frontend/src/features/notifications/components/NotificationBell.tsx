@@ -68,7 +68,7 @@ export default function NotificationBell() {
             )}
           </div>
 
-          <div className="max-h-96 overflow-y-auto">
+          <div className="max-h-96 overflow-y-auto overscroll-contain">
             {isLoading ? (
               <p className="py-8 text-center text-xs text-muted-foreground">Loading…</p>
             ) : items.length === 0 ? (

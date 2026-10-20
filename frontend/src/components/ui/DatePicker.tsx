@@ -53,7 +53,7 @@ export default function DatePicker({ value, onChange, ariaLabel, hasError, disab
   const [view, setView] = useState({ y: selected?.y ?? today.getFullYear(), m: selected?.m ?? today.getMonth() });
   const rootRef = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
-  const position = useFloatingPosition(open, rootRef, { width: 288, height: 360 });
+  const position = useFloatingPosition(open, rootRef, { width: 288, height: 360, onAnchorHidden: () => close() });
 
   const close = () => { setOpen(false); setMode('days'); };
 

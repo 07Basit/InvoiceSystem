@@ -78,8 +78,9 @@ export default function SearchCombobox({
   const popupRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const hoverMove = useRef(false); // the highlight moved because the mouse is over a row, so the list must not scroll to it
   const id = useId();
-  const position = useFloatingPosition(open, rootRef, { width: 320, height: 340, alignRight: align === 'right' });
+  const position = useFloatingPosition(open, rootRef, { width: 320, height: 340, alignRight: align === 'right', onAnchorHidden: () => close() });
 
   const selected = options.find((o) => o.value === value);
   const shown = display ?? (selected ? (selected.description ? `${selected.label} — ${selected.description}` : selected.label) : value);
@@ -135,9 +136,10 @@ export default function SearchCombobox({
     return () => document.removeEventListener('mousedown', onDown);
   }, [open]);
 
-  // Keep the highlighted row visible while arrowing through a long list.
+  // Keep the highlighted row visible while arrowing through a long list (not when the mouse moved it: that would fight the scrolling).
   useEffect(() => {
     if (!open) return;
+    if (hoverMove.current) { hoverMove.current = false; return; }
     listRef.current?.querySelector<HTMLElement>('[data-active="true"]')?.scrollIntoView?.({ block: 'nearest' });
   }, [active, open, items]);
 
@@ -196,7 +198,7 @@ export default function SearchCombobox({
             />
           </div>
 
-          <ul ref={listRef} id={`${id}-list`} role="listbox" aria-label={ariaLabel} className="max-h-60 overflow-y-auto py-1">
+          <ul ref={listRef} id={`${id}-list`} role="listbox" aria-label={ariaLabel} className="max-h-60 overflow-y-auto overscroll-contain py-1">
             {loading && <li className="px-3 py-4 text-center text-sm text-muted-foreground">Loading…</li>}
             {!loading && items.length === 0 && <li className="px-3 py-4 text-center text-sm text-muted-foreground">No match for “{query}”</li>}
             {items.map((o, i) => (
@@ -208,7 +210,7 @@ export default function SearchCombobox({
                   role="option"
                   aria-selected={o.value === value}
                   data-active={i === active}
-                  onMouseMove={() => active !== i && setActive(i)}
+                  onMouseMove={() => { if (active !== i) { hoverMove.current = true; setActive(i); } }}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => choose(o.value)}
                   className={cn('flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm', i === active && 'bg-[hsl(var(--brand-accent))]/10')}

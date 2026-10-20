@@ -100,7 +100,7 @@ export default function InvoiceFilterPanel({ open, onClose, filters, onChange, o
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-2">
+        <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-2">
           <Section title="Date" defaultOpen count={filters.dateFrom || filters.dateTo ? 1 : 0}>
             <div className="flex flex-wrap gap-1.5" role="group" aria-label="Quick dates">
               {QUICK_DATES.map(({ id, label }) => (

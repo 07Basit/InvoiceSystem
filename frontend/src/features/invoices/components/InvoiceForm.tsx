@@ -602,7 +602,7 @@ export default function InvoiceForm() {
             ) : null}
           </div>
         )}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 bg-gradient-to-b from-[hsl(var(--primary)/0.07)] via-[hsl(var(--primary)/0.02)] to-[hsl(var(--brand-accent)/0.10)]">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4 space-y-4 bg-gradient-to-b from-[hsl(var(--primary)/0.07)] via-[hsl(var(--primary)/0.02)] to-[hsl(var(--brand-accent)/0.10)]">
           {submitError ? <div className="text-xs text-destructive bg-destructive/5 border border-destructive/30 rounded-md px-3 py-2">{submitError}</div> : null}
 
           <Section title="Exporter" icon={Building2} tone="teal" action={<ManageLink to="/exporter" label="Manage exporter profiles" />}>

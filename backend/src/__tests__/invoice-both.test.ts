@@ -143,8 +143,8 @@ describe('documents of a BOTH invoice', () => {
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load((await renderInvoiceExcel([party(), custom()])) as never);
     expect(wb.worksheets.map((w) => w.name)).toEqual(['Party SMP-1', 'Custom SMP-1']);
-    expect(wb.getWorksheet('Party SMP-1')!.getCell('A2').value).toBe('COMMERCIAL INVOICE  |  PARTY');
-    expect(wb.getWorksheet('Custom SMP-1')!.getCell('A2').value).toBe('COMMERCIAL INVOICE  |  CUSTOM');
+    expect(wb.getWorksheet('Party SMP-1')!.getCell('F1').value).toBe('INVOICE · PARTY');
+    expect(wb.getWorksheet('Custom SMP-1')!.getCell('F1').value).toBe('INVOICE · CUSTOM');
   });
 
   it('keeps a single sheet named Invoice for a normal invoice', async () => {

@@ -185,7 +185,7 @@ export function formatCountry(v: string | null | undefined): string {
 function party(name: string, address: string | null, contact: string | null, email: string | null): DocParty {
   return {
     name: text(name),
-    details: [text(address), text(contact) ? `Contact: ${text(contact)}` : '', text(email) ? `Email: ${text(email)}` : ''].filter(Boolean),
+    details: [text(address), text(contact) ? `Tel: ${text(contact)}` : '', text(email) ? `Email: ${text(email)}` : ''].filter(Boolean),
     email: text(email),
   };
 }

@@ -66,6 +66,7 @@ Changes and improvements worth making, in rough priority order. Each item says w
 | Dependency updates | Several packages are deprecated (for example multer 1.x). | S |
 | Accessibility pass | Keyboard use, screen-reader labels and colour contrast on the dropdowns and dialogs. | M |
 | Remove the unused clipboard endpoints | `/invoices/share/native` and `/invoices/zip/clipboard` (and the native share code behind them) are no longer called by the frontend, since Copy file was removed. They only worked when the server ran on the user's own Mac or Windows PC. Delete the routes, controller handlers, service code, `NATIVE_SHARE` setting and their tests. | S |
+| Logo on the exporter profile | The invoice PDF and Excel print one built-in logo and tagline (`backend/src/assets/branding.ts`). Let each exporter profile carry its own logo and tagline, the same way it carries a signature. | M |
 
 ## 6. Suggested order
 

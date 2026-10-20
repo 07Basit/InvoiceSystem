@@ -115,6 +115,22 @@ describe('renderInvoicePdf', () => {
     expect(big.byteLength).toBeGreaterThan(small.byteLength);
   });
 
+  it('draws the company logo in the header', async () => {
+    const withSign = await renderInvoicePdf(buildInvoiceDocument(invoice()));
+    // the embedded logo alone is over 100 KB, so a document without it would be far smaller
+    expect(withSign.byteLength).toBeGreaterThan(60_000);
+  });
+
+  it('keeps line breaks of an address and lays a one-line invoice out the same as a long one', async () => {
+    const doc = buildInvoiceDocument(invoice({ importerAddress: '9340 rue Charles de Latour\nMontreal, Quebec\nH4N 1M2' }, 1));
+    const pdf = await PDFDocument.load(await renderInvoicePdf(doc));
+    expect(pdf.getPageCount()).toBe(1);
+    for (const lines of [1, 12, 13, 24, 25]) {
+      const loaded = await PDFDocument.load(await renderInvoicePdf(buildInvoiceDocument(invoice({}, lines))));
+      expect(loaded.getPageCount()).toBe(1);
+    }
+  });
+
   it('never fails on characters the built-in font cannot draw', async () => {
     const doc = buildInvoiceDocument(invoice({ importerName: 'ภาษาไทย Ltd ₹ 日本', buyerName: 'Ünïcode “quotes” — ok', declaration: 'Line one\nLine two ✓' }));
     await expect(renderInvoicePdf(doc)).resolves.toBeInstanceOf(Uint8Array);
@@ -145,29 +161,33 @@ describe('renderInvoiceExcel', () => {
   it('contains every section and field of the invoice', async () => {
     const ws = await load(invoice());
     const text = allText(ws);
-    for (const expected of ['INVOICE', 'EXPORTER', 'IMPORTER / CONSIGNEE', 'Green Harvest Exports', 'ABC Foods', 'ABC Buying Desk', 'INVOICE REFERENCES', "Buyer's Order No. & Date", 'BO-5 / 12 Oct 2026', 'AWB123', 'SHIPPING AND ROUTE', 'BOM', 'United States', 'GOODS AND TERMS', 'FRUITS & VEGETABLES', 'CNF YYZ', 'PRODUCT DETAILS', 'Fresh mangoes grade A 1', 'BANK DETAILS', 'HDFC45300321', 'DECLARATION', DEFAULT_DECLARATION, 'Authorised Signatory']) {
+    for (const expected of ['INVOICE', 'FROM · EXPORTER', 'TO · IMPORTER / CONSIGNEE', 'Green Harvest Exports', 'ABC Foods', 'ABC Buying Desk', "BUYER'S ORDER NO. & DATE", 'BO-5 / 12 Oct 2026', 'AWB123', 'BOM', 'United States', 'FRUITS & VEGETABLES', 'CNF YYZ', 'Fresh mangoes grade A 1', 'BANK DETAILS', 'HDFC45300321', 'DECLARATION', DEFAULT_DECLARATION, 'Seal & Sign', 'We believe in quality']) {
       expect(text.some((t) => t.includes(expected))).toBe(true);
     }
   });
 
+  it('keeps the exporter and importer details on separate lines', async () => {
+    const text = allText(await load(invoice()));
+    expect(text).toEqual(expect.arrayContaining(['Tel: +91 90000 10000', 'Email: exports@gh.in']));
+  });
+
   it('writes numbers as numbers with formats, one row per product', async () => {
     const ws = await load(invoice({}, 3));
-    const header = ws.getRow(1);
     let headerRow = 0;
-    ws.eachRow((row, n) => { if (row.getCell(1).value === 'No' && row.getCell(2).value === 'Marks & Container No.') headerRow = n; });
+    ws.eachRow((row, n) => { if (row.getCell(1).value === '#' && row.getCell(2).value === 'MARKS & NOS · CONTAINER') headerRow = n; });
     expect(headerRow).toBeGreaterThan(1);
-    expect(header).toBeDefined();
     const first = ws.getRow(headerRow + 1);
     expect(first.getCell(4).value).toBe(9);
     expect(first.getCell(5).value).toBe(72);
     expect(first.getCell(9).value).toBe(1620);
-    expect(first.getCell(9).numFmt).toBe('#,##0.00');
+    expect(first.getCell(9).numFmt).toBe('"CAD" #,##0.00');
+    expect(first.getCell(4).numFmt).toBe('"KGS" #,##0.00');
     expect(ws.getRow(headerRow + 3).getCell(1).value).toBe(3);
   });
 
-  it('embeds the seal & sign image', async () => {
-    expect((await load(invoice())).getImages()).toHaveLength(1);
-    expect((await load(invoice({ signImage: null }))).getImages()).toHaveLength(0);
+  it('embeds the logo and the seal & sign image', async () => {
+    expect((await load(invoice())).getImages()).toHaveLength(2);
+    expect((await load(invoice({ signImage: null }))).getImages()).toHaveLength(1);
   });
 
   it('is set up to print on A4, one page wide', async () => {

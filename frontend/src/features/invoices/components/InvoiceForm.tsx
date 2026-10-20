@@ -784,10 +784,11 @@ export default function InvoiceForm() {
               <div className="space-y-2">
                 {/* One product per row on every screen; on a phone the table scrolls sideways */}
                 <div className="overflow-x-auto border rounded-md">
-                  <table className="w-full min-w-[960px] text-xs">
+                  <table className="w-full min-w-[880px] text-xs">
                     <thead className="bg-muted/40">
                       <tr>
-                        <th className="text-left p-2 whitespace-nowrap">Marks & Nos / Container No.</th>
+                        <th className="p-2" />
+                        <th className="text-left p-2"><span className="block">Marks & Nos /</span><span className="block">Container No.</span></th>
                         <th className="text-left p-2 whitespace-nowrap">Description of Goods</th>
                         <th className="text-left p-2"><span className="block">NETT WT PER</span><span className="block">PACKAGES</span></th>
                         <th className="text-left p-2">NO OF BOXES</th>
@@ -795,13 +796,17 @@ export default function InvoiceForm() {
                         <th className="text-left p-2"><span className="block">RATE PER</span><span className="block">KGS</span></th>
                         <th className="text-left p-2"><span className="block">TOTAL PER</span><span className="block">BOX</span></th>
                         <th className="text-left p-2"><span className="block">Amount</span><span className="block">({form.currency})</span></th>
-                        <th className="p-2" />
                       </tr>
                     </thead>
                     <tbody>
                       {form.lineItems.map((item, index) => (
                         <tr key={`line-${index}`} className={cn('border-t align-top', needsPrice(item) && 'bg-yellow-100/70')}>
-                          <td className="p-2 min-w-[200px]">{lineField(index, 'marks')}</td>
+                                                    <td className="p-2 w-8">
+                            {form.lineItems.length > 1 ? (
+                              <button type="button" aria-label={`Remove product ${index + 1}`} onClick={() => removeLine(index)} className="p-1 hover:bg-destructive/10 rounded-md"><Trash2 className="h-3.5 w-3.5 text-destructive" /></button>
+                            ) : null}
+                          </td>
+                          <td className="p-2 min-w-[130px]">{lineField(index, 'marks')}</td>
                           <td className="p-2 min-w-[160px]">{lineField(index, 'description')}</td>
                           <td className="p-2 min-w-[110px]">{lineField(index, 'weight')}</td>
                           <td className="p-2 min-w-[90px]">{lineField(index, 'boxes')}</td>
@@ -809,11 +814,6 @@ export default function InvoiceForm() {
                           <td className="p-2 min-w-[110px]">{lineField(index, 'rate')}</td>
                           <td className="p-2 min-w-[110px] whitespace-nowrap">{form.currency} {formatNumber(lineDetails[index]?.totalPerBox ?? 0)}</td>
                           <td className="p-2 min-w-[110px] whitespace-nowrap">{form.currency} {formatNumber(lineDetails[index]?.amount ?? 0)}</td>
-                          <td className="p-2">
-                            {form.lineItems.length > 1 ? (
-                              <button type="button" aria-label={`Remove product ${index + 1}`} onClick={() => removeLine(index)} className="p-1 hover:bg-destructive/10 rounded-md"><Trash2 className="h-3.5 w-3.5 text-destructive" /></button>
-                            ) : null}
-                          </td>
                         </tr>
                       ))}
                     </tbody>

@@ -247,22 +247,6 @@ export const invoiceService = {
     return fetchFile(`/invoices/${id}/download/${kind}`, `invoice-${id}.${kind === 'pdf' ? 'pdf' : 'xlsx'}`);
   },
 
-  /** What the server can do on this computer when it is the one running the app (a Mac or Windows PC, local only). */
-  async nativeShareStatus(): Promise<{ available: boolean; copyFile: boolean }> {
-    try {
-      const { data } = await apiClient.get<ApiResponse<{ available: boolean; copyFile?: boolean }>>('/invoices/share/native');
-      return { available: !!data.data?.available, copyFile: !!data.data?.copyFile };
-    } catch {
-      return { available: false, copyFile: false };
-    }
-  },
-
-  /** Opens Mail with the file attached, or puts the file on the clipboard, on the computer running the server. */
-  async shareNative(id: string, kind: 'pdf' | 'excel', target: 'mail' | 'whatsapp' | 'clipboard', text?: string) {
-    const { data } = await apiClient.post<ApiResponse<{ target: string; filename: string; opened: 'mail' | 'app' | 'none' | 'clipboard' }>>(`/invoices/${id}/share/native`, { kind, target, ...(text ? { text } : {}) });
-    return data.data!;
-  },
-
   /** Opens the browser's print dialog for the invoice PDF (the same document as the download). */
   async printPdf(id: string) {
     const file = await fetchFile(`/invoices/${id}/download/pdf?disposition=inline`, `invoice-${id}.pdf`);
@@ -287,12 +271,6 @@ export const invoiceService = {
     const disposition = String(response.headers['content-disposition'] ?? '');
     const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
     return { blob: response.data, filename: match?.[1] ? decodeURIComponent(match[1]) : `invoices-${ids.length}.zip` };
-  },
-
-  /** Puts the ZIP on the clipboard of the computer running the app (only where that is supported). */
-  async copyZip(ids: string[], formats: ('pdf' | 'excel')[], text?: string) {
-    const { data } = await apiClient.post<ApiResponse<{ filename: string }>>('/invoices/zip/clipboard', { ids, formats, ...(text ? { text } : {}) });
-    return data.data!;
   },
 
   exportAll() {

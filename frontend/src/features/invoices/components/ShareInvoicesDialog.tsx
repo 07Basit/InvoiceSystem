@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Copy, Download, FileArchive, FileSpreadsheet, FileText, Files, Paperclip, Share2, X } from 'lucide-react';
+import { Download, FileArchive, FileSpreadsheet, FileText, Files, Share2, X } from 'lucide-react';
 import { MAX_ZIP_INVOICES } from 'shared';
 import { invoiceService } from '../services/invoiceService';
 import { useToast } from '@/components/ui/toast';
@@ -36,10 +36,6 @@ export default function ShareInvoicesDialog({ ids, onClose }: { ids: string[]; o
   const [loadError, setLoadError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [sharing, setSharing] = useState(false);
-  const [canCopyFile, setCanCopyFile] = useState(false);
-  const [copying, setCopying] = useState(false);
-  const [fileCopied, setFileCopied] = useState(false);
-  const [copied, setCopied] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const message = bulkMessage(ids.length);
   const separateAllowed = ids.length <= MAX_SEPARATE_FILES;
@@ -70,12 +66,6 @@ export default function ShareInvoicesDialog({ ids, onClose }: { ids: string[]; o
   }, [ids, kind, mode, attempt, tooManyForZip]);
 
   useEffect(() => {
-    let cancelled = false;
-    invoiceService.nativeShareStatus().then((status) => { if (!cancelled) setCanCopyFile(status.copyFile); });
-    return () => { cancelled = true; };
-  }, []);
-
-  useEffect(() => {
     panelRef.current?.focus();
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -83,23 +73,10 @@ export default function ShareInvoicesDialog({ ids, onClose }: { ids: string[]; o
   }, [onClose]);
 
   const ready = files !== null;
-  const sheetAvailable = ready && canShareFile(files);
+  // Excel and ZIP files can't be handed to other apps from a browser: the button is greyed out and points to Download
+  const noShare = mode === 'zip' || kind === 'excel';
+  const sheetAvailable = !noShare && ready && canShareFile(files);
   const totalSize = files?.reduce((s, f) => s + f.size, 0) ?? 0;
-
-  const copyFile = useCallback(async () => {
-    if (copying) return;
-    setCopying(true);
-    try {
-      await invoiceService.copyZip(ids, [kind], message.text);
-      setFileCopied(true);
-      setTimeout(() => setFileCopied(false), 2500);
-      showToast('ZIP copied', 'The ZIP file is on your clipboard. Paste it (⌘V / Ctrl+V) into an email or chat to attach it.', 'success');
-    } catch (error) {
-      showToast("Couldn't copy the file", error instanceof Error ? error.message : 'Please try again.', 'error');
-    } finally {
-      setCopying(false);
-    }
-  }, [copying, ids, kind, message.text, showToast]);
 
   const openShareSheet = async () => {
     if (!files) return;
@@ -115,31 +92,15 @@ export default function ShareInvoicesDialog({ ids, onClose }: { ids: string[]; o
     }
   };
 
-  /** This browser won't pass these files to other apps (Chrome and Brave refuse Excel and ZIP). */
+  /** This browser won't pass these files to other apps. */
   const explain = () => {
-    if (mode === 'zip' && canCopyFile) { void copyFile(); return; }
-    showToast(
-      `This browser can't share ${mode === 'zip' ? 'ZIP' : kind === 'excel' ? 'Excel' : 'PDF'} files to other apps`,
-      mode === 'zip' ? 'Download the ZIP and attach it yourself, or share the PDFs as separate files.' : 'Share the invoices as one ZIP instead, or switch to PDF.',
-      'info',
-    );
+    showToast("This browser can't share files to other apps", 'Download the files and attach them yourself instead.', 'info');
   };
 
   const download = () => {
     if (!files) return;
     files.forEach((file, i) => setTimeout(() => saveBlob(file, file.name), i * 350));
     showToast('Download started', files.length === 1 ? files[0]!.name : `${files.length} files`, 'success');
-  };
-
-  const copyMessage = async () => {
-    try {
-      await navigator.clipboard.writeText(message.text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
-      showToast('Message copied', 'Paste it into the message box (⌘V / Ctrl+V).', 'success');
-    } catch {
-      showToast("Couldn't copy", 'Your browser blocked access to the clipboard.', 'error');
-    }
   };
 
   const choice = (selected: boolean, onClick: () => void, icon: ReactNode, label: string, hint?: string, disabled?: boolean) => (
@@ -213,22 +174,20 @@ export default function ShareInvoicesDialog({ ids, onClose }: { ids: string[]; o
           <button
             type="button"
             onClick={sheetAvailable ? openShareSheet : explain}
-            disabled={sharing || (!ready && !loadError)}
+            disabled={noShare || sharing || (!ready && !loadError)}
             aria-describedby="bulk-share-note"
             className={cn(
               'flex w-full flex-col items-center justify-center gap-0.5 rounded-lg px-4 py-3 text-sm font-semibold transition-colors disabled:opacity-50',
-              sheetAvailable ? 'bg-[hsl(var(--brand-accent))] text-white shadow-sm hover:opacity-90' : 'border border-dashed text-foreground hover:bg-accent',
+              sheetAvailable ? 'bg-[hsl(var(--brand-accent))] text-white shadow-sm hover:opacity-90' : noShare ? 'cursor-not-allowed bg-muted text-muted-foreground disabled:opacity-100' : 'border border-dashed text-foreground hover:bg-accent',
             )}
           >
-            <span className="flex items-center gap-2"><Share2 className="h-4 w-4" /> Share to an app…</span>
+            <span className={cn('flex items-center gap-2', noShare && 'opacity-60')}><Share2 className="h-4 w-4" /> Share to an app…</span>
             <span id="bulk-share-note" className={cn('text-[11px] font-normal', sheetAvailable ? 'text-white/85' : 'text-muted-foreground')}>
               {sheetAvailable
                 ? 'Send straight to Mail, WhatsApp, Messages and more'
-                : mode === 'zip'
-                  ? `This browser can't share ZIP files. ${canCopyFile ? 'The ZIP is copied to your clipboard instead' : 'Download it, or share PDFs as separate files'}`
-                  : kind === 'excel'
-                    ? "This browser can't share Excel files. Try a ZIP, or switch to PDF"
-                    : 'Works on phones, Windows and Safari. Not available in this browser'}
+                : noShare
+                  ? `${mode === 'zip' ? 'ZIP' : 'Excel'} files can't be shared from here. Please download ${mode === 'zip' ? 'the ZIP' : 'the files'} and share ${mode === 'zip' ? 'it' : 'them'}.`
+                  : 'Works on phones, Windows and Safari. Not available in this browser'}
             </span>
           </button>
 
@@ -236,16 +195,6 @@ export default function ShareInvoicesDialog({ ids, onClose }: { ids: string[]; o
             <button type="button" onClick={download} disabled={!ready} className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50">
               <Download className="h-4 w-4" /> Download
             </button>
-            <div className="flex items-center gap-1">
-              {canCopyFile && mode === 'zip' && (
-                <button type="button" onClick={copyFile} disabled={!ready || copying} title="Copy the ZIP itself, then paste it into an email or chat" className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50">
-                  {fileCopied ? <Check className="h-4 w-4 text-emerald-600" /> : <Paperclip className="h-4 w-4" />} {fileCopied ? 'File copied' : 'Copy file'}
-                </button>
-              )}
-              <button type="button" onClick={copyMessage} className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium hover:bg-accent">
-                {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />} {copied ? 'Message copied' : 'Copy message'}
-              </button>
-            </div>
           </div>
         </div>
       </div>

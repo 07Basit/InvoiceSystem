@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Copy, Download, FileSpreadsheet, FileText, Paperclip, Share2, X } from 'lucide-react';
+import { Download, FileSpreadsheet, FileText, Share2, X } from 'lucide-react';
 import { invoiceService } from '../services/invoiceService';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
-import { canSharePdf, canShareFile, saveBlob, shareFile, shareMessage, type ShareInvoiceInfo } from '@/lib/share';
+import { canShareFile, saveBlob, shareFile, shareMessage, type ShareInvoiceInfo } from '@/lib/share';
 
 type Kind = 'pdf' | 'excel';
 
@@ -47,10 +47,6 @@ export default function ShareInvoiceDialog({ invoice, onClose }: { invoice: Shar
   const [loadError, setLoadError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [sharing, setSharing] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [canCopyFile, setCanCopyFile] = useState(false);
-  const [copying, setCopying] = useState(false);
-  const [fileCopied, setFileCopied] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const message = shareMessage(invoice);
 
@@ -69,13 +65,6 @@ export default function ShareInvoiceDialog({ invoice, onClose }: { invoice: Shar
     return () => { cancelled = true; };
   }, [invoice.id, kind, attempt]);
 
-  // Can this computer put the file itself on its clipboard? (only when the app runs on your own Mac or Windows PC)
-  useEffect(() => {
-    let cancelled = false;
-    invoiceService.nativeShareStatus().then((status) => { if (!cancelled) setCanCopyFile(status.copyFile); });
-    return () => { cancelled = true; };
-  }, []);
-
   useEffect(() => {
     panelRef.current?.focus();
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -84,26 +73,10 @@ export default function ShareInvoiceDialog({ invoice, onClose }: { invoice: Shar
   }, [onClose]);
 
   const ready = prepared !== null;
-  const sheetAvailable = ready && canShareFile(prepared.file);
-  // PDF can be shared here but this file type can't (typical for Excel in Chrome and Brave)
-  const onlyPdfShares = !sheetAvailable && kind === 'excel' && canSharePdf();
+  // Excel files can't be handed to other apps from a browser: the button is greyed out and points to Download
+  const noShare = kind === 'excel';
+  const sheetAvailable = !noShare && ready && canShareFile(prepared.file);
   const kindLabel = kind === 'excel' ? 'Excel' : 'PDF';
-
-  /** Puts the file itself on the clipboard (only where the app runs on your own computer). */
-  const copyFileToClipboard = useCallback(async () => {
-    if (!prepared || copying) return;
-    setCopying(true);
-    try {
-      await invoiceService.shareNative(invoice.id, kind, 'clipboard');
-      setFileCopied(true);
-      setTimeout(() => setFileCopied(false), 2500);
-      showToast('File copied', `${prepared.filename} is on your clipboard. Paste it (⌘V / Ctrl+V) into an email or chat to attach it.`, 'success');
-    } catch (error) {
-      showToast("Couldn't copy the file", error instanceof Error ? error.message : 'Please try again.', 'error');
-    } finally {
-      setCopying(false);
-    }
-  }, [prepared, copying, invoice.id, kind, showToast]);
 
   const openShareSheet = useCallback(async () => {
     if (!prepared) return;
@@ -111,25 +84,17 @@ export default function ShareInvoiceDialog({ invoice, onClose }: { invoice: Shar
     try {
       const outcome = await shareFile(prepared.file, message);
       if (outcome === 'shared') { showToast('Shared', `${prepared.filename} was sent to the app you picked.`, 'success'); onClose(); }
-      if (outcome === 'blocked') {
-        // the browser won't hand this type of file to other apps: put it on the clipboard instead
-        if (canCopyFile) await copyFileToClipboard();
-        else showToast(`This browser can't share ${kindLabel} files to other apps`, `Switch to PDF, which can be shared${kind === 'excel' ? '' : ' from another browser'}.`, 'info');
-      }
+      // the browser won't hand this type of file to other apps
+      if (outcome === 'blocked') showToast(`This browser can't share ${kindLabel} files to other apps`, `Switch to PDF, which can be shared${kind === 'excel' ? '' : ' from another browser'}.`, 'info');
     } catch (error) {
       showToast("Couldn't open the share sheet", error instanceof Error ? error.message : 'Download the file and attach it yourself instead.', 'error');
     } finally {
       setSharing(false);
     }
-  }, [prepared, message, showToast, onClose, kind, kindLabel, canCopyFile, copyFileToClipboard]);
+  }, [prepared, message, showToast, onClose, kind, kindLabel]);
 
   /** The browser has no share sheet for files: say so and point to what works here. */
   const explainShareSheet = () => {
-    if (onlyPdfShares) {
-      if (canCopyFile) void copyFileToClipboard();
-      else showToast("This browser can't share Excel files to other apps", 'Switch to PDF, which can be shared.', 'info');
-      return;
-    }
     showToast(
       "This browser can't share files to other apps",
       'Use Chrome, Edge or Brave on Windows, Safari on a Mac, or a phone browser. Meanwhile, download the file and attach it yourself.',
@@ -141,17 +106,6 @@ export default function ShareInvoiceDialog({ invoice, onClose }: { invoice: Shar
     if (!prepared) return;
     saveBlob(prepared.file, prepared.filename);
     showToast(kind === 'pdf' ? 'PDF ready' : 'Excel ready', `${prepared.filename} was downloaded.`, 'success');
-  };
-
-  const copyMessage = async () => {
-    try {
-      await navigator.clipboard.writeText(message.text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
-      showToast('Message copied', 'Paste it into the message box (⌘V / Ctrl+V).', 'success');
-    } catch {
-      showToast("Couldn't copy", 'Your browser blocked access to the clipboard.', 'error');
-    }
   };
 
   const formatButton = (value: Kind, label: string, icon: ReactNode) => (
@@ -216,18 +170,20 @@ export default function ShareInvoiceDialog({ invoice, onClose }: { invoice: Shar
           <button
             type="button"
             onClick={sheetAvailable ? openShareSheet : explainShareSheet}
-            disabled={sharing || (!ready && !loadError)}
+            disabled={noShare || sharing || (!ready && !loadError)}
             aria-describedby="share-sheet-note"
             className={cn(
               'flex w-full flex-col items-center justify-center gap-0.5 rounded-lg px-4 py-3 text-sm font-semibold transition-colors disabled:opacity-50',
               sheetAvailable
                 ? 'bg-[hsl(var(--brand-accent))] text-white shadow-sm hover:opacity-90'
-                : 'border border-dashed text-foreground hover:bg-accent',
+                : noShare
+                  ? 'cursor-not-allowed bg-muted text-muted-foreground disabled:opacity-100'
+                  : 'border border-dashed text-foreground hover:bg-accent',
             )}
           >
-            <span className="flex items-center gap-2"><Share2 className="h-4 w-4" /> Share to an app…</span>
+            <span className={cn('flex items-center gap-2', noShare && 'opacity-60')}><Share2 className="h-4 w-4" /> Share to an app…</span>
             <span id="share-sheet-note" className={cn('text-[11px] font-normal', sheetAvailable ? 'text-white/85' : 'text-muted-foreground')}>
-              {sheetAvailable ? 'Send the file straight to Mail, WhatsApp, Messages and more' : onlyPdfShares ? canCopyFile ? 'This browser can only share PDF files. Excel is copied to your clipboard instead' : 'This browser can only share PDF files. Switch to PDF to share' : 'Works on phones, Windows and Safari. Not available in this browser'}
+              {sheetAvailable ? 'Send the file straight to Mail, WhatsApp, Messages and more' : noShare ? "Excel files can't be shared from here. Please download the file and share it." : 'Works on phones, Windows and Safari. Not available in this browser'}
             </span>
           </button>
 
@@ -235,22 +191,6 @@ export default function ShareInvoiceDialog({ invoice, onClose }: { invoice: Shar
             <button type="button" onClick={download} disabled={!ready} className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50">
               <Download className="h-4 w-4" /> Download
             </button>
-            <div className="flex items-center gap-1">
-              {canCopyFile && (
-                <button
-                  type="button"
-                  onClick={copyFileToClipboard}
-                  disabled={!ready || copying}
-                  title="Copy the file itself, then paste it into an email or chat"
-                  className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
-                >
-                  {fileCopied ? <Check className="h-4 w-4 text-emerald-600" /> : <Paperclip className="h-4 w-4" />} {fileCopied ? 'File copied' : 'Copy file'}
-                </button>
-              )}
-              <button type="button" onClick={copyMessage} className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium hover:bg-accent">
-                {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />} {copied ? 'Message copied' : 'Copy message'}
-              </button>
-            </div>
           </div>
         </div>
       </div>

@@ -165,7 +165,6 @@ describe('ShareInvoicesDialog', () => {
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) { saved.push(this); });
     vi.spyOn(invoiceService, 'getDocument').mockImplementation(async (id, kind) => ({ blob: new Blob(['x']), filename: `invoice-${id}.${kind === 'pdf' ? 'pdf' : 'xlsx'}` }));
     vi.spyOn(invoiceService, 'getZip').mockResolvedValue({ blob: new Blob(['zip']), filename: 'invoices-3.zip' });
-    vi.spyOn(invoiceService, 'nativeShareStatus').mockResolvedValue({ available: false, copyFile: false });
   });
   afterEach(() => { vi.restoreAllMocks(); Object.assign(navigator, { share: undefined, canShare: undefined }); });
 
@@ -198,15 +197,20 @@ describe('ShareInvoicesDialog', () => {
     expect(invoiceService.getZip).toHaveBeenCalledWith(['a', 'b', 'c'], ['pdf']);
   });
 
-  it('copies the ZIP to the clipboard when the browser will not share it', async () => {
-    vi.spyOn(invoiceService, 'nativeShareStatus').mockResolvedValue({ available: true, copyFile: true });
-    const copyZip = vi.spyOn(invoiceService, 'copyZip').mockResolvedValue({ filename: 'invoices-3.zip' });
-    Object.assign(navigator, { share: vi.fn(), canShare: () => false });
+  it('greys out Share to an app for a ZIP and for Excel, and tells the user to download and share', async () => {
+    Object.assign(navigator, { share: vi.fn(), canShare: () => true });
     const user = setup();
+    await screen.findByText(/3 files/);
+    expect(screen.getByRole('button', { name: /Share to an app/ })).toBeEnabled();
     await user.click(screen.getByRole('radio', { name: /One ZIP/ }));
     await screen.findByText(/invoices-3\.zip/);
-    await user.click(screen.getByRole('button', { name: /Share to an app/ }));
-    await waitFor(() => expect(copyZip).toHaveBeenCalledWith(['a', 'b', 'c'], ['pdf'], expect.stringContaining('3 invoices')));
+    expect(screen.getByRole('button', { name: /Share to an app/ })).toBeDisabled();
+    expect(screen.getByText(/ZIP files can't be shared from here\. Please download the ZIP and share it\./)).toBeInTheDocument();
+    await user.click(screen.getByRole('radio', { name: /Separate files/ }));
+    await user.click(screen.getByRole('radio', { name: /Excel/ }));
+    await screen.findByText(/3 files/);
+    expect(screen.getByRole('button', { name: /Share to an app/ })).toBeDisabled();
+    expect(screen.getByText(/Excel files can't be shared from here/)).toBeInTheDocument();
   });
 
   it('starts on a ZIP when there are too many invoices to send separately', async () => {

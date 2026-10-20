@@ -40,19 +40,20 @@ export default function InvoiceSelectionBar({ count, onClear, onDownload, onShar
   const toggle = (format: DownloadFormat) => setFormats((f) => (f.includes(format) ? f.filter((x) => x !== format) : [...f, format]));
 
   return (
-    <div role="toolbar" aria-label="Actions for selected invoices" className="sticky bottom-4 z-30 mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border bg-card px-4 py-3 shadow-lg">
-      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+    <div role="toolbar" aria-label="Actions for selected invoices" className="sticky bottom-4 z-30 mx-auto flex w-full max-w-3xl flex-col gap-2 rounded-xl border bg-card p-3 shadow-lg sm:flex-row sm:items-center sm:justify-between sm:gap-x-4 sm:px-4">
+      <div className="flex min-w-0 items-center justify-between gap-x-3 text-sm sm:justify-start">
         <span className="font-semibold">{count} selected</span>
         <button type="button" onClick={onClear} className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /> Clear</button>
       </div>
 
-      <div className="flex items-center gap-2">
+      {/* phones: three equal buttons on their own row; larger screens: a single row */}
+      <div className="grid grid-cols-[auto_1fr_1fr] gap-2 sm:flex sm:items-center">
         <div ref={menuRef} className="relative">
-          <button type="button" onClick={() => setMenuOpen((o) => !o)} disabled={busy} aria-expanded={menuOpen} aria-haspopup="dialog" className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50">
-            <Download className="h-4 w-4" /> Download <ChevronUp className={cn('h-3.5 w-3.5 transition-transform', !menuOpen && 'rotate-180')} />
+          <button type="button" onClick={() => setMenuOpen((o) => !o)} disabled={busy} aria-expanded={menuOpen} aria-haspopup="dialog" className="inline-flex w-full items-center justify-center gap-1 rounded-lg border px-1.5 py-2 text-[13px] min-[360px]:gap-1.5 min-[360px]:px-2 min-[360px]:text-sm font-medium hover:bg-accent disabled:opacity-50 sm:w-auto sm:px-3">
+            <Download className="h-4 w-4 shrink-0" /> Download <ChevronUp className={cn('hidden h-3.5 w-3.5 shrink-0 transition-transform min-[360px]:block', !menuOpen && 'rotate-180')} />
           </button>
           {menuOpen && (
-            <div role="dialog" aria-label="Download selected invoices" className="absolute bottom-full right-0 mb-2 w-64 rounded-xl border bg-card p-3 shadow-lg">
+            <div role="dialog" aria-label="Download selected invoices" className="absolute bottom-full left-0 mb-2 w-64 max-w-[calc(100vw-2rem)] rounded-xl border bg-card p-3 shadow-lg sm:left-auto sm:right-0">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Include</p>
               {(['pdf', 'excel'] as const).map((format) => (
                 <label key={format} className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1.5 text-sm hover:bg-accent">
@@ -73,8 +74,8 @@ export default function InvoiceSelectionBar({ count, onClear, onDownload, onShar
             </div>
           )}
         </div>
-        <button type="button" onClick={onShare} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"><Share2 className="h-4 w-4" /> Share</button>
-        <button type="button" onClick={onDelete} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-destructive/40 px-3 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"><Trash2 className="h-4 w-4" /> Delete</button>
+        <button type="button" onClick={onShare} disabled={busy} className="inline-flex items-center justify-center gap-1 rounded-lg border px-1.5 py-2 text-[13px] font-medium hover:bg-accent disabled:opacity-50 min-[360px]:gap-1.5 min-[360px]:px-2 min-[360px]:text-sm sm:px-3"><Share2 className="h-4 w-4 shrink-0" /> Share</button>
+        <button type="button" onClick={onDelete} disabled={busy} className="inline-flex items-center justify-center gap-1 rounded-lg border border-destructive/40 px-1.5 py-2 text-[13px] font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50 min-[360px]:gap-1.5 min-[360px]:px-2 min-[360px]:text-sm sm:px-3"><Trash2 className="h-4 w-4 shrink-0" /> Delete</button>
       </div>
     </div>
   );

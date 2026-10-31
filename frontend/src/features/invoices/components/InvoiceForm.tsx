@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Building2, ExternalLink, FileText, Landmark, PenLine, Package, Plus, ScrollText, Ship, Trash2, Users, type LucideIcon } from 'lucide-react';
 import { DEFAULT_DECLARATION, type CreateInvoiceDto } from 'shared';
@@ -14,6 +14,7 @@ import { GENERAL_LIST, listsForImporter, priceFrom, priceIndex, scopeOfList } fr
 import { useProducts } from '../hooks/useProducts';
 import type { Product } from '../services/productService';
 import { useDeleteDraft, useSaveDraft } from '@/features/drafts/hooks/useDrafts';
+import { useAutosave } from '@/lib/useAutosave';
 import { useSignProfiles } from '../hooks/useSignProfiles';
 import type { SignProfile } from '../services/signService';
 import { bankLabel } from '@/features/exporter/components/BankProfilesSection';
@@ -400,20 +401,31 @@ export default function InvoiceForm() {
     setForm((p) => ({ ...p, loadingLocationId: loc.id, portOfLoading: loc.portOfLoading, countryOfOrigin: loc.countryOfOrigin }));
   };
 
+  /** What a draft keeps: the party page, and for a Both invoice the custom page inside `customVersion`. The (large) seal & sign image is left out; the default is filled in again when the draft is reopened. */
+  const draftPayload = useMemo<CreateInvoiceDto>(() => {
+    const party = page === 'party' ? form : (otherForm ?? form);
+    const custom = page === 'custom' ? form : otherForm;
+    const slim = (f: CreateInvoiceDto): CreateInvoiceDto => ({ ...f, signName: '', signImage: '', currency: (f.currency || '').toUpperCase() });
+    const { invoiceNumber: _n, importerId: _i, invoiceKind: _k, customVersion: _c, ...customPart } = slim(custom ?? party);
+    return { ...slim(party), ...(party.invoiceKind === 'BOTH' && custom ? { customVersion: customPart } : {}) };
+  }, [form, otherForm, page]);
+
+  // A draft that is open saves itself a moment after each change. (A new invoice becomes a draft only when Save Draft is pressed.)
+  // The id is remembered while the draft is open, because it is cleared the moment the form closes, and the last changes are saved then.
+  const autosaveDraftId = useRef<string | null>(null);
+  const draftAutosaveOn = isFormOpen && !isEditing && Boolean(draftId);
+  if (draftAutosaveOn) autosaveDraftId.current = draftId;
+  const autosave = useAutosave({
+    enabled: draftAutosaveOn,
+    value: draftPayload,
+    save: async (data) => { if (autosaveDraftId.current) await saveDraftMutation.mutateAsync({ id: autosaveDraftId.current, data }); },
+  });
+
   /** Saves the form as a draft in the database (updating it when this form was opened from a draft). */
   const saveDraft = async () => {
     try {
-      await saveDraftMutation.mutateAsync({
-        id: draftId,
-        // the (large) seal & sign image is not kept in the draft; the default is filled in again when it is reopened
-        data: (() => {
-          const party = page === 'party' ? form : (otherForm ?? form);
-          const custom = page === 'custom' ? form : otherForm;
-          const slim = (f: CreateInvoiceDto): CreateInvoiceDto => ({ ...f, signName: '', signImage: '', currency: (f.currency || '').toUpperCase() });
-          const { invoiceNumber: _n, importerId: _i, invoiceKind: _k, customVersion: _c, ...customPart } = slim(custom ?? party);
-          return { ...slim(party), ...(party.invoiceKind === 'BOTH' && custom ? { customVersion: customPart } : {}) };
-        })(),
-      });
+      await saveDraftMutation.mutateAsync({ id: draftId, data: draftPayload });
+      autosave.markSaved();
       showToast('Draft saved', 'Invoice draft saved to your account.', 'success');
       closeForm();
     } catch (error) {
@@ -551,7 +563,7 @@ export default function InvoiceForm() {
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-2 sm:p-4">
-      <div className="bg-background w-full max-w-7xl max-h-[96dvh] sm:max-h-[94dvh] rounded-lg shadow-xl flex flex-col overflow-hidden">
+      <div onPointerDownCapture={autosave.arm} onKeyDownCapture={autosave.arm} className="bg-background w-full max-w-7xl max-h-[96dvh] sm:max-h-[94dvh] rounded-lg shadow-xl flex flex-col overflow-hidden">
         <div className="shrink-0 min-w-0 border-b bg-gradient-to-r from-[hsl(var(--primary)/0.08)] to-[hsl(var(--brand-accent)/0.12)] px-3 py-3 sm:px-4">
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
@@ -953,6 +965,15 @@ export default function InvoiceForm() {
 
         <div className="sticky bottom-0 shrink-0 border-t bg-gradient-to-r from-[hsl(var(--primary)/0.08)] to-[hsl(var(--brand-accent)/0.12)] p-3">
           <div className="flex items-center justify-end gap-2">
+            {draftAutosaveOn && (
+              <p role="status" className={cn('mr-auto min-w-0 truncate text-[11px]', autosave.status === 'error' ? 'font-medium text-destructive' : 'text-muted-foreground')}>
+                {autosave.status === 'saving' ? 'Saving draft…'
+                  : autosave.status === 'unsaved' ? 'Unsaved changes…'
+                  : autosave.status === 'error' ? "Couldn't autosave this draft. Check your connection."
+                  : autosave.status === 'saved' && autosave.savedAt ? `Draft autosaved at ${autosave.savedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+                  : 'Changes to this draft are saved automatically'}
+              </p>
+            )}
             <button onClick={closeForm} className="px-3 py-1.5 text-xs border rounded-md bg-background hover:bg-accent">Cancel</button>
             <button onClick={saveDraft} disabled={saveDraftMutation.isPending} className="px-3 py-1.5 text-xs border rounded-md bg-background hover:bg-accent disabled:opacity-50">{saveDraftMutation.isPending ? 'Saving…' : 'Save Draft'}</button>
             <button onClick={submitInvoice} disabled={isPending} className="px-3 py-1.5 text-xs bg-[hsl(var(--brand-accent))] text-white rounded-md hover:opacity-90 disabled:opacity-50">

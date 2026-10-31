@@ -13,6 +13,13 @@ const ExporterPage = lazy(() => import('@/features/exporter/pages/ExporterPage')
 const InvoicesPage = lazy(() => import('@/features/invoices/pages/InvoicesPage'));
 const InvoiceDetailPage = lazy(() => import('@/features/invoices/pages/InvoiceDetailPage'));
 const ImportersPage = lazy(() => import('@/features/clients/pages/ClientsPage'));
+const PurchasesPage = lazy(() => import('@/features/purchases/pages/PurchasesPage'));
+const PurchaseListPage = lazy(() => import('@/features/purchases/pages/PurchaseListPage'));
+const PurchaseUploadPage = lazy(() => import('@/features/purchases/pages/PurchaseUploadPage'));
+const PurchaseEditPage = lazy(() => import('@/features/purchases/pages/PurchaseEditPage'));
+const PurchaseReportsPage = lazy(() => import('@/features/purchases/pages/PurchaseReportsPage'));
+const PriceTrackerPage = lazy(() => import('@/features/purchases/pages/PriceTrackerPage'));
+const PurchaseCardsPage = lazy(() => import('@/features/purchases/pages/PurchaseCardsPage'));
 const DocumentsPage = lazy(() => import('@/features/documents/pages/DocumentsPage'));
 const DashboardPage = lazy(() => import('@/features/dashboard/pages/DashboardPage'));
 const RecycleBinPage = lazy(() => import('@/features/recycle-bin/pages/RecycleBinPage'));
@@ -35,6 +42,19 @@ const router = createBrowserRouter([
           { path: 'exporter', element: <ExporterPage /> },
           { path: 'products', element: <ProductsPage /> },
           { path: 'products/:listId', element: <ProductListPage /> },
+          {
+            path: 'purchases',
+            element: <PurchasesPage />,
+            children: [
+              { index: true, element: <PurchaseCardsPage /> },
+              { path: 'list/:supplier', element: <PurchaseListPage /> },
+              { path: 'upload', element: <PurchaseUploadPage /> },
+              { path: 'new', element: <PurchaseEditPage mode="new" /> },
+              { path: 'reports', element: <PurchaseReportsPage /> },
+              { path: 'price-tracker', element: <PriceTrackerPage /> },
+              { path: ':id', element: <PurchaseEditPage mode="edit" /> },
+            ],
+          },
           { path: 'documents', element: <DocumentsPage /> },
           { path: 'recycle-bin', element: <RecycleBinPage /> },
           { path: 'notifications', element: <NotificationsPage /> },

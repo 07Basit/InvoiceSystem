@@ -182,6 +182,8 @@ model Invoice {
   // not in the list, totals or the Recycle Bin, and it is deleted, restored and downloaded together with its party invoice.
   isCompanion                Boolean          @default(false)
   lineItems                  LineItem[]
+  // Purchases (from suppliers) that were made for this invoice. Only an actual invoice is chosen there.
+  purchases                  PurchaseInvoice[] @relation("PurchaseForInvoice")
   totalBoxes                 Int              @default(0)
   totalNetWeight             Decimal          @default(0) @db.Decimal(12, 2)
   totalGrossWeight           Decimal?         @db.Decimal(12, 2)
@@ -403,4 +405,87 @@ model Draft {
 
   @@index([userId, kind, updatedAt])
   @@map("drafts")
+}
+
+// ---------------------------------------------------------------------------
+// Purchases: what the business buys from its suppliers (Mapoose, Sunil, ...)
+// ---------------------------------------------------------------------------
+
+model Supplier {
+  id             String            @id @default(cuid())
+  name           String            @db.VarChar(200)
+  contact        String?           @db.VarChar(200)
+  phone          String?           @db.VarChar(50)
+  email          String?           @db.VarChar(200)
+  address        String?           @db.VarChar(500)
+  gstin          String?           @db.VarChar(20)
+  /// How to read this supplier's Excel invoices (column titles or cells). Empty = found automatically.
+  importTemplate Json?
+  isActive       Boolean           @default(true)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  deletedAt      DateTime?
+  purchases      PurchaseInvoice[]
+
+  @@index([name])
+  @@index([deletedAt])
+  @@map("suppliers")
+}
+
+model PurchaseInvoice {
+  id             String         @id @default(cuid())
+  supplierId     String
+  supplier       Supplier       @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  invoiceNumber  String         @db.VarChar(100)
+  invoiceDate    DateTime       @db.Date
+  /// When the goods were bought or shipped, if the invoice says so separately
+  purchaseDate   DateTime?      @db.Date
+  dueDate        DateTime?      @db.Date
+  currency       String         @default("INR") @db.VarChar(3)
+  subTotal       Decimal        @db.Decimal(14, 2)
+  /// GST / tax
+  taxAmount      Decimal        @default(0) @db.Decimal(14, 2)
+  freight        Decimal        @default(0) @db.Decimal(14, 2)
+  otherCharges   Decimal        @default(0) @db.Decimal(14, 2)
+  total          Decimal        @db.Decimal(14, 2)
+  notes          String?        @db.VarChar(1000)
+  /// The Excel file it was read from, and its fingerprint (the same file is not added twice)
+  sourceFileName String?        @db.VarChar(260)
+  sourceHash     String?        @db.VarChar(64)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  deletedAt      DateTime?
+  lines          PurchaseLine[]
+  /// The actual invoice this purchase was made for, to compare what was paid with what was charged. Optional.
+  invoiceId      String?
+  invoice        Invoice?       @relation("PurchaseForInvoice", fields: [invoiceId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([invoiceId])
+  @@index([supplierId, invoiceDate])
+  @@index([invoiceDate])
+  @@index([purchaseDate])
+  @@index([sourceHash])
+  @@index([deletedAt])
+  @@map("purchase_invoices")
+}
+
+model PurchaseLine {
+  id                String          @id @default(cuid())
+  purchaseInvoiceId String
+  purchaseInvoice   PurchaseInvoice @relation(fields: [purchaseInvoiceId], references: [id], onDelete: Cascade)
+  sortOrder         Int             @default(0)
+  productName       String          @db.VarChar(200)
+  description       String?         @db.VarChar(500)
+  /// Boxes, bags or pieces
+  quantity          Decimal?        @db.Decimal(12, 3)
+  netWeight         Decimal?        @db.Decimal(12, 3)
+  unit              String?         @db.VarChar(20)
+  rate              Decimal         @db.Decimal(14, 4)
+  /// What the rate is per: KG or UNIT
+  rateBasis         String          @default("KG") @db.VarChar(10)
+  amount            Decimal         @db.Decimal(14, 2)
+
+  @@index([purchaseInvoiceId])
+  @@index([productName])
+  @@map("purchase_lines")
 }

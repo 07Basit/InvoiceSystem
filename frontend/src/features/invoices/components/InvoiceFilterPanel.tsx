@@ -20,7 +20,7 @@ interface InvoiceFilterPanelProps {
   matching: number | undefined;
 }
 
-function Section({ title, count, defaultOpen, children }: { title: string; count?: number; defaultOpen?: boolean; children: ReactNode }) {
+export function Section({ title, count, defaultOpen, children }: { title: string; count?: number; defaultOpen?: boolean; children: ReactNode }) {
   const [open, setOpen] = useState(!!defaultOpen || (count ?? 0) > 0);
   return (
     <section className="border-t py-3 first:border-t-0">

@@ -9,8 +9,9 @@ import { useExporterProfiles } from '../hooks/useExporterProfiles';
 import { useBankProfiles } from '../hooks/useBankProfiles';
 import { useDeclarationProfiles } from '../hooks/useDeclarationProfiles';
 import ProductPicker from './ProductPicker';
+import WeightPicker from './WeightPicker';
 import { useProductLists } from '../hooks/useProductLists';
-import { GENERAL_LIST, listsForImporter, priceFrom, priceIndex, scopeOfList } from '../utils/productLists';
+import { GENERAL_LIST, listsForImporter, priceFrom, priceIndex, scopeOfList, usualWeightFrom } from '../utils/productLists';
 import { useProducts } from '../hooks/useProducts';
 import type { Product } from '../services/productService';
 import { useDeleteDraft, useSaveDraft } from '@/features/drafts/hooks/useDrafts';
@@ -990,7 +991,18 @@ export default function InvoiceForm() {
         {priceNote(item) ? <p className="mt-1 text-[11px] font-medium text-amber-700">{priceNote(item)}</p> : null}
       </>
     );
-    if (field === 'weight') return num('netWeightPerPackage', 'Nett weight per package', { decimals: 3 });
+    if (field === 'weight') return (
+      <>
+        <WeightPicker
+          ariaLabel={`Nett weight per package for product ${index + 1}`}
+          value={item.netWeightPerPackage}
+          usual={usualWeightFrom(chosenIndex, item.descriptionOfGoods)}
+          hasError={!!errors[`lineItems.${index}.netWeightPerPackage`]}
+          onChange={(v) => { clearFieldError(`lineItems.${index}.netWeightPerPackage`); updateLine(index, { netWeightPerPackage: v ?? 0 }); }}
+        />
+        {err('netWeightPerPackage')}
+      </>
+    );
     if (field === 'boxes') return num('numberOfBoxes', 'Number of boxes', { integer: true });
     return num('ratePerKg', 'Rate per kg', { decimals: 4 });
   }

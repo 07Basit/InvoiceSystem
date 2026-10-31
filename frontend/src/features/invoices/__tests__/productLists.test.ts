@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { listsForImporter, priceInList, scopeOfList } from '../utils/productLists';
+import { listsForImporter, priceIndex, priceInList, scopeOfList, usualWeightFrom } from '../utils/productLists';
 import type { ProductList } from '../services/productListService';
 
 const list = (id: string, over: Partial<ProductList> = {}): ProductList => ({ id, importerId: 'i1', currency: 'CAD', locationName: null, createdAt: '', ...over });
@@ -77,5 +77,20 @@ describe('priceIndex / priceFrom', () => {
     expect(priceFrom(index, 'A').found).toBe(false);
     expect(priceFrom(index, 'B').found).toBe(false);
     expect(priceFrom(index, 'C').price).toBe(3);
+  });
+});
+
+describe('usualWeightFrom', () => {
+  const product = (name: string, nettWeightPerPackage: string | null) => ({ name, ratePerKg: null, nettWeightPerPackage, isActive: true, importerId: null, currency: null, locationName: null });
+  const index = priceIndex([product('Banana', '15'), product('Mullai', null), product('Amla', '0')], {});
+
+  it('is the usual weight of the product, whatever the capital letters', () => {
+    expect(usualWeightFrom(index, 'banana')).toBe(15);
+  });
+
+  it('is nothing for a product without a usual weight, a zero weight, or one that is not in the list', () => {
+    expect(usualWeightFrom(index, 'Mullai')).toBeNull();
+    expect(usualWeightFrom(index, 'Amla')).toBeNull();
+    expect(usualWeightFrom(index, 'Unknown')).toBeNull();
   });
 });

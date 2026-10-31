@@ -28,7 +28,7 @@ export function scopeOfList(list: ProductList | undefined): InvoiceListContext {
   return list ? { importerId: list.importerId, currency: list.currency, locationName: list.locationName ?? undefined } : {};
 }
 
-type ListProduct = { name: string; ratePerKg: string | null; isActive: boolean; importerId: string | null; currency: string | null; locationName: string | null };
+type ListProduct = { name: string; ratePerKg: string | null; nettWeightPerPackage?: string | null; isActive: boolean; importerId: string | null; currency: string | null; locationName: string | null };
 
 const nameKey = (name: string) => name.trim().toLowerCase();
 
@@ -50,6 +50,13 @@ export function priceFrom(index: Map<string, ListProduct>, name: string): { foun
   if (!match) return { found: false, price: null };
   const price = match.ratePerKg !== null ? Number(match.ratePerKg) : null;
   return { found: true, price: price !== null && price > 0 ? price : null };
+}
+
+/** The usual nett weight per package a product list gives a product (null when it has none). */
+export function usualWeightFrom(index: Map<string, ListProduct>, name: string): number | null {
+  const weight = index.get(nameKey(name))?.nettWeightPerPackage;
+  const n = weight != null ? Number(weight) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 /** One-off lookup. When pricing many lines, build `priceIndex` once and use `priceFrom` (O(L + P) instead of O(L * P)). */

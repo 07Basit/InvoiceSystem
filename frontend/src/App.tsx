@@ -14,6 +14,10 @@ const InvoicesPage = lazy(() => import('@/features/invoices/pages/InvoicesPage')
 const InvoiceDetailPage = lazy(() => import('@/features/invoices/pages/InvoiceDetailPage'));
 const ImportersPage = lazy(() => import('@/features/clients/pages/ClientsPage'));
 const DocumentsPage = lazy(() => import('@/features/documents/pages/DocumentsPage'));
+const DocumentsListPage = lazy(() => import('@/features/documents/pages/DocumentsListPage'));
+const WordEditorPage = lazy(() => import('@/features/documents/pages/WordEditorPage'));
+const ExcelEditorPage = lazy(() => import('@/features/documents/pages/ExcelEditorPage'));
+const PdfEditorPage = lazy(() => import('@/features/documents/pages/PdfEditorPage'));
 const DashboardPage = lazy(() => import('@/features/dashboard/pages/DashboardPage'));
 const RecycleBinPage = lazy(() => import('@/features/recycle-bin/pages/RecycleBinPage'));
 const NotificationsPage = lazy(() => import('@/features/notifications/pages/NotificationsPage'));
@@ -35,7 +39,20 @@ const router = createBrowserRouter([
           { path: 'exporter', element: <ExporterPage /> },
           { path: 'products', element: <ProductsPage /> },
           { path: 'products/:listId', element: <ProductListPage /> },
-          { path: 'documents', element: <DocumentsPage /> },
+          {
+            path: 'documents',
+            element: <DocumentsPage />,
+            children: [
+              { index: true, element: <DocumentsListPage /> },
+              { path: 'starred', element: <DocumentsListPage starred /> },
+              { path: 'pdf', element: <DocumentsListPage type="PDF" /> },
+              { path: 'word', element: <DocumentsListPage type="WORD" /> },
+              { path: 'excel', element: <DocumentsListPage type="EXCEL" /> },
+            ],
+          },
+          { path: 'documents/word/:id', element: <WordEditorPage /> },
+          { path: 'documents/excel/:id', element: <ExcelEditorPage /> },
+          { path: 'documents/pdf/:id', element: <PdfEditorPage /> },
           { path: 'recycle-bin', element: <RecycleBinPage /> },
           { path: 'notifications', element: <NotificationsPage /> },
           { path: 'notifications/:id', element: <NotificationDetailPage /> },

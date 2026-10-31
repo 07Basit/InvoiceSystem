@@ -242,9 +242,16 @@ model LineItem {
 model Document {
   id        String    @id @default(cuid())
   title     String
+  /// WORD, PDF or EXCEL
   type      String    @default("WORD")
+  /// Word: the text as HTML. Excel: the sheets as JSON. PDF: unused.
   content   String?
   fileUrl   String?
+  /// The file itself: the .pdf, or the .xlsx saved by the spreadsheet editor (a Word file is built from content when it is downloaded).
+  data      Bytes?
+  size      Int       @default(0)
+  /// Pinned to the Starred list
+  starred   Boolean   @default(false)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -252,6 +259,7 @@ model Document {
   @@index([type])
   @@index([deletedAt])
   @@index([type, deletedAt])
+  @@index([starred, deletedAt])
   @@map("documents")
 }
 

@@ -519,3 +519,32 @@
   .ld-plane { animation: none; offset-distance: 45%; opacity: 1; }
   .ld-coin { opacity: 0.8; }
 }
+
+/* =====================================================
+   Documents: the Word editor's page and the content it edits
+   ===================================================== */
+.doc-page {
+  background: #fff;
+  color: #111827;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+.doc-editor .ProseMirror { outline: none; min-height: 60vh; line-height: 1.6; font-size: 15px; word-break: break-word; }
+.doc-editor .ProseMirror p { margin: 0 0 0.6em; }
+.doc-editor .ProseMirror h1 { font-size: 2em; font-weight: 700; margin: 0.8em 0 0.4em; line-height: 1.25; }
+.doc-editor .ProseMirror h2 { font-size: 1.5em; font-weight: 700; margin: 0.8em 0 0.4em; line-height: 1.3; }
+.doc-editor .ProseMirror h3 { font-size: 1.2em; font-weight: 600; margin: 0.8em 0 0.4em; }
+.doc-editor .ProseMirror ul { list-style: disc; padding-left: 1.6em; margin: 0 0 0.6em; }
+.doc-editor .ProseMirror ol { list-style: decimal; padding-left: 1.6em; margin: 0 0 0.6em; }
+.doc-editor .ProseMirror li p { margin: 0; }
+.doc-editor .ProseMirror blockquote { border-left: 3px solid #cbd5e1; margin: 0 0 0.6em; padding-left: 1em; color: #475569; }
+.doc-editor .ProseMirror a { color: #2563eb; text-decoration: underline; }
+.doc-editor .ProseMirror hr { border: 0; border-top: 1px solid #cbd5e1; margin: 1em 0; }
+.doc-editor .ProseMirror pre { background: #f1f5f9; border-radius: 6px; padding: 0.7em 0.9em; font-family: ui-monospace, monospace; font-size: 13px; overflow-x: auto; }
+.doc-editor .ProseMirror img { max-width: 100%; height: auto; display: inline-block; }
+.doc-editor .ProseMirror img.ProseMirror-selectednode { outline: 2px solid #2563eb; }
+.doc-editor .ProseMirror table { border-collapse: collapse; width: 100%; margin: 0 0 0.8em; table-layout: fixed; overflow: hidden; }
+.doc-editor .ProseMirror th, .doc-editor .ProseMirror td { border: 1px solid #cbd5e1; padding: 6px 8px; vertical-align: top; position: relative; min-width: 1em; }
+.doc-editor .ProseMirror th { background: #f1f5f9; font-weight: 600; text-align: left; }
+.doc-editor .ProseMirror .selectedCell::after { content: ''; position: absolute; inset: 0; background: rgba(37, 99, 235, 0.12); pointer-events: none; }
+.doc-editor .ProseMirror .column-resize-handle { position: absolute; right: -2px; top: 0; bottom: 0; width: 4px; background: #2563eb; pointer-events: none; }
+.doc-editor .ProseMirror p.is-editor-empty:first-child::before { content: attr(data-placeholder); color: #94a3b8; float: left; height: 0; pointer-events: none; }

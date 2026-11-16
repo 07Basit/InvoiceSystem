@@ -1,6 +1,6 @@
 import { apiClient } from '@/services/api';
 import { saveBlob } from '@/lib/share';
-import type { ApiResponse, CreateInvoiceDto, ListInvoicesInput, UpdateInvoiceDto } from 'shared';
+import type { ApiResponse, CreateInvoiceDto, ListInvoicesInput, PaymentSummary, UpdateInvoiceDto } from 'shared';
 
 export interface InvoiceLineItem {
   id: string;
@@ -87,6 +87,8 @@ export interface Invoice {
   excludedFromRevenue?: boolean;
   /** Only on the detail endpoint: how the invoice is valued in the reporting currency */
   conversion?: InvoiceConversion;
+  /** On the list, for actual invoices: how much has been paid. Null for other invoices. */
+  payment?: PaymentSummary | null;
   exporterName?: string | null;
   exporterAddress?: string | null;
   exporterContact?: string | null;
@@ -292,7 +294,7 @@ async function fetchFile(path: string, fallbackName: string): Promise<FetchedFil
 }
 
 /** Saves the file; rejects (so the caller can tell the user) when the server or network fails. */
-async function downloadFile(path: string, fallbackName: string): Promise<void> {
+export async function downloadFile(path: string, fallbackName: string): Promise<void> {
   const { blob, filename } = await fetchFile(path, fallbackName);
   saveBlob(blob, filename);
 }

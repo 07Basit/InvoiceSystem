@@ -8,8 +8,9 @@ import { exporterService } from './exporter.service';
 import { bankService } from './bank.service';
 import { declarationService } from './declaration.service';
 import { signService } from './sign.service';
+import { paymentService } from './payment.service';
 import { DEFAULT_DECLARATION } from 'shared';
-import type { CreateInvoiceDto, ListInvoicesQuery, PaginationMeta, UpdateInvoiceDto } from 'shared';
+import type { CreateInvoiceDto, ListInvoicesQuery, PaginationMeta, PaymentSummary, UpdateInvoiceDto } from 'shared';
 import { anyOfCi, ci, containsCi } from '../utils/caseInsensitive';
 
 type InvoiceLineInput = CreateInvoiceDto['lineItems'][number];
@@ -245,9 +246,12 @@ export const invoiceService = {
       logger.warn('Could not check exchange rates for invoice list', { error: (err as Error).message });
     }
 
+    // how much of each actual invoice has been paid
+    const payments = await paymentService.summaries(invoices).catch(() => new Map<string, PaymentSummary>());
+
     const totalPages = Math.ceil(total / limit);
     return {
-      data: invoices.map((inv) => ({ ...inv, excludedFromRevenue: excludedIds.has(inv.id) })),
+      data: invoices.map((inv) => ({ ...inv, excludedFromRevenue: excludedIds.has(inv.id), payment: payments.get(inv.id) ?? null })),
       meta: { page, limit, total, totalPages, hasNext: page < totalPages, hasPrev: page > 1 },
     };
   },

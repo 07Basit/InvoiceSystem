@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Mail, MapPin, Pencil, Phone, PlaneLanding, PlaneTakeoff, Trash2, UserCheck, UserX } from 'lucide-react';
+import { FileText, Mail, MapPin, Pencil, Phone, PlaneLanding, PlaneTakeoff, Trash2, UserCheck, UserX } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Tooltip from '@/components/ui/Tooltip';
 import { formatCountry, formatPortCode } from '@/lib/format';
@@ -31,6 +31,8 @@ interface ImporterCardProps {
   /** Marked "not needed": greyed out, with a button to bring it back. Omit for drafts. */
   inactive?: boolean;
   onToggleActive?: () => void;
+  /** Opens the importer's statement of account */
+  onStatement?: () => void;
   onEdit: () => void;
   onDelete: () => void;
   editLabel: string;
@@ -55,7 +57,7 @@ function Detail({ icon: Icon, children }: { icon: typeof MapPin; children: React
 }
 
 export default function ImporterCard({
-  name, buyerName, currency, address, contact, email, landing, loading, footnote, draft, inactive, onToggleActive,
+  name, buyerName, currency, address, contact, email, landing, loading, footnote, draft, inactive, onToggleActive, onStatement,
   onEdit, onDelete, editLabel, deleteLabel,
 }: ImporterCardProps) {
   return (
@@ -144,6 +146,14 @@ export default function ImporterCard({
           </div>
         </div>
       </div>
+
+      {onStatement && (
+        <div className="border-t pt-3">
+          <button type="button" onClick={onStatement} className="btn-ghost !px-3 !py-1.5 text-xs" aria-label={`Statement of account: ${name}`}>
+            <FileText className="h-3.5 w-3.5" /> Statement of account
+          </button>
+        </div>
+      )}
 
       {footnote && <p className="text-xs text-muted-foreground">{footnote}</p>}
     </div>

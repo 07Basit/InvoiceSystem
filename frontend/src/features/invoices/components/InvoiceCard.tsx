@@ -3,6 +3,7 @@ import { CalendarDays, Download, Eye, FileDown, Package, Pencil, PlaneLanding, P
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import Tooltip from '@/components/ui/Tooltip';
 import { formatCountry, formatPortCode } from '@/lib/format';
+import PaymentStatusBadge from '@/features/payments/components/PaymentStatusBadge';
 import { actualInvoiceState, canHaveActual, counterpartState, kindTag, type InvoiceListItem } from '../services/invoiceService';
 
 interface InvoiceCardProps {
@@ -77,6 +78,12 @@ export default function InvoiceCard({ invoice, onOpen, onPdf, onExcel, onPrint, 
         <div className="text-right shrink-0">
           <p className="text-lg font-bold leading-tight">{formatCurrency(invoice.total, invoice.currency)}</p>
           <p className="text-[11px] font-medium text-muted-foreground">{invoice.currency}</p>
+          {invoice.payment && (
+            <div className="mt-1 flex flex-col items-end gap-0.5">
+              <PaymentStatusBadge summary={invoice.payment} />
+              {(invoice.payment.status === 'unpaid' || invoice.payment.status === 'partial') && <span className="text-[10px] text-muted-foreground">Due {formatCurrency(invoice.payment.balance, invoice.currency)}</span>}
+            </div>
+          )}
           {invoice.excludedFromRevenue && (
             <span
               title={`No exchange rate available for ${invoice.currency}, so this invoice is not counted in dashboard revenue. Open it to enter a rate.`}

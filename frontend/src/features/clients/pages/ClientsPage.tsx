@@ -9,6 +9,7 @@ import { useClients, useCreateClient, useDeleteClient, useImporterSummary, useUp
 import type { Importer } from '../services/clientService';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ImporterCard from '../components/ImporterCard';
+import StatementDialog from '@/features/payments/components/StatementDialog';
 import ImporterStats from '../components/ImporterStats';
 import ImporterFilters, { type StatusFilter } from '../components/ImporterFilters';
 import Pagination from '@/components/ui/Pagination';
@@ -61,6 +62,7 @@ export default function ClientsPage() {
   const confirm = useConfirm();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [statementFor, setStatementFor] = useState<{ id: string; name: string } | null>(null);
   const [editing, setEditing] = useState<Importer | null>(null);
   const [form, setForm] = useState<CreateImporterDto>(emptyImporter);
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -370,6 +372,7 @@ export default function ClientsPage() {
             name={importer.name}
             inactive={importer.isActive === false}
             onToggleActive={() => toggleActive(importer)}
+            onStatement={() => setStatementFor({ id: importer.id, name: importer.name })}
             buyerName={importer.buyerName}
             currency={importer.currency}
             address={importer.address}
@@ -402,6 +405,8 @@ export default function ClientsPage() {
       {!isError && meta && (
         <Pagination page={meta.page} totalPages={meta.totalPages} total={meta.total} pageSize={meta.limit} onPageChange={changePage} noun="importers" />
       )}
+
+      {statementFor && <StatementDialog importerId={statementFor.id} importerName={statementFor.name} onClose={() => setStatementFor(null)} />}
 
       {isFormOpen && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-2 sm:p-4">

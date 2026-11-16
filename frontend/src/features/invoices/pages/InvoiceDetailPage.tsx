@@ -12,6 +12,7 @@ import { useInvoiceDocuments } from '../hooks/useInvoiceDocuments';
 import ShareInvoiceDialog, { toShareable } from '../components/ShareInvoiceDialog';
 import InvoiceForm from '../components/InvoiceForm';
 import ExchangeRatePanel from '../components/ExchangeRatePanel';
+import PaymentsSection from '@/features/payments/components/PaymentsSection';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import { formatCountry, formatNumber, formatPortCode } from '@/lib/format';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
@@ -312,6 +313,15 @@ export default function InvoiceDetailPage() {
           </div>
         </div>
       </Section>
+
+      {/* Payments are recorded on the actual invoice, which is the amount really owed */}
+      {invoice.actualOfId ? (
+        <PaymentsSection invoiceId={invoice.id} importer={{ id: invoice.importerId, name: invoice.importerName ?? importer.name }} />
+      ) : invoice.actuals && invoice.actuals.length > 0 ? (
+        <p className="rounded-xl border border-dashed px-5 py-3 text-sm text-muted-foreground print:hidden">
+          Payments are recorded on the actual invoice. <Link to={`/invoices/${invoice.actuals[0]!.id}`} className="font-medium text-foreground underline">Open the actual invoice</Link> to record or see them.
+        </p>
+      ) : null}
 
       {/* Bank details: the invoice's own copy */}
       <Section title="Bank Details" icon={Landmark}>

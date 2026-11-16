@@ -9,6 +9,7 @@ export function pageTitleForPath(pathname: string): string {
   if (pathname === '/') return 'Dashboard';
   if (pathname.startsWith('/invoices/')) return 'Invoice';
   if (pathname.startsWith('/invoices')) return 'Invoices';
+  if (pathname.startsWith('/purchases')) return 'Purchases';
   if (pathname.startsWith('/importers')) return 'Importers';
   if (pathname.startsWith('/exporter')) return 'Exporter';
   if (pathname.startsWith('/products')) return 'Products';

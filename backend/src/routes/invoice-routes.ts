@@ -23,7 +23,9 @@ import {
   listInvoiceIds,
   copyInvoicesZip,
 } from '../controllers/invoice.controller';
+import { createPayment, listInvoicePayments } from '../controllers/payment.controller';
 import {
+  paymentSchema,
   createInvoiceSchema,
   updateInvoiceSchema,
   listInvoicesQuerySchema,
@@ -49,6 +51,8 @@ router.post('/import', importInvoices);
 router.get('/:id', getInvoice);
 router.get('/:id/download/pdf', downloadInvoicePdf);
 router.get('/:id/download/excel', downloadInvoiceExcel);
+router.get('/:id/payments', listInvoicePayments);
+router.post('/:id/payments', validate(paymentSchema), createPayment);
 router.post('/:id/actual', createActualInvoice);
 router.post('/:id/counterpart', createCounterpartInvoice);
 router.post('/:id/share/native', validate(shareNativeSchema), shareInvoiceNative);

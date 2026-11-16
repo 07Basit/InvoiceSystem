@@ -81,7 +81,23 @@ export async function renderInvoiceExcel(input: InvoiceDocument | InvoiceDocumen
   wb.title = `Invoice ${docs[0]!.invoiceNumber}`;
   wb.created = new Date();
   docs.forEach((doc, index) => addInvoiceSheet(wb, doc, docs.length > 1 ? sheetName(`${doc.kindLabel === 'CUSTOM' ? 'Custom' : 'Party'} ${doc.invoiceNumber}`) : 'Invoice', index));
+  addInfoSheet(wb, docs);
   return Buffer.from(await wb.xlsx.writeBuffer());
+}
+
+/** The name of the sheet that says which invoice (and version) the file was made from. It is hidden from the person using Excel. */
+export const INFO_SHEET = '_invoice_manager';
+/** The header of the hidden column that holds each line's id. */
+export const LINE_ID_HEADER = '_line_id';
+
+/** A hidden sheet: what this file is, the invoice it came from and its version, so an edited copy can be matched back to the invoice.
+ *  A Party + Custom invoice has two pages (two invoices): both are named, and the version is the later of the two. */
+function addInfoSheet(wb: ExcelJS.Workbook, docs: InvoiceDocument[]) {
+  const [main, companion] = docs;
+  if (!main?.meta) return;
+  const info = wb.addWorksheet(INFO_SHEET, { state: 'veryHidden' });
+  const version = companion?.meta && companion.meta.version > main.meta.version ? companion.meta.version : main.meta.version;
+  info.addRows([['app', 'invoice-manager'], ['invoiceId', main.meta.invoiceId], ['version', version], ['both', companion ? 'yes' : 'no'], ['companionId', companion?.meta?.invoiceId ?? '']]);
 }
 
 function addInvoiceSheet(wb: ExcelJS.Workbook, doc: InvoiceDocument, name: string, _index: number) {
@@ -90,7 +106,9 @@ function addInvoiceSheet(wb: ExcelJS.Workbook, doc: InvoiceDocument, name: strin
     headerFooter: { oddFooter: `&L&8Invoice ${doc.invoiceNumber.replace(/&/g, '&&')}&R&8Page &P of &N` },
     views: [{ showGridLines: false }],
   });
-  ws.columns = [5, 16, 26, 16, 11, 15, 13, 16, 18].map((width) => ({ width }));
+  ws.columns = [5, 16, 26, 16, 11, 15, 13, 16, 18, 12].map((width) => ({ width }));
+  // the tenth column holds each line's id, for reading an edited file back; it stays outside the print area and hidden
+  ws.getColumn(10).hidden = true;
   const cur = doc.currency;
   const money = `"${cur}" #,##0.00`;
   // the same format in the table: the unit stays next to its number
@@ -165,11 +183,13 @@ function addInvoiceSheet(wb: ExcelJS.Workbook, doc: InvoiceDocument, name: strin
     cell.alignment = { vertical: 'middle', horizontal: i < 3 ? 'left' : 'right', wrapText: true };
   });
   ws.getRow(row).height = 28;
+  ws.getRow(row).getCell(10).value = LINE_ID_HEADER;
   const tableHeaderRow = row;
   row++;
   const rowPad = doc.lines.length <= 12 ? 21 : doc.lines.length <= 24 ? 18 : 15;
   doc.lines.forEach((line, i) => {
     const r = ws.getRow(row);
+    if (line.id) r.getCell(10).value = line.id;
     const values: (string | number)[] = [line.no, line.marks, line.description, line.nettPerPackage, line.boxes, line.totalNett, line.rate, line.totalPerBox, line.amount];
     values.forEach((value, c) => {
       const cell = r.getCell(c + 1);

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { validate } from '../middleware/validate';
 import {
   listInvoices,
@@ -24,8 +25,10 @@ import {
   copyInvoicesZip,
 } from '../controllers/invoice.controller';
 import { createPayment, listInvoicePayments } from '../controllers/payment.controller';
+import { applyExcelUpdate, latestExcelUpdate, previewExcelUpdate, undoExcelUpdate } from '../controllers/invoice-excel-update.controller';
 import {
   paymentSchema,
+  excelUpdateApplySchema,
   createInvoiceSchema,
   updateInvoiceSchema,
   listInvoicesQuerySchema,
@@ -37,6 +40,9 @@ import {
 } from 'shared';
 
 const router = Router();
+
+// The edited Excel is only read, never kept: it is held in memory while it is checked.
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
 
 router.get('/', validate(listInvoicesQuerySchema, 'query'), listInvoices);
 router.get('/export', exportInvoices);
@@ -51,6 +57,10 @@ router.post('/import', importInvoices);
 router.get('/:id', getInvoice);
 router.get('/:id/download/pdf', downloadInvoicePdf);
 router.get('/:id/download/excel', downloadInvoiceExcel);
+router.post('/:id/excel-update/preview', upload.single('file'), previewExcelUpdate);
+router.post('/:id/excel-update/apply', validate(excelUpdateApplySchema), applyExcelUpdate);
+router.get('/:id/excel-update/latest', latestExcelUpdate);
+router.post('/:id/excel-update/undo', undoExcelUpdate);
 router.get('/:id/payments', listInvoicePayments);
 router.post('/:id/payments', validate(paymentSchema), createPayment);
 router.post('/:id/actual', createActualInvoice);

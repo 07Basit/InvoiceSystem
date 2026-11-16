@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
-  Building2, CalendarDays, Download, FileDown, FileText, Package, Landmark, Pencil, Printer, Share2, FileCheck2, ArrowLeftRight, Receipt, Ship, ScrollText, Stamp, Truck, User,
+  Building2, CalendarDays, Download, FileDown, FileUp, FileText, Package, Landmark, Pencil, Printer, Share2, FileCheck2, ArrowLeftRight, Receipt, Ship, ScrollText, Stamp, Truck, User,
 } from 'lucide-react';
 import { useCreateActualInvoice, useCreateCounterpartInvoice, useInvoice } from '../hooks/useInvoices';
 import { useConfirm } from '@/components/ui/confirm';
@@ -12,6 +12,8 @@ import { useInvoiceDocuments } from '../hooks/useInvoiceDocuments';
 import ShareInvoiceDialog, { toShareable } from '../components/ShareInvoiceDialog';
 import InvoiceForm from '../components/InvoiceForm';
 import ExchangeRatePanel from '../components/ExchangeRatePanel';
+import ExcelUpdateBanner from '../components/ExcelUpdateBanner';
+import ExcelUpdateDialog from '../components/ExcelUpdateDialog';
 import PaymentsSection from '@/features/payments/components/PaymentsSection';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import { formatCountry, formatNumber, formatPortCode } from '@/lib/format';
@@ -81,6 +83,7 @@ export default function InvoiceDetailPage() {
   const { openEditForm } = useInvoiceStore();
   const documents = useInvoiceDocuments();
   const [shareOpen, setShareOpen] = useState(false);
+  const [excelOpen, setExcelOpen] = useState(false);
   const confirm = useConfirm();
   const { showToast } = useToast();
   const createActualMutation = useCreateActualInvoice();
@@ -172,6 +175,7 @@ export default function InvoiceDetailPage() {
               <HeaderAction label="Print invoice" text="Print" icon={Printer} onClick={() => documents.print(docId)} disabled={documents.isBusy} />
               <HeaderAction label="Download PDF" text="PDF" icon={FileDown} onClick={() => documents.downloadPdf(docId)} disabled={documents.isBusy} />
               <HeaderAction label="Download Excel" text="Excel" icon={Download} onClick={() => documents.downloadExcel(docId)} disabled={documents.isBusy} />
+              {!isCompanion && <HeaderAction label={isBoth ? 'Update the product lines of both pages from the Excel you edited' : 'Update the product lines from the Excel you edited'} text="Update" icon={FileUp} onClick={() => setExcelOpen(true)} />}
               <HeaderAction label="Share invoice" text="Share" icon={Share2} onClick={() => setShareOpen(true)} />
               {!isCompanion && canHaveActual(invoice) && <HeaderAction label={actual.label} text="Actual" icon={FileCheck2} onClick={askCreateActual} disabled={!actual.canCreate || createActualMutation.isPending} greyed={!actual.canCreate} />}
               {partnerState.available && !isCompanion && <HeaderAction label={partnerState.label} text={partnerState.target} icon={ArrowLeftRight} onClick={askCreateCounterpart} disabled={!partnerState.canCreate || createCounterpartMutation.isPending} greyed={!partnerState.canCreate} />}
@@ -193,6 +197,8 @@ export default function InvoiceDetailPage() {
       </div>
 
       <ExchangeRatePanel invoice={invoice} />
+
+      {!isCompanion && <ExcelUpdateBanner invoiceId={invoice.id} />}
 
       {/* Parties */}
       <Section title="Exporter and Importer" icon={Building2}>
@@ -349,6 +355,7 @@ export default function InvoiceDetailPage() {
       <p className="text-xs text-muted-foreground print:hidden">Importer: {invoice.importerName ?? importer.name} · Invoice ID {invoice.id}</p>
 
       <InvoiceForm />
+      {excelOpen && <ExcelUpdateDialog invoiceId={invoice.id} invoiceNumber={invoice.invoiceNumber} onClose={() => setExcelOpen(false)} />}
       {shareOpen && <ShareInvoiceDialog invoice={toShareable({ ...invoice, id: docId })} onClose={() => setShareOpen(false)} />}
     </div>
   );

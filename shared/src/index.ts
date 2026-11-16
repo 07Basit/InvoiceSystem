@@ -16,3 +16,4 @@ export * from './schemas/currency.schema';
 export * from './schemas/notification.schema';
 export * from './schemas/purchase.schema';
 export * from './schemas/payment.schema';
+export * from './schemas/invoice-excel.schema';

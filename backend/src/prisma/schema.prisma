@@ -186,6 +186,8 @@ model Invoice {
   purchases                  PurchaseInvoice[] @relation("PurchaseForInvoice")
   // Payments received against this invoice (recorded on actual invoices)
   payments                   Payment[]        @relation("InvoicePayments")
+  // Updates made from an edited Excel file, each with the lines as they were (so the last one can be undone)
+  excelUpdates               InvoiceExcelUpdate[] @relation("InvoiceExcelUpdates")
   totalBoxes                 Int              @default(0)
   totalNetWeight             Decimal          @default(0) @db.Decimal(12, 2)
   totalGrossWeight           Decimal?         @db.Decimal(12, 2)
@@ -469,6 +471,26 @@ model PurchaseInvoice {
   @@index([sourceHash])
   @@index([deletedAt])
   @@map("purchase_invoices")
+}
+
+/// The product lines of an invoice were changed from an edited Excel file. Keeps the lines as they were, to undo it.
+model InvoiceExcelUpdate {
+  id           String    @id @default(cuid())
+  invoiceId    String
+  invoice      Invoice   @relation("InvoiceExcelUpdates", fields: [invoiceId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  fileName     String?   @db.VarChar(260)
+  /// The lines before the update (marks, container, description, weight per package, boxes, rate)
+  before       Json
+  /// The invoice's version right after the update; the update can be undone only while the invoice still has this version
+  afterVersion String    @db.VarChar(40)
+  added        Int       @default(0)
+  removed      Int       @default(0)
+  changed      Int       @default(0)
+  createdAt    DateTime  @default(now())
+  undoneAt     DateTime?
+
+  @@index([invoiceId, createdAt])
+  @@map("invoice_excel_updates")
 }
 
 /// A payment received against an invoice, in the invoice's currency. Recorded on actual invoices.

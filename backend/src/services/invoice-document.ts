@@ -19,6 +19,8 @@ export interface DocParty {
 }
 
 export interface DocLine {
+  /** The saved line's id: written to a hidden column of the Excel so an edited file can be matched back to its lines. */
+  id?: string;
   no: number;
   marks: string;
   description: string;
@@ -55,11 +57,16 @@ export interface InvoiceDocument {
   declaration: string;
   sign: DocSign | null;
   fileName: string;
+  /** Which invoice this document is, and its version: written to the Excel so an edited copy can be read back. */
+  meta?: { invoiceId: string; version: string };
 }
 
 /** The parts of a loaded invoice the documents need (Prisma Decimals arrive as objects with toString). */
 type Num = number | { toString(): string };
 export interface InvoiceSource {
+  id?: string;
+  /** When the invoice was last changed: the version an Excel file is tagged with. */
+  updatedAt?: Date;
   invoiceNumber: string;
   /** For an actual invoice: the invoice it was made from. The documents show that invoice's number, not "ACTUAL ...". */
   actualOf?: { invoiceNumber: string } | null;
@@ -109,6 +116,7 @@ export interface InvoiceSource {
   total: Num;
   amountInWords: string | null;
   lineItems: {
+    id?: string;
     marksAndNos: string | null;
     containerNo: string | null;
     descriptionOfGoods: string;
@@ -206,6 +214,7 @@ export const printedInvoiceNumber = (invoice: Pick<InvoiceSource, 'invoiceNumber
 
 export function buildInvoiceDocument(invoice: InvoiceSource): InvoiceDocument {
   const lines: DocLine[] = invoice.lineItems.map((item, index) => ({
+    ...(item.id ? { id: item.id } : {}),
     no: index + 1,
     marks: [text(item.marksAndNos), text(item.containerNo) && text(item.containerNo) !== text(item.marksAndNos) ? text(item.containerNo) : ''].filter(Boolean).join(' / '),
     description: text(item.descriptionOfGoods),
@@ -269,5 +278,6 @@ export function buildInvoiceDocument(invoice: InvoiceSource): InvoiceDocument {
     declaration: text(invoice.declaration) || DEFAULT_DECLARATION,
     sign: decodeSign(invoice.signName, invoice.signImage),
     fileName: safeFileName(invoice.invoiceNumber),
+    ...(invoice.id && invoice.updatedAt ? { meta: { invoiceId: invoice.id, version: invoice.updatedAt.toISOString() } } : {}),
   };
 }
